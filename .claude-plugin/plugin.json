@@ -1,4 +1,14 @@
 {
   "name": "stonematt-skills",
-  "skills": []
+  "skills": [
+    "./skills/engineering/commit",
+    "./skills/engineering/merge",
+    "./skills/engineering/promote-settings",
+    "./skills/engineering/sync-plugin-manifest",
+    "./skills/productivity/ai-sniff-test",
+    "./skills/productivity/client-report",
+    "./skills/productivity/continue-after-clear",
+    "./skills/productivity/journal",
+    "./skills/productivity/journal-status"
+  ]
 }
