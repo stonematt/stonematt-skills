@@ -32,15 +32,15 @@ The bundle includes the skill plus selected persona files. Persona files must be
 
 ## Skills
 
-Currently shipping (none yet — repo is bootstrapped, skill bodies pending migration).
+**engineering/** — [commit](./skills/engineering/commit/SKILL.md), [merge](./skills/engineering/merge/SKILL.md), [promote-settings](./skills/engineering/promote-settings/SKILL.md), [sync-plugin-manifest](./skills/engineering/sync-plugin-manifest/SKILL.md)
 
-Planned (see [`CONTEXT.md`](./CONTEXT.md) for terms):
+**productivity/** — [ai-sniff-test](./skills/productivity/ai-sniff-test/SKILL.md), [client-report](./skills/productivity/client-report/SKILL.md), [continue-after-clear](./skills/productivity/continue-after-clear/SKILL.md), [journal](./skills/productivity/journal/SKILL.md), [journal-status](./skills/productivity/journal-status/SKILL.md)
 
-**engineering/** — `commit`, `merge`, `promote-settings`, `sync-plugin-manifest`
+Planned (not yet migrated):
 
-**productivity/** — `ai-sniff-test`, `client-report`, `continue-after-clear`, `email` (generic), `journal`, `journal-status`, `voice` (generic)
+- **productivity/** — `email` (generic), `voice` (generic)
 
-The `email` and `voice` skills are **generic** — they take a persona slug as an argument and resolve persona content from a configurable path. See [`docs/adr/0001-cross-surface-persona-architecture.md`](./docs/adr/0001-cross-surface-persona-architecture.md).
+The `email` and `voice` skills will be **generic** — they take a persona slug as an argument and resolve persona content from a configurable path. See [`docs/adr/0001-cross-surface-persona-architecture.md`](./docs/adr/0001-cross-surface-persona-architecture.md).
 
 ## Personas
 

@@ -4,8 +4,10 @@ Daily non-code workflow tools.
 
 | Skill | Description |
 |---|---|
-| _(empty — migration pending)_ | |
+| [ai-sniff-test](./ai-sniff-test/SKILL.md) | Self-review checklist that catches AI-generated tells in drafted prose before a human sees it. |
+| [client-report](./client-report/SKILL.md) | Executive-level summary of product changes since a given date — SOW-aware, business-value framing. |
+| [continue-after-clear](./continue-after-clear/SKILL.md) | Park session state to memory before `/clear`, restore after. Optional slug for parallel parks. |
+| [journal](./journal/SKILL.md) | Dev journal entry pulling signal from commits + non-git context (vendors, decisions, infra events). |
+| [journal-status](./journal-status/SKILL.md) | Tabular summary of existing journal entries. |
 
-Planned: `ai-sniff-test`, `client-report`, `continue-after-clear`, `email` (generic), `journal`, `journal-status`, `voice` (generic).
-
-The `voice` and `email` skills resolve persona content at runtime — see [`docs/adr/0001-cross-surface-persona-architecture.md`](../../docs/adr/0001-cross-surface-persona-architecture.md).
+Planned (not yet migrated): `email` (generic), `voice` (generic). These resolve persona content at runtime — see [`docs/adr/0001-cross-surface-persona-architecture.md`](../../docs/adr/0001-cross-surface-persona-architecture.md).
