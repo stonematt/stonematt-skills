@@ -34,7 +34,7 @@ The bundle includes the skill plus selected persona files. Persona files must be
 
 **engineering/** — [commit](./skills/engineering/commit/SKILL.md), [merge](./skills/engineering/merge/SKILL.md), [promote-settings](./skills/engineering/promote-settings/SKILL.md), [sync-plugin-manifest](./skills/engineering/sync-plugin-manifest/SKILL.md)
 
-**productivity/** — [ai-sniff-test](./skills/productivity/ai-sniff-test/SKILL.md), [client-report](./skills/productivity/client-report/SKILL.md), [continue-after-clear](./skills/productivity/continue-after-clear/SKILL.md), [journal](./skills/productivity/journal/SKILL.md), [journal-status](./skills/productivity/journal-status/SKILL.md)
+**productivity/** — [ai-sniff-test](./skills/productivity/ai-sniff-test/SKILL.md), [client-report](./skills/productivity/client-report/SKILL.md), [continue-after-clear](./skills/productivity/continue-after-clear/SKILL.md), [handoff](./skills/productivity/handoff/SKILL.md), [journal](./skills/productivity/journal/SKILL.md), [journal-status](./skills/productivity/journal-status/SKILL.md)
 
 Planned (not yet migrated):
 
