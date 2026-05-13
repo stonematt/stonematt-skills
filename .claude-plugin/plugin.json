@@ -8,6 +8,7 @@
     "./skills/productivity/ai-sniff-test",
     "./skills/productivity/client-report",
     "./skills/productivity/continue-after-clear",
+    "./skills/productivity/handoff",
     "./skills/productivity/journal",
     "./skills/productivity/journal-status"
   ]
