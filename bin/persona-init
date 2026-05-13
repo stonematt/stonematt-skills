@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Scaffold a new persona: voice + email templates AND Tier 2 shim skills
+# in the dotfiles stow source.
+#
+# Usage:
+#   ./bin/persona-init <slug>
+#
+# Requires:
+#   - STONEMATT_DOTFILES_DIR (path to the dotfiles repo root, must contain
+#     stonematt-skills/ stow package) — or pass it inline.
+#
+# Reads/writes:
+#   $XDG_CONFIG_HOME/stonematt-skills/persona/<slug>/{voice,email}.md
+#   $STONEMATT_DOTFILES_DIR/stonematt-skills/dot-config/stonematt-skills/persona/<slug>/{voice,email}.md
+#   $STONEMATT_DOTFILES_DIR/stonematt-skills/dot-claude/skills/<slug>-{voice,email}/SKILL.md
+
+if [ $# -lt 1 ]; then
+  echo "usage: $0 <slug>" >&2
+  exit 1
+fi
+
+slug="$1"
+
+# Validate slug.
+if ! [[ "$slug" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  echo "error: slug must be lowercase letters/digits/hyphens, starting with a letter (got: '$slug')" >&2
+  exit 1
+fi
+
+dotfiles="${STONEMATT_DOTFILES_DIR:-}"
+if [ -z "$dotfiles" ]; then
+  echo "error: STONEMATT_DOTFILES_DIR is not set" >&2
+  echo "  export STONEMATT_DOTFILES_DIR=/path/to/dotfiles" >&2
+  exit 1
+fi
+
+stow_pkg="$dotfiles/stonematt-skills"
+if [ ! -d "$stow_pkg" ]; then
+  echo "error: stow package not found at $stow_pkg" >&2
+  echo "  expected: $dotfiles/stonematt-skills/" >&2
+  exit 1
+fi
+
+# TODO: implement scaffold writes.
+# 1. Write persona templates to:
+#    $stow_pkg/dot-config/stonematt-skills/persona/$slug/voice.md
+#    $stow_pkg/dot-config/stonematt-skills/persona/$slug/email.md
+#    Template shape: 5-15 bullet style rules + 3-5 few-shot pairs +
+#    numeric targets + anti-patterns. See ADR-0001.
+# 2. Write Tier 2 shim SKILL.md files to:
+#    $stow_pkg/dot-claude/skills/$slug-voice/SKILL.md
+#    $stow_pkg/dot-claude/skills/$slug-email/SKILL.md
+#    Triggers: "write as $slug", "$slug voice", "/$slug-voice", etc.
+#    Body: delegate to generic voice/email skill with persona=$slug.
+# 3. Print next-steps: edit templates, run `stow -d $dotfiles stonematt-skills`.
+
+echo "TODO: scaffold persona '$slug'" >&2
+echo "  stow package: $stow_pkg" >&2
+exit 64

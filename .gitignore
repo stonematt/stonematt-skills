@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+.kg-data/
+.journal/
+*.log
+.claude/settings.local.json
+.claudeai-build/
+*.zip
