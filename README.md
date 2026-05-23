@@ -34,13 +34,9 @@ The bundle includes the skill plus selected persona files. Persona files must be
 
 **engineering/** — [commit](./skills/engineering/commit/SKILL.md), [merge](./skills/engineering/merge/SKILL.md), [promote-settings](./skills/engineering/promote-settings/SKILL.md), [sync-plugin-manifest](./skills/engineering/sync-plugin-manifest/SKILL.md)
 
-**productivity/** — [ai-sniff-test](./skills/productivity/ai-sniff-test/SKILL.md), [client-report](./skills/productivity/client-report/SKILL.md), [continue-after-clear](./skills/productivity/continue-after-clear/SKILL.md), [define-voice](./skills/productivity/define-voice/SKILL.md), [handoff](./skills/productivity/handoff/SKILL.md), [journal](./skills/productivity/journal/SKILL.md), [journal-status](./skills/productivity/journal-status/SKILL.md), [voice](./skills/productivity/voice/SKILL.md)
+**productivity/** — [ai-sniff-test](./skills/productivity/ai-sniff-test/SKILL.md), [client-report](./skills/productivity/client-report/SKILL.md), [continue-after-clear](./skills/productivity/continue-after-clear/SKILL.md), [define-voice](./skills/productivity/define-voice/SKILL.md), [email](./skills/productivity/email/SKILL.md), [handoff](./skills/productivity/handoff/SKILL.md), [journal](./skills/productivity/journal/SKILL.md), [journal-status](./skills/productivity/journal-status/SKILL.md), [voice](./skills/productivity/voice/SKILL.md)
 
-`voice` is a **generic** skill — it takes a persona slug as an argument and resolves persona content from a configurable path. `define-voice` is its authoring counterpart — it writes (or amends) the persona's `voice.md` that `voice` reads. See [`docs/adr/0001-cross-surface-persona-architecture.md`](./docs/adr/0001-cross-surface-persona-architecture.md).
-
-Planned (not yet migrated):
-
-- **productivity/** — `email` (generic)
+`voice` and `email` are **generic** skills — they take a persona slug as an argument and resolve persona content from a configurable path. `email` resolves both the persona's `email.md` (signature/contact) and `voice.md` (tone). `define-voice` is the authoring counterpart — it writes (or amends) the `voice.md` that `voice` and `email` read. See [`docs/adr/0001-cross-surface-persona-architecture.md`](./docs/adr/0001-cross-surface-persona-architecture.md).
 
 ## Usage
 
@@ -56,6 +52,13 @@ The generic `voice` skill applies a persona's voice to drafted prose, or reviews
 The Resolver finds the persona's `voice.md` via: `$STONEMATT_SKILLS_CONFIG` → `$XDG_CONFIG_HOME/stonematt-skills` → the skill's bundle dir → `./persona`. First hit wins. Long-form output runs through `ai-sniff-test` unless `--skip-sniff` is passed.
 
 Omit `--persona` to fall back to `$STONEMATT_DEFAULT_PERSONA` (export your most-used slug so `/voice` just works). The skill only asks when both the flag and the env var are unset.
+
+The `email` skill works the same way, resolving the persona's `email.md` (signature/contact) on top of its `voice.md` (tone):
+
+```
+/email --persona lithos reply to Dan declining the Tuesday call, propose async
+/email --persona lithos --register cold intro to a prospective client
+```
 
 **Tier 2 — invoke a persona-named shim** (optional, lives in private dotfiles):
 
