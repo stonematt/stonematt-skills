@@ -16,7 +16,7 @@ if [ -d "$REPO_ROOT/.journal" ]; then
 fi
 
 # Check if journal branch already exists (local or remote)
-if git -C "$REPO_ROOT" show-ref --verify --quiet refs/heads/stone-journal 2>/dev/null; then
+if git -C "$REPO_ROOT" show-ref --verify --quiet refs/heads/journal 2>/dev/null; then
     echo "Branch 'journal' exists, attaching worktree..."
     git -C "$REPO_ROOT" worktree add .journal journal
 else

@@ -28,7 +28,7 @@ Then ensure `.journal` is in `.gitignore` on the current working branch (not the
 
 Run in parallel:
 
-- `ls .journal/docs/stone-journal/*.md 2>/dev/null | sort | tail -1` (most recent entry)
+- `ls .journal/docs/journal/*.md 2>/dev/null | sort | tail -1` (most recent entry)
 - `git branch --show-current` (active branch in main worktree)
 - `git diff --stat HEAD` (uncommitted changes in main worktree)
 - `hostname -s` (for frontmatter)
@@ -133,7 +133,7 @@ When in doubt, lean toward leaving it out — the journal's value is density, no
 
 ### 4. Write entries and commit
 
-Write each day to `.journal/docs/stone-journal/YYYY-MM-DD.md` with YAML frontmatter:
+Write each day to `.journal/docs/journal/YYYY-MM-DD.md` with YAML frontmatter:
 
 ```markdown
 ---
@@ -176,7 +176,7 @@ commits: 3
 
 **Write directly — no approval step.** Upsert without asking. The `generated` field updates so downstream tools detect the refresh. This is safe because the skill preserves manual additions during upsert.
 
-**Commit inside the worktree** using the bundled script. The /stone-commit skill can't operate in a worktree (it runs `git status`/`git diff` in the main working tree), so journal uses its own commit script that follows the same conventions (Conventional Commits, heredoc, Co-Authored-By trailer):
+**Commit inside the worktree** using the bundled script. The /stone-commit skill can't operate in a worktree (it runs `git status`/`git diff` in the main working tree), so journal uses its own commit script that follows the same conventions (Conventional Commits, heredoc):
 
 ```bash
 bash <skill-dir>/scripts/journal-commit.sh .journal "docs: add journal entries for YYYY-MM-DD through YYYY-MM-DD"
@@ -201,7 +201,7 @@ Compare the output against the set of files you just wrote or updated. If any da
 After writing, show a summary table of all entries with their status (created or updated) and theme line. No fenced code blocks of the full entries unless the user asks to see them.
 
 ```
-Journal entries written to .journal/docs/stone-journal/:
+Journal entries written to .journal/docs/journal/:
 
 | Date | Status | Theme |
 |------|--------|-------|
@@ -228,7 +228,7 @@ Committed as abc1234 on journal branch.
 
 - Upsert is the default — existing entries are regenerated with new info merged in
 - Preserve out-of-band notes and manual edits from existing entries during upsert
-- If `.journal/docs/stone-journal/` doesn't exist in the worktree, create it
+- If `.journal/docs/journal/` doesn't exist in the worktree, create it
 - `--all` includes unmerged branch commits — intentional, you did the work even if it's not merged yet
 - The `.journal` worktree must be in `.gitignore` on the main working branch
 - Never commit journal entries to the current working branch — always use the worktree

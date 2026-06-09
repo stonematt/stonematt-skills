@@ -15,7 +15,7 @@ Check that `.journal/` exists via `git worktree list`. If missing, tell the user
 
 ### 2. Read entries
 
-List all files in `.journal/docs/stone-journal/*.md` sorted by name (chronological).
+List all files in `.journal/docs/journal/*.md` sorted by name (chronological).
 
 For each file, extract from YAML frontmatter and first heading:
 - `date` — from frontmatter
