@@ -13,7 +13,7 @@ This repo is a single skill bundle; there are no sub-contexts. Layout:
 │   ├── briefs/                 ← PRDs / scoped initiatives (lazy)
 │   │   └── <name>.md
 │   ├── adr/                    ← architectural decision records
-│   │   └── 0001-cross-surface-persona-architecture.md
+│   │   └── 0002-distribute-via-skills-cli-with-stone-namespace.md
 │   └── agents/                 ← agent skill configuration (this folder)
 ├── skills/
 │   └── <bucket>/<skill>/SKILL.md

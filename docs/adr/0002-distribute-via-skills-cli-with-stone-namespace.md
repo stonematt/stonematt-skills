@@ -1,0 +1,15 @@
+# Distribute via the skills CLI with a `stone-` namespace
+
+stonematt-skills must be shareable across the author's several hosts and with friends, on filesystem agents (Claude Code, Codex, opencode) and on claude.ai (Desktop/web/mobile). We adopt: **distribution via the `skills` CLI (`npx skills@latest add stonematt/stonematt-skills`) as the primary install for filesystem agents, `scripts/link-skills.sh` for the author's live dogfooding, and a `stone-` name prefix on every shipped skill.** We drop the Claude plugin path (`.claude-plugin/`). claude.ai has no CLI or filesystem path — it requires manual zip upload (Settings → Customize → Skills), built by `scripts/build-claudeai-zip.sh`.
+
+The `skills` CLI installs into a **flat central store** `~/.agents/skills/<name>` keyed by the bare skill name (verified in `~/.agents/.skill-lock.json`, which keys each entry by leaf name and records its source repo), then fans out symlinks into every selected agent's skills dir. A flat, name-keyed store means generic names (`commit`, `merge`) collide across packs — the second install clobbers the first. The `stone-` prefix guarantees collision-free installs and signals provenance to friends. Intent-triggering is by the skill's `description`, so the prefix only changes the explicit `/name` invocation, not natural-language activation.
+
+Trade-offs accepted: (a) depend on the third-party `skills` CLI rather than build our own installer — chosen because it is pocock's exact model and costs zero install code; (b) prefix the whole pack rather than only the risky names — chosen for uniformity and future-proofing, at the cost of bare slash shortcuts (`/commit` becomes `/stone-commit`); the author can keep private bare aliases in dotfiles. We rejected the plugin path because it is marketplace-gated and higher-friction for friends than `npx`.
+
+## Consequences
+
+- Every shipped skill's repo directory, `name:` frontmatter, and slash command is `stone-*`. The three must match — the CLI installs by leaf folder name.
+- claude.ai Desktop/web/mobile stay **manual zip-upload**; no automation is possible (Anthropic exposes no install API). `build-claudeai-zip.sh` must emit Desktop-compatible zips: a folder at the zip root, `description` ≤200 chars, and the metadata-file casing the uploader expects.
+- README documents `npx skills@latest add stonematt/stonematt-skills`; `/plugin install` is removed and `.claude-plugin/` deleted.
+- The `sync-plugin-manifest` skill is unrelated to this repo's plugin status (it manages the user's own dotfiles plugin list); it is removed here only because the author no longer uses it.
+- The persona architecture (ADR-0001 and the `voice`/`email`/`define-voice` skills, `bin/persona-init`, persona-bundling in `build-claudeai-zip.sh`) moves to `feat/voice-personas` for future re-integration; it is out of the daily-skills release line.
