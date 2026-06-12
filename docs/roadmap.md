@@ -8,7 +8,7 @@ Per [`docs/agents/issue-tracker.md`](agents/issue-tracker.md), roadmap is the to
 
 ## code-explorer agent (global default, repo-local override)
 
-**Status:** sketch, not yet grilled. Out of current `Scope (locked)` in [`CONTEXT.md`](../CONTEXT.md) — this repo currently ships 11 Skills and no Agents. Agents would need a scope-expansion decision before this graduates.
+**Status:** sketch, not yet grilled. Out of current `Scope (locked)` in [`CONTEXT.md`](../CONTEXT.md) — this repo currently ships 7 Skills and no Agents. Agents would need a scope-expansion decision before this graduates.
 
 **Premise.** Read-only code exploration is generic across repos. A global `~/.claude/agents/code-explorer.md` running on Sonnet handles "where is X defined", "find callers of Y", "grep for symbol K" for ~80% of repos at a fraction of Opus cost. Repo-local overrides handle the 20% where conventions, domain glossary, or hot-file deny rules matter.
 
@@ -43,5 +43,5 @@ Start global. Add repo-specific only when a session shows wandering in that repo
 
 - Does this repo (`stonematt-skills`) become a home for Agents alongside Skills? Or does the global `code-explorer` live in private dotfiles?
 - If Agents land here, does `plugin.json` need a schema extension? Per handoff: "Hooks/agents/commands integration into the plugin.json — schema doesn't formally support; defer."
-- Is there value in a Tier 1 / Tier 2 split for agents analogous to the Persona pattern (public generic + private overrides)?
+- Is there value in a public/private split for agents, analogous to the current split between public skills and private dotfiles?
 - Should this be one repo-and-pattern or a separate `stonematt-agents` repo?

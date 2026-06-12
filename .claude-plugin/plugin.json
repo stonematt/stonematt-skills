@@ -1,17 +1,12 @@
 {
   "name": "stonematt-skills",
   "skills": [
-    "./skills/engineering/commit",
-    "./skills/engineering/merge",
-    "./skills/engineering/promote-settings",
-    "./skills/engineering/sync-plugin-manifest",
-    "./skills/productivity/ai-sniff-test",
-    "./skills/productivity/client-report",
-    "./skills/productivity/continue-after-clear",
-    "./skills/productivity/define-voice",
-    "./skills/productivity/email",
-    "./skills/productivity/journal",
-    "./skills/productivity/journal-status",
-    "./skills/productivity/voice"
+    "./skills/engineering/stone-commit",
+    "./skills/engineering/stone-merge",
+    "./skills/engineering/stone-promote-settings",
+    "./skills/productivity/stone-ai-sniff-test",
+    "./skills/productivity/stone-client-report",
+    "./skills/personal/stone-journal",
+    "./skills/personal/stone-journal-status"
   ]
 }

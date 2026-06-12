@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a claude.ai-uploadable zip bundle for one skill, optionally
-# bundling one or more persona files alongside it.
+# Build a claude.ai-uploadable zip for one skill. claude.ai (Desktop/web/mobile)
+# has no CLI or filesystem install path — skills are uploaded by hand via
+# Settings → Customize → Skills. This produces the zip to upload.
 #
 # Usage:
-#   ./scripts/build-claudeai-zip.sh <skill> [persona-slug ...]
+#   ./scripts/build-claudeai-zip.sh <skill>
 #
-# Examples:
-#   ./scripts/build-claudeai-zip.sh commit
-#   ./scripts/build-claudeai-zip.sh voice lithos
-#   ./scripts/build-claudeai-zip.sh email lithos nwhub
+# Example:
+#   ./scripts/build-claudeai-zip.sh stone-commit   # → stone-commit.zip
 #
-# Output: stonematt-<skill>[-<persona>...].zip in the repo root.
+# Output: <skill>.zip in the repo root, with the skill folder at the zip root
+# (myskill.zip → myskill/SKILL.md + files), the layout the uploader expects.
+#
+# TODO (Desktop compatibility — verify against current claude.ai uploader):
+#   - The uploader caps `description` at ~200 chars; several skills exceed this
+#     (kept long for Claude Code intent-triggering). Trim a copy here if rejected.
+#   - Confirm metadata filename casing (`SKILL.md` vs `skill.md`); rename in the
+#     staged copy if the uploader requires lowercase.
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$REPO/.claudeai-build"
-CONFIG_DIR="${STONEMATT_SKILLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/stonematt-skills}"
 
-if [ $# -lt 1 ]; then
-  echo "usage: $0 <skill> [persona-slug ...]" >&2
+if [ $# -ne 1 ]; then
+  echo "usage: $0 <skill>" >&2
   exit 1
 fi
-
 skill="$1"
-shift
-personas=("$@")
 
-# Resolve the skill source dir.
+# Resolve the skill source dir by leaf folder name.
 skill_src=""
 while IFS= read -r -d '' candidate; do
   if [ "$(basename "$(dirname "$candidate")")" = "$skill" ]; then
@@ -41,37 +43,15 @@ if [ -z "$skill_src" ]; then
   exit 1
 fi
 
-# Stage the bundle.
+# Stage the skill in a folder named after it, so it sits at the zip root.
 stage="$BUILD_DIR/$skill"
 rm -rf "$stage"
 mkdir -p "$stage"
 cp -R "$skill_src/." "$stage/"
 
-# Bundle personas, if any.
-if [ ${#personas[@]} -gt 0 ]; then
-  mkdir -p "$stage/persona"
-  for slug in "${personas[@]}"; do
-    src="$CONFIG_DIR/persona/$slug"
-    if [ ! -d "$src" ]; then
-      echo "error: persona '$slug' not found at $src" >&2
-      echo "  hint: run ./bin/persona-init $slug to scaffold it" >&2
-      exit 1
-    fi
-    cp -R "$src" "$stage/persona/$slug"
-    echo "bundled persona: $slug ($src)"
-  done
-fi
-
-# Build the zip.
-name="stonematt-$skill"
-if [ ${#personas[@]} -gt 0 ]; then
-  for slug in "${personas[@]}"; do
-    name="$name-$slug"
-  done
-fi
-out="$REPO/$name.zip"
+out="$REPO/$skill.zip"
 rm -f "$out"
-(cd "$stage" && zip -qr "$out" .)
+(cd "$BUILD_DIR" && zip -qr "$out" "$skill")
 
 echo "built $out"
-echo "upload via Claude.ai Settings → Features → Skills"
+echo "upload via claude.ai Settings → Customize → Skills"

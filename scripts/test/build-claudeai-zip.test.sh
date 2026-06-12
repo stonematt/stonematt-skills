@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Black-box test for scripts/build-claudeai-zip.sh. Bundles the voice skill plus
-# a throwaway persona, then asserts the zip layout matches Resolver path 3
-# ($SKILL_DIR/persona/<slug>/voice.md).
+# Black-box test for scripts/build-claudeai-zip.sh. Builds a real skill and
+# asserts the zip places the skill folder at the zip root — the layout the
+# claude.ai uploader (Settings → Customize → Skills) expects.
 #
 # Run: ./scripts/test/build-claudeai-zip.test.sh
 
@@ -16,31 +16,17 @@ fail=0
 ok()  { printf 'PASS: %s\n' "$1"; pass=$((pass+1)); }
 bad() { printf 'FAIL: %s\n   %s\n' "$1" "$2"; fail=$((fail+1)); }
 
-# --- Case 1: voice + persona bundle has the expected layout ---
+# --- Case 1: zip has the skill folder at the root ---
 (
-  cfg="$(mktemp -d)"; trap 'rm -rf "$cfg"; rm -f "$repo/stonematt-voice-demo.zip"' EXIT
-  mkdir -p "$cfg/persona/demo"
-  printf '# demo voice\n' >"$cfg/persona/demo/voice.md"
-
-  STONEMATT_SKILLS_CONFIG="$cfg" "$builder" voice demo >/dev/null 2>&1
-  zip="$repo/stonematt-voice-demo.zip"
+  trap 'rm -f "$repo/stone-commit.zip"' EXIT
+  "$builder" stone-commit >/dev/null 2>&1 || exit 1
+  zip="$repo/stone-commit.zip"
   [ -f "$zip" ] || exit 1
-  listing="$(unzip -l "$zip")"
-  grep -q "SKILL.md" <<<"$listing" \
-    && grep -q "scripts/resolve-persona.sh" <<<"$listing" \
-    && grep -q "persona/demo/voice.md" <<<"$listing"
-) && ok "bundle contains SKILL.md, resolver script, and persona/demo/voice.md" \
-   || bad "voice+persona bundle" "missing expected entries in zip"
+  unzip -l "$zip" | grep -q "stone-commit/SKILL.md"
+) && ok "zip contains stone-commit/ at the root" \
+   || bad "folder-at-root layout" "stone-commit/SKILL.md not found in zip"
 
-# --- Case 2: missing persona errors with a scaffold hint ---
-(
-  cfg="$(mktemp -d)"; trap 'rm -rf "$cfg"; rm -f "$repo/stonematt-voice-absent.zip"' EXIT
-  out="$(STONEMATT_SKILLS_CONFIG="$cfg" "$builder" voice absent 2>&1)"; rc=$?
-  [ "$rc" -ne 0 ] && grep -q "persona-init" <<<"$out"
-) && ok "missing persona errors with persona-init hint" \
-   || bad "missing persona" "did not error or no hint"
-
-# --- Case 3: unknown skill errors ---
+# --- Case 2: unknown skill errors clearly ---
 (
   out="$("$builder" no-such-skill 2>&1)"; rc=$?
   [ "$rc" -ne 0 ] && grep -q "not found" <<<"$out"
