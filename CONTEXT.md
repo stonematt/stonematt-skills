@@ -45,6 +45,6 @@ A zip containing one skill's folder at the zip root. Built by `scripts/build-cla
 
 ## Scope (locked)
 
-- **In:** 7 `stone-*` skills authored by Matt Stone — `stone-commit`, `stone-merge`, `stone-promote-settings` (engineering); `stone-ai-sniff-test`, `stone-client-report`, `stone-journal`, `stone-journal-status` (productivity).
+- **In:** 7 `stone-*` skills authored by Matt Stone — `stone-commit`, `stone-merge`, `stone-promote-settings` (engineering); `stone-ai-sniff-test`, `stone-client-report` (productivity); `stone-journal`, `stone-journal-status` (personal).
 - **Deferred** (parked on `feat/voice-personas`): the generic `voice` / `email` / `define-voice` skills, `bin/persona-init`, persona-bundling in the zip builder, and ADR-0001 (cross-surface persona architecture). Re-integrate as one unit later.
 - **Out:** `continue-after-clear`, `sync-plugin-manifest` (removed — unused). The Claude plugin path (`.claude-plugin/` — superseded by the `skills` CLI). Identity skills `lithos-voice` / `lithos-email` (private dotfiles). Third-party copies (`web-design-guidelines`, `marp-slides`, `excalidraw-diagram`, `mermaid-visualizer`, `obsidian-canvas-creator`, `ux-designer-skill`, `graphify`). Hooks, agents, settings, CLAUDE.md (separate concerns).
