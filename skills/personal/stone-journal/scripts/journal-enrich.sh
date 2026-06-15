@@ -11,9 +11,17 @@
 # Usage:  journal-enrich.sh <start-date YYYY-MM-DD> [<end-date YYYY-MM-DD>]
 # If end-date omitted, uses start-date (single-day mode).
 #
-# Resolves the project slug from the current working directory (absolute
-# path with "/" → "-"). Run from the repo root or main worktree, not the
-# .journal worktree.
+# Project-dir resolution (works in any repo):
+#   Claude Code stores per-project transcripts/memory under
+#   ~/.claude/projects/<slug>, where <slug> is the cwd with separators mapped
+#   to '-'. The exact mapping has changed across Claude Code versions — '.'
+#   used to be preserved (…-github.com-…) and is now replaced (…-github-com-…),
+#   so a single repo's history can be split across BOTH slug dirs. Rather than
+#   reconstruct one slug (brittle), we normalize the cwd AND every candidate
+#   dir name to a canonical form (all non-alphanumerics -> '-') and keep the
+#   dirs whose canonical form matches exactly, unioning signal across them.
+#   This tolerates whatever separator convention any Claude version used.
+#   Run from the repo root / main worktree, not the .journal worktree.
 
 set -u
 
@@ -29,10 +37,26 @@ else
 fi
 
 PROJECT_DIR=$(pwd)
-SLUG=$(printf '%s' "$PROJECT_DIR" | sed 's|/|-|g')
-CLAUDE_PROJ_DIR="$HOME/.claude/projects/$SLUG"
-MEMORY_DIR="$CLAUDE_PROJ_DIR/memory"
+PROJECTS_ROOT="$HOME/.claude/projects"
 PLANS_DIR="$HOME/.claude/plans"
+
+# Canonicalize a path/slug: every run of non-alphanumerics collapses to '-'.
+# Comparing two strings under this normalization makes the match independent
+# of which separator a given Claude version chose ('.' vs '-', etc.).
+norm() { printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g'; }
+TARGET_NORM=$(norm "$PROJECT_DIR")
+
+# Collect every project dir whose canonical name matches the cwd's. Usually
+# one; can be two when history straddles an encoding change.
+PROJ_DIRS=()
+if [ -d "$PROJECTS_ROOT" ]; then
+  for d in "$PROJECTS_ROOT"/*/; do
+    [ -d "$d" ] || continue
+    if [ "$(norm "$(basename "$d")")" = "$TARGET_NORM" ]; then
+      PROJ_DIRS+=("${d%/}")
+    fi
+  done
+fi
 
 # Redaction filter. Strips common secret shapes before any model sees this.
 redact() {
@@ -53,28 +77,38 @@ PATTERN='signed up|sign up|signup|account|verified|verify domain|verification|ad
 
 echo "# Journal enrichment — $START to $END"
 echo "# Project: $PROJECT_DIR"
-echo "# Slug: $SLUG"
+echo "# Canonical slug: $TARGET_NORM"
+if [ "${#PROJ_DIRS[@]}" -eq 0 ]; then
+  echo "# Matched project dirs: (none under $PROJECTS_ROOT)"
+else
+  echo "# Matched project dirs (${#PROJ_DIRS[@]}):"
+  for d in "${PROJ_DIRS[@]}"; do echo "#   - $(basename "$d")"; done
+fi
 echo
 
 # -------- Memory files --------
 echo "## Memory (curated learnings)"
-if [ -d "$MEMORY_DIR" ]; then
-  # shellcheck disable=SC2207
-  FILES=($(find "$MEMORY_DIR" -maxdepth 2 -name '*.md' \
-    -newermt "$START" ! -newermt "$END_NEXT" 2>/dev/null | sort))
-  if [ "${#FILES[@]}" -eq 0 ]; then
-    echo "_(no memory files created or modified in range)_"
-  else
-    for f in "${FILES[@]}"; do
+mem_found=0
+if [ "${#PROJ_DIRS[@]}" -gt 0 ]; then
+  for d in "${PROJ_DIRS[@]}"; do
+    MEMORY_DIR="$d/memory"
+    [ -d "$MEMORY_DIR" ] || continue
+    # shellcheck disable=SC2207
+    FILES=($(find "$MEMORY_DIR" -maxdepth 2 -name '*.md' \
+      -newermt "$START" ! -newermt "$END_NEXT" 2>/dev/null | sort))
+    for f in "${FILES[@]:-}"; do
+      [ -n "$f" ] || continue
+      mem_found=1
       echo
       echo "### $(basename "$f")"
       echo '```'
       cat "$f" | redact
       echo '```'
     done
-  fi
-else
-  echo "_(no memory dir — $MEMORY_DIR does not exist)_"
+  done
+fi
+if [ "$mem_found" -eq 0 ]; then
+  echo "_(no memory files created or modified in range)_"
 fi
 echo
 
@@ -101,14 +135,15 @@ echo
 
 # -------- Transcript excerpts --------
 echo "## Transcripts (filtered to decisions / vendor events / out-of-band)"
-if [ -d "$CLAUDE_PROJ_DIR" ]; then
-  # shellcheck disable=SC2207
-  SESSIONS=($(find "$CLAUDE_PROJ_DIR" -maxdepth 1 -name '*.jsonl' \
-    -newermt "$START" ! -newermt "$END_NEXT" 2>/dev/null | sort))
-  if [ "${#SESSIONS[@]}" -eq 0 ]; then
-    echo "_(no transcripts in range)_"
-  else
-    for t in "${SESSIONS[@]}"; do
+tx_found=0
+if [ "${#PROJ_DIRS[@]}" -gt 0 ]; then
+  for d in "${PROJ_DIRS[@]}"; do
+    # shellcheck disable=SC2207
+    SESSIONS=($(find "$d" -maxdepth 1 -name '*.jsonl' \
+      -newermt "$START" ! -newermt "$END_NEXT" 2>/dev/null | sort))
+    for t in "${SESSIONS[@]:-}"; do
+      [ -n "$t" ] || continue
+      tx_found=1
       echo
       echo "### $(basename "$t")"
       # Extract user + assistant text content, filter to date range, grep for pattern.
@@ -128,23 +163,18 @@ except Exception as e:
     sys.exit(1)
 
 def text_of(msg):
+    # Only authored prose (typed user messages, assistant text). Tool-result
+    # blocks are deliberately skipped — they're file reads / command output /
+    # injected skill docs, which flood the keyword filter with false positives
+    # (line-numbered code, doc text) while rarely holding a durable decision.
     c = msg.get("content")
     if isinstance(c, str):
         return c
     if isinstance(c, list):
         out = []
         for block in c:
-            if isinstance(block, dict):
-                if "text" in block:
-                    out.append(block["text"])
-                elif block.get("type") == "tool_result":
-                    r = block.get("content")
-                    if isinstance(r, str):
-                        out.append(r)
-                    elif isinstance(r, list):
-                        for sub in r:
-                            if isinstance(sub, dict) and "text" in sub:
-                                out.append(sub["text"])
+            if isinstance(block, dict) and "text" in block:
+                out.append(block["text"])
         return "\n".join(out)
     return ""
 
@@ -177,9 +207,10 @@ with open(path, errors="replace") as f:
                 print(f"[{tag}] {chunk}")
 PY
     done
-  fi
-else
-  echo "_(no project transcript dir — $CLAUDE_PROJ_DIR does not exist)_"
+  done
+fi
+if [ "$tx_found" -eq 0 ]; then
+  echo "_(no transcripts in range)_"
 fi
 
 echo

@@ -2,10 +2,9 @@
 # Commits journal entries inside the .journal worktree.
 # Usage: journal-commit.sh <worktree-path> <commit-message>
 #
-# Follows the same conventions as the /commit skill:
+# Follows the same conventions as the /stone-commit skill:
 # - Conventional Commits format
 # - Heredoc for commit message
-# - Co-Authored-By trailer
 #
 # Uses git -C to avoid cd chains and permission prompt issues.
 

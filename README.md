@@ -2,63 +2,68 @@
 
 Cross-surface Claude Code / Codex / opencode / claude.ai skills authored by Matt Stone.
 
-Pairs with a private `stonematt-skills` dotfiles stow package for persona content.
+All skills are namespaced `stone-*` so they install into a shared central store
+(`~/.agents/skills`) without colliding with same-named skills from other packs.
+The prefix only changes the explicit slash command (`/stone-commit`) — natural-language
+triggers ("commit this", "write a journal") are unaffected.
 
 ## Install
 
-### Claude Code (and Codex / opencode)
+### Claude Code / Codex / opencode (and most filesystem agents)
 
 ```bash
 npx skills@latest add stonematt/stonematt-skills
 ```
 
-Or as a Claude Code plugin:
+Pick the skills and agents in the interactive prompt. The CLI copies them into
+`~/.agents/skills` and symlinks them into each agent. Re-run to update.
 
+**Developing this repo?** Live-symlink the working copy into `~/.claude/skills` instead:
+
+```bash
+./scripts/link-skills.sh
 ```
-/plugin marketplace add stonematt/stonematt-skills
-/plugin install stonematt-skills
-```
+
+This links the working-copy skills into both `~/.claude/skills` and
+`~/.agents/skills` for Claude Code and Codex dogfooding.
 
 ### Claude Desktop / web / mobile
 
-Skills run on claude.ai via uploaded zip bundles. Build a bundle locally and upload it via Settings → Features → Skills:
+claude.ai has no CLI or filesystem install — upload a zip by hand via
+**Settings → Customize → Skills**. This path is best-effort for the MVP until
+bundle compatibility is validated against the current uploader. Build one per
+skill:
 
 ```bash
-./scripts/build-claudeai-zip.sh voice lithos
-# → produces stonematt-voice-lithos.zip
+./scripts/build-claudeai-zip.sh stone-commit   # → stone-commit.zip
 ```
-
-The bundle includes the skill plus selected persona files. Persona files must be on your local machine (see [Personas](#personas)).
 
 ## Skills
 
-**engineering/** — [commit](./skills/engineering/commit/SKILL.md), [merge](./skills/engineering/merge/SKILL.md), [promote-settings](./skills/engineering/promote-settings/SKILL.md), [sync-plugin-manifest](./skills/engineering/sync-plugin-manifest/SKILL.md)
+**engineering/** — [stone-commit](./skills/engineering/stone-commit/SKILL.md), [stone-merge](./skills/engineering/stone-merge/SKILL.md), [stone-promote-settings](./skills/engineering/stone-promote-settings/SKILL.md)
 
-**productivity/** — [ai-sniff-test](./skills/productivity/ai-sniff-test/SKILL.md), [client-report](./skills/productivity/client-report/SKILL.md), [continue-after-clear](./skills/productivity/continue-after-clear/SKILL.md), [handoff](./skills/productivity/handoff/SKILL.md), [journal](./skills/productivity/journal/SKILL.md), [journal-status](./skills/productivity/journal-status/SKILL.md)
+**productivity/** — [stone-ai-sniff-test](./skills/productivity/stone-ai-sniff-test/SKILL.md), [stone-client-report](./skills/productivity/stone-client-report/SKILL.md)
 
-Planned (not yet migrated):
+**personal/** — [stone-journal](./skills/personal/stone-journal/SKILL.md), [stone-journal-status](./skills/personal/stone-journal-status/SKILL.md)
 
-- **productivity/** — `email` (generic), `voice` (generic)
-
-The `email` and `voice` skills will be **generic** — they take a persona slug as an argument and resolve persona content from a configurable path. See [`docs/adr/0001-cross-surface-persona-architecture.md`](./docs/adr/0001-cross-surface-persona-architecture.md).
-
-## Personas
-
-This repo contains **zero** identity content. Personas (voice fingerprints, email signatures, brand guidelines) live in a private dotfiles stow package — they are not published here.
-
-Bootstrap a persona on your machine:
-
-```bash
-./bin/persona-init <slug>
-# scaffolds $XDG_CONFIG_HOME/stonematt-skills/persona/<slug>/{voice,email}.md
-# plus Tier 2 shim skills in the dotfiles stow source
-```
+The generic persona skills (`voice`, `email`, `define-voice`) and their tooling are
+parked on the `feat/voice-personas` branch for future re-integration.
 
 ## Repository conventions
 
 - See [`CLAUDE.md`](./CLAUDE.md) for agent skill configuration (issue tracker, triage labels, domain docs)
 - See [`CONTEXT.md`](./CONTEXT.md) for the project's vocabulary
 - See [`docs/adr/`](./docs/adr/) for architectural decisions
+
+## Test
+
+Run the lightweight pre-merge gate before merging to `main`:
+
+```bash
+./scripts/test.sh
+```
+
+This validates skill naming/index consistency and the claude.ai zip smoke test.
 
 ## License
 

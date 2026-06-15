@@ -1,6 +1,6 @@
 ---
-name: journal
-description: Generate a dev journal entry for today's work — pulling signal from git commits AND the non-git context that matters in 6 months (vendor integrations, stack decisions, infra events, service signups, dead-ends worth remembering). Trigger when the user says /journal, "journal entry", "write up today's work", "log today", or similar. Trigger even when the day had no commits but real work happened (accounts created, services configured, DNS changed, architectural decisions made).
+name: stone-journal
+description: Generate a dev journal entry for today's work — pulling signal from git commits AND the non-git context that matters in 6 months (vendor integrations, stack decisions, infra events, service signups, dead-ends worth remembering). Trigger when the user says /stone-journal, "journal entry", "write up today's work", "log today", or similar. Trigger even when the day had no commits but real work happened (accounts created, services configured, DNS changed, architectural decisions made).
 ---
 
 # Journal Entry Skill
@@ -56,7 +56,7 @@ For each date in the range, gather non-git signal from three places. Then feed t
 
 **Source 1 — Claude Code transcripts** (`~/.claude/projects/<project-slug>/*.jsonl`)
 
-Project slug = absolute repo path with `/` replaced by `-` (e.g., `/Users/you/src/foo/bar` → `-Users-you-src-foo-bar`). Transcripts are JSONL with `timestamp`, `role` (user/assistant), and `content`. Filter by timestamp into the date range.
+Claude Code stores each project's transcripts under `~/.claude/projects/<slug>`, where `<slug>` is the absolute repo path with separators mapped to `-`. **Do not hand-build the slug** — the exact mapping has changed across Claude Code versions (`.` was once preserved, e.g. `…-github.com-…`, and is now replaced, e.g. `…-github-com-…`), so one repo's history can be split across two slug dirs. Resolve robustly instead: normalize both the cwd and every dir name under `~/.claude/projects/` to a canonical form (all non-alphanumerics → `-`) and keep the dirs whose canonical form matches the cwd's, unioning signal across them. The bundled helper (below) does exactly this; prefer it over manual slug construction. Transcripts are JSONL with `timestamp`, `role` (user/assistant), and `content`. Filter by timestamp into the date range; skip `tool_result` blocks (file reads / command output flood the keyword filter with false positives).
 
 From the messages, pull content that matches any of these patterns:
 - **Vendor / service events** — "created account", "signed up at X", "verified domain", "added API key", references to product names (Resend, Twilio, Stripe, Auth0, Supabase, Hover, Cloudflare, Vercel, etc.)
@@ -65,12 +65,13 @@ From the messages, pull content that matches any of these patterns:
 - **Architectural discoveries** — "turns out adapter X emits to path Y", "API Z doesn't behave the way we assumed"
 - **Abandoned approaches** — "tried X, didn't work because Y, went with Z instead" (include only when the dead-end informs future decisions; skip routine debug cycles)
 
-**Source 2 — Curated memory** (`~/.claude/projects/<project-slug>/memory/`)
+**Source 2 — Curated memory** (`<matched-project-dir>/memory/`)
 
-Memory files are user-curated project learnings. New or modified memory files on a date are often the most important thing that happened that day — a correction, a preference, a constraint the model now knows to respect.
+Memory files are user-curated project learnings. New or modified memory files on a date are often the most important thing that happened that day — a correction, a preference, a constraint the model now knows to respect. Use the same robustly-resolved project dir(s) as Source 1 (the bundled helper covers this):
 
 ```bash
-find ~/.claude/projects/<slug>/memory -name '*.md' \
+# For each project dir whose canonical name matches the cwd (see Source 1):
+find "$PROJ_DIR/memory" -name '*.md' \
   -newermt "$START" ! -newermt "$END_PLUS_1" 2>/dev/null
 ```
 
@@ -91,7 +92,7 @@ Transcripts commonly contain API keys, tokens, and other secrets that users past
 
 **Bundled helper**
 
-Run `scripts/journal-enrich.sh <start-date> <end-date>` from the skill directory to gather all three sources and print a consolidated, redacted digest suitable for feeding into the synthesis step. The script uses `pwd` to resolve the project slug from the active repo.
+Run `scripts/journal-enrich.sh <start-date> <end-date>` from the repo root (main worktree, not `.journal`) to gather all three sources and print a consolidated, redacted digest suitable for feeding into the synthesis step. It resolves the project dir(s) from `pwd` using the canonical-normalization match described in Source 1 — works in any repo and unions across legacy/current slug encodings. Its header echoes the matched dirs so you can confirm resolution succeeded.
 
 ### 3. Synthesize entries
 
@@ -113,7 +114,7 @@ When in doubt, lean toward leaving it out — the journal's value is density, no
 - 2-3 sentence narrative max — what changed and why
 - **Organize by SOW/customer intent** (e.g., "V1->V2 migration", "Question-oriented dashboards"), not by artifact type or commit order. Use unlabeled sections or one-liners for work that doesn't fit these buckets.
 - **Always include a `Decisions & external events` bucket** when §2.5 surfaced any signal for the day. This is where vendor integrations, account signups, DNS changes, stack pivots, and abandoned-approach notes go. Even if a day had zero commits, a new vendor signup is worth a dedicated entry. Examples:
-  - `Chose Resend for transactional email — verified example.com via send.example.com subdomain; apex SPF merge with Google wasn't needed.`
+  - `Chose Resend for transactional email — verified example.com via a send.* subdomain; apex SPF merge with Google wasn't needed.`
   - `Dropped email-to-SMS bridge via AT&T gateway — delivery stuck queued, carrier filtering suspected. SMS alerting re-planned on Twilio when capacity returns.`
   - `Adapter @astrojs/cloudflare@13 emits dist/server/wrangler.json; root wrangler.jsonc is metadata-only, CI deploys via --config.`
 - Bullets for discrete deliverables, one per logical unit of work
@@ -175,7 +176,7 @@ commits: 3
 
 **Write directly — no approval step.** Upsert without asking. The `generated` field updates so downstream tools detect the refresh. This is safe because the skill preserves manual additions during upsert.
 
-**Commit inside the worktree** using the bundled script. The /commit skill can't operate in a worktree (it runs `git status`/`git diff` in the main working tree), so journal uses its own commit script that follows the same conventions (Conventional Commits, heredoc, Co-Authored-By trailer):
+**Commit inside the worktree** using the bundled script. The /stone-commit skill can't operate in a worktree (it runs `git status`/`git diff` in the main working tree), so journal uses its own commit script that follows the same conventions (Conventional Commits, heredoc):
 
 ```bash
 bash <skill-dir>/scripts/journal-commit.sh .journal "docs: add journal entries for YYYY-MM-DD through YYYY-MM-DD"

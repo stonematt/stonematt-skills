@@ -1,5 +1,5 @@
 ---
-name: promote-settings
+name: stone-promote-settings
 description: >
   Review and promote Claude Code permissions and settings from settings.local.json
   to settings.json in the current project. Use when the user says "promote settings",

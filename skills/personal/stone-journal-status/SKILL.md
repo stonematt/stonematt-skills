@@ -1,6 +1,6 @@
 ---
-name: journal-status
-description: Show a summary of dev journal entries. Trigger when user says /journal-status, "journal status", "show journal", "journal entries", "what's in the journal", "list journal", or asks about journal contents. Use this instead of /journal when the user wants to review existing entries rather than create new ones.
+name: stone-journal-status
+description: Show a summary of dev journal entries. Trigger when user says /stone-journal-status, "journal status", "show journal", "journal entries", "what's in the journal", "list journal", or asks about journal contents. Use this instead of /stone-journal when the user wants to review existing entries rather than create new ones.
 ---
 
 # Journal Status
@@ -11,7 +11,7 @@ Show a table of all journal entries with date, theme, and metadata.
 
 ### 1. Verify journal worktree
 
-Check that `.journal/` exists via `git worktree list`. If missing, tell the user to run `/journal` first to set it up.
+Check that `.journal/` exists via `git worktree list`. If missing, tell the user to run `/stone-journal` first to set it up.
 
 ### 2. Read entries
 

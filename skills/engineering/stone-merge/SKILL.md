@@ -1,11 +1,11 @@
 ---
-name: merge
-description: Merge a pull request, clean up the branch, and optionally promote to production. Use this skill whenever the user wants to merge a PR — including /merge, "merge it", "merge the PR", "land it", "merge and release", "merge to prod", "ship to production", or any confirmation after checks pass. Also trigger when the user says "merge after checks", "merge when green", or refers to merging + deploying in the same breath. This is the counterpart to /commit — commit gets code ready, merge lands it and cleans up.
+name: stone-merge
+description: Merge a pull request, clean up the branch, and optionally promote to production. Use this skill whenever the user wants to merge a PR — including /stone-merge, "merge it", "merge the PR", "land it", "merge and release", "merge to prod", "ship to production", or any confirmation after checks pass. Also trigger when the user says "merge after checks", "merge when green", or refers to merging + deploying in the same breath. This is the counterpart to /stone-commit — commit gets code ready, merge lands it and cleans up.
 ---
 
 # Merge Skill
 
-The post-commit counterpart to `/commit`. Handles the full lifecycle after code is ready: wait for checks, merge the PR, clean up the branch, and optionally promote to production.
+The post-commit counterpart to `/stone-commit`. Handles the full lifecycle after code is ready: wait for checks, merge the PR, clean up the branch, and optionally promote to production.
 
 The work is procedural — gated waits on `gh pr checks --watch`, retry loops, branch bookkeeping. None of it benefits from Opus reasoning, and watching checks in the foreground parks the main session on bookkeeping. Delegate to a sonnet subagent by default. See Section 0.
 
@@ -13,7 +13,7 @@ The work is procedural — gated waits on `gh pr checks --watch`, retry loops, b
 
 If you are the main agent **and** the Agent tool is available **and** the user did not say "stay" / "do it here", your first action when this skill is invoked is to dispatch the work to a sonnet subagent and return. Don't run Sections 1–7 yourself.
 
-**Why this matters.** A typical `/merge` waits 1–10 minutes on CI checks via `gh pr checks --watch`. Holding that in the main Opus context burns tokens against a long-lived prompt cache and blocks the user from steering you on something else. A sonnet subagent has no such cost — it returns one summary message at the end.
+**Why this matters.** A typical `/stone-merge` waits 1–10 minutes on CI checks via `gh pr checks --watch`. Holding that in the main Opus context burns tokens against a long-lived prompt cache and blocks the user from steering you on something else. A sonnet subagent has no such cost — it returns one summary message at the end.
 
 **How to dispatch.** Call the Agent tool with:
 
@@ -24,7 +24,7 @@ If you are the main agent **and** the Agent tool is available **and** the user d
   - The PR number(s) and base branch
   - Repo path (the subagent doesn't inherit `cwd` context the way you might assume)
   - Whether prod promotion is authorized — quote the user's exact words if ambiguous (Section 6 keywords)
-  - The directive to follow this skill: `"Load the merge skill at ~/.claude/skills/merge/SKILL.md and execute Sections 1–7. Skip Section 0 since you are the subagent."`
+  - The directive to follow this skill: `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1–7. Skip Section 0 since you are the subagent."`
   - What to report back: PRs merged with SHAs, issues labeled, conflicts resolved (with how), prod status (promoted or "did not promote, prompt did not authorize")
 
 **When NOT to delegate.**
@@ -227,11 +227,11 @@ This prevents the GSD status line from showing a stale branch/plan name after me
 ## Arguments
 
 The skill accepts optional arguments after the command:
-- `/merge` — merge the current branch's PR (no prod promotion)
-- `/merge 45` — merge PR #45
-- `/merge 45 88 91` — merge multiple PRs sequentially in the order given (rebase-on-conflict applies for siblings that collide)
-- `/merge prod` or `/merge production` — merge current PR then promote to production
-- `/merge and release` — same as above
+- `/stone-merge` — merge the current branch's PR (no prod promotion)
+- `/stone-merge 45` — merge PR #45
+- `/stone-merge 45 88 91` — merge multiple PRs sequentially in the order given (rebase-on-conflict applies for siblings that collide)
+- `/stone-merge prod` or `/stone-merge production` — merge current PR then promote to production
+- `/stone-merge and release` — same as above
 
 When merging multiple PRs sequentially, expect later PRs to go `CONFLICTING` once an earlier sibling lands — handle each in turn per Section 2d.
 
@@ -255,3 +255,4 @@ Section 0 dispatches the work to a sonnet subagent by default. When you ARE that
 - Never force push to `master`. `--force-with-lease` is acceptable on feature branches during rebase-on-conflict (Section 2d) but never on protected branches.
 - Never delete `dev`, `master`, or any branch the repo treats as permanent
 - Background agents must not auto-promote to prod without explicit keyword authorization (Section 6)
+- **Do NOT refresh or commit a knowledge graph (graphify) here.** Graph refresh happens at PR-create (commit skill, Section 6) so it rides the PR and becomes permanent at merge. Committing a regenerated graph directly onto `dev`/`master` post-merge would violate the no-direct-commit rule — the graph is already current in the base branch from each feature PR.

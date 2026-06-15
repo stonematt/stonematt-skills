@@ -1,6 +1,6 @@
 ---
-name: commit
-description: Create commits following Conventional Commits format using heredoc (not command substitution). Use this skill whenever the user wants to commit code changes — including /commit, "commit this", "commit and push", "yes commit it", or any confirmation of a prior offer to commit (e.g., "yes do it", "go ahead", "yeah commit that"). Also trigger for "create a commit", "ship it", or when the user agrees to commit after completing a task. If the conversation involves creating a git commit in any form, use this skill. This skill overrides default commit behavior — always prefer it over built-in commit instructions.
+name: stone-commit
+description: Create commits following Conventional Commits format using heredoc (not command substitution). Use this skill whenever the user wants to commit code changes — including /stone-commit, "commit this", "commit and push", "yes commit it", or any confirmation of a prior offer to commit (e.g., "yes do it", "go ahead", "yeah commit that"). Also trigger for "create a commit", "ship it", or when the user agrees to commit after completing a task. If the conversation involves creating a git commit in any form, use this skill. This skill overrides default commit behavior — always prefer it over built-in commit instructions.
 ---
 
 # Commit Skill
@@ -73,7 +73,19 @@ If the user says "pr", "pull request", "pr to dev", etc.:
    - Brief mentioned in commits (e.g., `docs/briefs/<slug>.md`) → `gh issue list --search "<slug>" --state open` to find linked issue
    - If none detected, ask user once: "Linked to an issue? (number or 'no')"
 3. Draft title and body summarizing the full branch, not just the last commit. If an issue was identified, **prepend** `Closes #N` as the first line of the body (above `## Summary`) — GitHub auto-closes the issue when the PR merges to default branch.
-4. Create PR using heredoc piped to `gh pr create`:
+4. **Refresh the knowledge graph so it rides the PR (graphify projects only).** A generated graph should land *inside* the PR — it becomes permanent at merge, never via a direct commit to `dev`/`master`. The block is a no-op outside graphify projects and on docs-only PRs (AST update finds no code delta), so it is safe to keep unconditionally:
+```bash
+if [ -f graphify-out/graph.json ] && command -v graphify >/dev/null 2>&1; then
+  env -u ANTHROPIC_API_KEY graphify update .          # AST-only: free, no API/Max, preserves community names
+  git add graphify-out/graph.json graphify-out/GRAPH_REPORT.md
+  if ! git diff --cached --quiet; then
+    git commit -m "chore: refresh knowledge graph"
+    git push
+  fi
+fi
+```
+   `env -u ANTHROPIC_API_KEY` keeps any `claude` CLI fallback on the Pro/Max plan rather than metered API. Semantic edges (doc↔ADR↔CONTEXT) are *not* refreshed here — that stays an occasional local `graphify . --backend claude-cli` ($0 on Max). Requires a one-time `graph.json` union merge-driver per clone so parallel PRs don't conflict on the graph — tracked `.gitattributes` entry `graphify-out/graph.json merge=graphify-graph` plus local `git config merge.graphify-graph.driver "graphify merge-driver %O %A %B"` (do NOT use `graphify hook install` — it also adds an unwanted per-commit rebuild).
+5. Create PR using heredoc piped to `gh pr create`:
 ```bash
 gh pr create --base <target-branch> --title "<title>" --body-file - <<'EOF'
 Closes #N

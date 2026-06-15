@@ -39,6 +39,7 @@ Run `gh issue view <number> --comments`. If a Milestone is referenced, also fetc
 ## Branch and PR flow
 
 - **Single-main flow.** Work branches off `main`. Feature PRs target `main`.
+- **Pre-merge gate.** Run `./scripts/test.sh` before merging. It validates skill structure/index consistency and the claude.ai zip smoke test.
 - No `dev` staging branch — there is no npm publish or build artifact. The repo is consumed pull-on-install via `skills.sh` (`npx skills add stonematt/stonematt-skills`) and Claude Code's `/plugin marketplace add`, which fetch the default branch.
 - `Closes #N` in the PR body fires GitHub's auto-close on merge to `main`.
 - Releases are git tags on `main`: `git tag -a vX.Y.Z -m "..."` then `git push --tags`. Tag when persona file shapes, generic skill bodies, or shim conventions change in a way that downstream consumers need to pin.
@@ -47,8 +48,7 @@ Run `gh issue view <number> --comments`. If a Milestone is referenced, also fetc
 
 When tagging, the tag annotation OR a paired GitHub Release should summarize:
 - Skills added / removed / renamed
-- Persona resolver chain changes
-- Tier 2 shim convention changes
+- Bucket moves that affect install selection
 - Bundle (claude.ai) format changes that require a re-zip + re-upload
 
 Downstream consumers consult tags + release notes to decide when to re-run `npx skills add ...` or rebuild their claude.ai bundle.

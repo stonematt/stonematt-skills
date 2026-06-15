@@ -1,13 +1,13 @@
 ---
-name: ai-sniff-test
+name: stone-ai-sniff-test
 description: >
   A self-review checklist for any drafted prose to catch AI-generated tells before a human sees it.
   Use this skill whenever you've written or are about to deliver written content (emails, posts,
   memos, docs, marketing copy, blog drafts, slack messages, READMEs) and want to make sure it
   doesn't read like AI wrote it. Trigger on phrases like "sniff test this", "smell test", "does
   this sound like AI", "make this sound human", "review my draft for AI tells", or whenever the
-  user references the sniff test before publishing or sending. Other skills (e.g. the `email`
-  generic skill, or any wrapper skill) may invoke this skill as a quality gate.
+  user references the sniff test before publishing or sending. Other skills (e.g. make-screed,
+  lithos-email) may invoke this skill as a quality gate.
 ---
 
 # AI Sniff Test
@@ -16,7 +16,7 @@ A reusable quality gate for written content. Run this on any draft before it lea
 
 The crude AI tells (delve, tapestry, "navigate the complexities of") are mostly gone from current frontier models. The new failure mode isn't "sounds like a robot." It's "sounds like a capable freelancer who's never met the author." Generic-but-competent. Structurally tidy. Voice-flat. This skill is calibrated for that.
 
-This skill is voice-neutral. It does not impose a tone, register, or aesthetic. It flags patterns that read as machine-generated regardless of subject. Skills that wrap this one (e.g. the `email` generic skill applying a persona's voice file) layer their own voice rules on top.
+This skill is voice-neutral. It does not impose a tone, register, or aesthetic. It flags patterns that read as machine-generated regardless of subject. Skills that wrap this one (e.g. `make-screed` for counterculture posts, `lithos-email` for consulting comms) layer their own voice rules on top.
 
 ## When to Run
 

@@ -1,6 +1,6 @@
 ---
-name: client-report
-description: Generate an executive-level client summary of product changes since a given date. Use when the user says /client-report, "summarize for the client", "executive summary", "session report", "client update", "what did we deliver since [date]", or wants to roll up dev work into business-value terms for stakeholder communication. Also trigger when the user mentions preparing for a client meeting, writing a deliverables recap, or reconciling work against an SOW.
+name: stone-client-report
+description: Generate an executive-level client summary of product changes since a given date. Use when the user says /stone-client-report, "summarize for the client", "executive summary", "session report", "client update", "what did we deliver since [date]", or wants to roll up dev work into business-value terms for stakeholder communication. Also trigger when the user mentions preparing for a client meeting, writing a deliverables recap, or reconciling work against an SOW.
 ---
 
 # Client Report Skill
