@@ -57,14 +57,17 @@ gh pr view <number> --json baseRefName,reviewDecision,reviewRequests
 
 Note the result and adapt:
 - **Merge method**: if `mergeCommitAllowed: false` and the project history is squash-only, use `--squash` instead of `--merge`. Don't fight a repo's policy.
-- **Branch protection**: if `reviewDecision: REVIEW_REQUIRED` and the PR isn't approved, stop and tell the user — don't try `--admin` to bypass.
+- **Review state (respect even when protection isn't enforced)**: `reviewDecision` is one of `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, `APPROVED`, or **empty** (no branch protection — common on private/free-tier repos). Rules:
+  - `CHANGES_REQUESTED` → **stop**. A reviewer asked for changes; never merge over them, never `--admin` to bypass.
+  - `REVIEW_REQUIRED` and not approved → **stop** and tell the user.
+  - **empty** → means "nothing enforced," **not** "approved." If the PR is a teammate's, or the repo follows a review-before-merge convention, do **not** silently self-merge — confirm with the user that review is done or waived first. Solo PR on your own branch with no such convention: proceed.
 - **Default branch vs base**: if base is the default branch, the kanban-staging step (Section 5) is skipped — there's no staging to label.
 
 ### 2. Check readiness
 
 Run **sequentially**, not in parallel. `gh pr checks` exits non-zero when any check is still pending or has failed (exit 8 = pending). If you launch it as a parallel sibling to `gh pr view`, the harness sees one tool error and may cancel the other call mid-flight, costing you both signals at once. Run them one after the other so you can interpret each exit code on its own:
 
-1. `gh pr view <number> --json mergeable,state,baseRefName,reviewDecision` — must be MERGEABLE and OPEN
+1. `gh pr view <number> --json mergeable,state,baseRefName,reviewDecision` — must be MERGEABLE and OPEN, and `reviewDecision` must not be `CHANGES_REQUESTED` (apply the Section 1 review-state rule — stop if a reviewer requested changes, or if an empty decision needs the user's go-ahead per convention)
 2. `gh pr checks <number>` — interpret exit code:
    - **Exit 0**: all checks pass → proceed to Section 3 merge
    - **Exit 8 with status `pending`/`queued`/`in_progress` rows**: checks still running → go to 2a (watch loop)
@@ -165,26 +168,32 @@ Steps:
 3. For each issue: `gh issue edit <N> --repo <owner/repo> --add-label "status: staged" --remove-label "status: wip"`.
 4. Skip silently if no references found — many PRs (docs, infra) won't have any.
 
-When the release PR (dev→master) merges later, GitHub auto-closes via closing keywords and the `clean-status-on-close.yml` workflow strips the label. **But this only works if the release PR body uses `Closes #N` / `Fixes #N` / `Resolves #N` for every staged issue.** Section 6 step 5 has a defensive sweep for the case where keywords are missing or the workflow isn't installed.
+When the release PR (dev→release branch) merges later, GitHub auto-closes via closing keywords and the `clean-status-on-close.yml` workflow strips the label. **But this only works if the release PR body uses `Closes #N` / `Fixes #N` / `Resolves #N` for every staged issue.** Section 6 step 5 has a defensive sweep for the case where keywords are missing or the workflow isn't installed.
 
 ### 6. Production promotion (gated)
 
 **Default: do NOT auto-promote.** Production deploys are high-stakes shared-system changes. Per safe-action norms, modifying production needs explicit user authorization for *this specific action* — generic "auto mode" or background-agent invocation is not enough.
 
-Auto-promote only if the original prompt explicitly contains one of: `prod`, `production`, `release`, `ship to prod`, `merge and release`, or the user said "merge and release" / "to master" in plain language. If the prompt is just "merge", "merge it", "land it", or a PR number alone, **stop after Section 5** and offer:
+Auto-promote only if the original prompt explicitly contains one of: `prod`, `production`, `release`, `ship to prod`, `merge and release`, or the user said "merge and release" / "to main" / "to master" in plain language. If the prompt is just "merge", "merge it", "land it", or a PR number alone, **stop after Section 5** and offer:
 
-> "PR merged to `<base>`. Want me to create a release PR to `master`?"
+> "PR merged to `<base>`. Want me to create a release PR to `<release>`?"
 
 When promotion is authorized:
 
-1. Check what's in `dev` but not `master`:
+**First, determine the release branch.** It's the permanent branch that is *not* the integration default (`dev`) — usually `main`, sometimes `master`. Never hardcode it; detect:
+```bash
+RELEASE=$(git show-ref --verify --quiet refs/remotes/origin/main && echo main || echo master)
+```
+Use that value wherever the steps below say `<release>`.
+
+1. Check what's in `dev` but not `<release>`:
    ```bash
-   git log origin/master..origin/dev --oneline
+   git log origin/<release>..origin/dev --oneline
    ```
 
 2. Create a release PR:
    ```bash
-   gh pr create --base master --title "<title>" --body-file - <<'EOF'
+   gh pr create --base <release> --title "<title>" --body-file - <<'EOF'
    ## Summary
    - <bullets summarizing all commits being promoted>
 
@@ -195,7 +204,7 @@ When promotion is authorized:
 
 3. Wait for checks (Section 2 rules apply, including flake re-run), then merge the release PR. Do NOT use `--delete-branch` on `dev` — `dev` is permanent.
 
-4. Switch back to `dev` (not `master`) after the release merge — `dev` is where ongoing work continues.
+4. Switch back to `dev` (not `<release>`) after the release merge — `dev` is where ongoing work continues.
 
 5. **Strip `status: staged` from all linked issues (defensive cleanup).** If the repo has a `clean-status-on-close.yml` workflow, it handles this on issue-close — but only fires when the release PR's body uses closing keywords (`Closes #N`, `Fixes #N`, `Resolves #N`) that GitHub recognizes. If the release PR omits closing keywords, or the workflow isn't installed, the label sticks. Always run a sweep after the release merge:
 
@@ -203,7 +212,7 @@ When promotion is authorized:
    gh issue list --repo <owner/repo> --state all --label "status: staged" --json number --jq '.[].number'
    ```
 
-   For each issue returned, verify its linked PR is now in `master` (`gh pr list --search "<N> in:body is:merged base:master"`). If yes, strip the label:
+   For each issue returned, verify its linked PR is now in `<release>` (`gh pr list --search "<N> in:body is:merged base:<release>"`). If yes, strip the label:
 
    ```bash
    gh issue edit <N> --repo <owner/repo> --remove-label "status: staged"
@@ -211,9 +220,9 @@ When promotion is authorized:
 
    Don't strip from issues whose PRs haven't actually shipped — those are correctly staged.
 
-6. Confirm: "Merged to master. Production deploy rolling out at `<vercel/wherever URL if visible>`. Stripped `status: staged` from N issues."
+6. Confirm: "Merged to `<release>`. Production deploy rolling out at `<vercel/wherever URL if visible>`. Stripped `status: staged` from N issues."
 
-**Never force push to `master`. Never use `--admin` on a release PR. Never delete `dev` or `master`.**
+**Never force push to `<release>`. Never use `--admin` on a release PR. Never delete `dev` or `<release>`.**
 
 ### 7. Update project state (if GSD is active)
 
@@ -251,8 +260,8 @@ Section 0 dispatches the work to a sonnet subagent by default. When you ARE that
 - Never force-merge or bypass review requirements (`--admin`)
 - Always delete the local branch after merge to prevent stale-branch work
 - Always switch to the base branch after cleanup — never leave the user on a deleted branch
-- When creating release PRs, wait for checks before merging to master
-- Never force push to `master`. `--force-with-lease` is acceptable on feature branches during rebase-on-conflict (Section 2d) but never on protected branches.
-- Never delete `dev`, `master`, or any branch the repo treats as permanent
+- When creating release PRs, wait for checks before merging to the release branch
+- Never force push to the release branch (`main`/`master`). `--force-with-lease` is acceptable on feature branches during rebase-on-conflict (Section 2d) but never on protected branches.
+- Never delete `dev`, the release branch (`main`/`master`), or any branch the repo treats as permanent
 - Background agents must not auto-promote to prod without explicit keyword authorization (Section 6)
 - **Do NOT refresh or commit a knowledge graph (graphify) here.** Graph refresh happens at PR-create (commit skill, Section 6) so it rides the PR and becomes permanent at merge. Committing a regenerated graph directly onto `dev`/`master` post-merge would violate the no-direct-commit rule — the graph is already current in the base branch from each feature PR.
