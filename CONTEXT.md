@@ -21,7 +21,9 @@ _Avoid_: scope, vendor-prefix
 _Avoid_: registry, cache
 
 **Surface**:
-A platform a skill runs on. Three relevant surfaces: **Claude Code** (filesystem, hooks), **claude.ai** (web/desktop/mobile — no CLI or filesystem; skills upload as zip Bundles via Settings → Customize → Skills), **Codex/opencode** (filesystem-similar to CC).
+A platform a skill runs on, grouped by install mechanism. **Filesystem surfaces** install via the `skills` CLI: **Claude Code** — both the CLI *and* the native desktop app, which share `~/.claude/skills/` on a machine (filesystem, hooks) — and **Codex/opencode**. **claude.ai** (the chat app: web/desktop/mobile, no CLI or filesystem) takes uploaded zip Bundles via Settings → Customize → Skills.
+_Note_: the **Claude Code desktop app** (a filesystem coding tool) and the **claude.ai desktop app** (the chat app) are different surfaces with different install paths — don't conflate them.
+_Avoid_: treating "desktop" as a single surface.
 
 **Bundle (claude.ai)**:
 A zip containing one skill's folder at the zip root. Built by `scripts/build-claudeai-zip.sh <skill>`; uploaded by hand via claude.ai Settings → Customize → Skills.
@@ -36,8 +38,8 @@ A zip containing one skill's folder at the zip root. Built by `scripts/build-cla
 
 > **Matt:** "Why is my commit skill called `stone-commit`?"
 > **Agent:** "**Namespace.** The `skills` CLI installs into a flat **Central store** keyed by bare name, so a generic `commit` would clobber another pack's. The `stone-` prefix is collision-proof — you still trigger it by saying 'commit this'; only `/stone-commit` carries the prefix."
-> **Matt:** "And on the desktop app?"
-> **Agent:** "Different **Surface**. claude.ai has no filesystem — build a **Bundle** with `build-claudeai-zip.sh stone-commit` and upload it via Settings → Customize → Skills."
+> **Matt:** "And on the claude.ai desktop app?"
+> **Agent:** "Different **Surface** — the claude.ai chat app, not the Claude Code desktop app. claude.ai has no filesystem, so build a **Bundle** with `build-claudeai-zip.sh stone-commit` and upload it via Settings → Customize → Skills. (The Claude Code desktop app, by contrast, reads `~/.claude/skills/` — same filesystem path as the CLI.)"
 
 ## Flagged ambiguities
 
