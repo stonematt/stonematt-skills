@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake `osascript` for notify tests. Records each call.
+[ -n "${OSASCRIPT_SHIM_LOG:-}" ] && printf 'OSASCRIPT %s\n' "$*" >> "$OSASCRIPT_SHIM_LOG"
+exit 0

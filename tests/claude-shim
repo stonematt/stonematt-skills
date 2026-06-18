@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Fake `claude` for dispatch tests. Symlink as `claude` on PATH.
+# Controlled entirely via env:
+#   SHIM_LOG        append "CWD=.. ARGS=.." per invocation
+#   SHIM_FAIL_REPO  substring of cwd -> exit 1 (simulate failure)
+#   SHIM_HANG_REPO  substring of cwd -> sleep 5 (simulate hang > timeout)
+#   SHIM_SLEEP      seconds to sleep on the OK path (default 0.3)
+#   SHIM_CUR/SHIM_MAX/SHIM_LOCK  concurrency counter files (optional)
+set -u
+cwd="$(pwd)"
+
+[ -n "${SHIM_LOG:-}" ] && printf 'CWD=%s ARGS=%s\n' "$cwd" "$*" >> "$SHIM_LOG"
+
+_inc() {
+  [ -n "${SHIM_CUR:-}" ] || return 0
+  until mkdir "$SHIM_LOCK" 2>/dev/null; do :; done
+  local cur; cur=$(( $(cat "$SHIM_CUR") + 1 )); echo "$cur" > "$SHIM_CUR"
+  [ "$cur" -gt "$(cat "$SHIM_MAX")" ] && echo "$cur" > "$SHIM_MAX"
+  rmdir "$SHIM_LOCK"
+}
+_dec() {
+  [ -n "${SHIM_CUR:-}" ] || return 0
+  until mkdir "$SHIM_LOCK" 2>/dev/null; do :; done
+  echo "$(( $(cat "$SHIM_CUR") - 1 ))" > "$SHIM_CUR"
+  rmdir "$SHIM_LOCK"
+}
+
+_inc
+case "$cwd" in
+  *"${SHIM_FAIL_REPO:-__nomatch__}"*) _dec; exit 1 ;;
+  *"${SHIM_HANG_REPO:-__nomatch__}"*) sleep 5; _dec; exit 0 ;;
+esac
+
+sleep "${SHIM_SLEEP:-0.3}"
+# Mimic the real skill: write an entry for the END date in the prompt.
+e="$(printf '%s' "$*" | sed -E 's/.*through ([0-9]{4}-[0-9]{2}-[0-9]{2}).*/\1/')"
+if printf '%s' "$e" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+  mkdir -p "$cwd/.journal/docs/journal"
+  printf -- '---\ndate: %s\n---\nstub entry\n' "$e" > "$cwd/.journal/docs/journal/$e.md"
+fi
+_dec
+exit 0
