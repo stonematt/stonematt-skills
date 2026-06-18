@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  journal-sweep launchd agent.
+  Install:  cp this to ~/Library/LaunchAgents/ then
+            launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stonematt.journal-sweep.plist
+  Do NOT load until you've run `journal-sweep.sh --dry-run` and a manual real sweep.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.stonematt.journal-sweep</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/bash</string>
+    <string>/Users/mstone/src/github.com/stonematt/stonematt-skills/scripts/journal-sweep.sh</string>
+  </array>
+
+  <!-- Nightly at 00:30. launchd coalesces missed fires (sleep/off) into one on wake. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>0</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+
+  <!-- launchd starts with a minimal PATH; the script needs git/claude/timeout. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/mstone/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>/Users/mstone</string>
+  </dict>
+
+  <!-- stdout/stderr ARE the run log (Q7). -->
+  <key>StandardOutPath</key>
+  <string>/Users/mstone/Library/Logs/journal-sweep.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/mstone/Library/Logs/journal-sweep.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>
