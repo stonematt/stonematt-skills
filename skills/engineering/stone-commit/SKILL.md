@@ -62,10 +62,18 @@ EOF
 
 - If the user already said "push" (e.g., "commit and push"), push without asking
 - Otherwise, offer to push — show the remote and branch, wait for confirmation
+- **Team setting — sync before push.** If the branch already has an upstream, a non-fast-forward rejection means the remote advanced under you (a collaborator pushed). Run `git pull --rebase` to replay your commits on top, then push. If the rebase conflicts, stop and report — don't force. Never use `--force` / `--force-with-lease` to win a push race on a shared branch; that clobbers a collaborator's commits.
 
 ### 6. Pull Request (when requested)
 
 If the user says "pr", "pull request", "pr to dev", etc.:
+
+0. **Sync onto the latest base first (team setting).** The base branch (e.g. `dev`) advances under you while you work. Before opening the PR, rebase your branch onto the current base so the PR diff is clean and you're not building on a stale tree:
+   ```bash
+   git fetch origin
+   git rebase origin/<base>
+   ```
+   Clean rebase → continue. On conflict, resolve only shape-obvious ones (import-list, set-add) per the rules `stone-merge` Section 2d uses; for any logic or semantic conflict, stop and report — don't guess. Skip this step when working solo on a fresh branch off an unchanged base.
 1. Run `git log --oneline <base>..HEAD` to gather all branch commits
 2. **Detect linked issue.** Try in order:
    - Branch name regex `^[a-z]+/(\d+)[-/_]` or `^issue[-/_](\d+)` → extract `#N`
