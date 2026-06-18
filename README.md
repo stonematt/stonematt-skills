@@ -20,8 +20,8 @@ install** (one command, covers every coding agent) and a **manual zip upload**
 
 | Your app | Path |
 |----------|------|
-| Claude Code — terminal CLI | npx (filesystem) |
-| Claude Code — desktop app (Mac/Win) | npx (filesystem) — shares `~/.claude/skills` with the CLI |
+| Claude Code — terminal CLI | npx, or the plugin marketplace |
+| Claude Code — desktop app (Mac/Win) | plugin marketplace (no terminal), or npx — shares `~/.claude/skills` with the CLI |
 | Codex / opencode | npx (filesystem) |
 | claude.ai — desktop app / web / mobile | zip upload |
 
@@ -47,6 +47,20 @@ command) so it re-scans the skills directory.
 
 This links the working-copy skills into both `~/.claude/skills` and
 `~/.agents/skills` for Claude Code and Codex dogfooding.
+
+### Claude Code — plugin marketplace (no terminal needed)
+
+Claude Code (CLI or desktop app) can install the whole pack as a plugin straight
+from this repo — handy if you'd rather not run `npx` in a terminal:
+
+```
+/plugin marketplace add stonematt/stonematt-skills
+/plugin install stonematt-skills@stonematt-skills
+```
+
+Skills load namespaced as `/stonematt-skills:stone-commit` (natural-language
+triggers like "commit this" are unchanged). Claude Code only — Codex and opencode
+have no plugin system, so use the npx path above for those.
 
 ### claude.ai chat app — desktop, web, mobile
 

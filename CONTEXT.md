@@ -6,7 +6,7 @@ Public repo for portable Claude Code / Codex / opencode / claude.ai skills autho
 
 **Skill**:
 A self-contained capability with a `SKILL.md` (frontmatter `name`, `description`) + supporting files. Activates via the description string in any agent that reads SKILL.md files.
-_Avoid_: command, plugin (different concept in Claude Code)
+_Avoid_: command. ("Plugin" is a distinct, related concept — the Claude Code delivery vehicle that bundles Skills; see **Plugin** below.)
 
 **Bucket**:
 Top-level taxonomy folder under `skills/`. One of: `engineering/`, `productivity/`, `misc/`, `personal/`, `in-progress/`, `deprecated/`. Mirrors the mattpocock convention.
@@ -27,6 +27,13 @@ _Avoid_: treating "desktop" as a single surface.
 
 **Bundle (claude.ai)**:
 A zip containing one skill's folder at the zip root. Built by `scripts/build-claudeai-zip.sh <skill>`; uploaded by hand via claude.ai Settings → Customize → Skills.
+
+**Plugin**:
+The Claude Code packaging unit declared by `.claude-plugin/plugin.json`. This repo ships one Plugin (`stonematt-skills`) that bundles all shipped Skills; Claude Code installs it from the Marketplace. A Plugin is the *delivery vehicle* for Claude Code — distinct from a Skill (the capability it carries). Codex/opencode have no Plugin concept; they consume the same Skills via the `skills` CLI.
+_Avoid_: pack, bundle (Bundle is the claude.ai zip).
+
+**Marketplace**:
+`.claude-plugin/marketplace.json` — the catalog Claude Code reads when a user runs `/plugin marketplace add stonematt/stonematt-skills`. Lists the `stonematt-skills` Plugin with `source: "./"` (the Plugin is this repo's root). Install with `/plugin install stonematt-skills@stonematt-skills`.
 
 ## Relationships
 
@@ -49,4 +56,4 @@ A zip containing one skill's folder at the zip root. Built by `scripts/build-cla
 
 - **In:** 7 `stone-*` skills authored by Matt Stone — `stone-commit`, `stone-merge`, `stone-promote-settings` (engineering); `stone-ai-sniff-test`, `stone-client-report` (productivity); `stone-journal`, `stone-journal-status` (personal).
 - **Deferred** (parked on `feat/voice-personas`): the generic `voice` / `email` / `define-voice` skills, `bin/persona-init`, persona-bundling in the zip builder, and ADR-0001 (cross-surface persona architecture). Re-integrate as one unit later.
-- **Out:** `continue-after-clear`, `sync-plugin-manifest` (removed — unused). The Claude plugin path (`.claude-plugin/` — superseded by the `skills` CLI). Identity skills `lithos-voice` / `lithos-email` (private dotfiles). Third-party copies (`web-design-guidelines`, `marp-slides`, `excalidraw-diagram`, `mermaid-visualizer`, `obsidian-canvas-creator`, `ux-designer-skill`, `graphify`). Hooks, agents, settings, CLAUDE.md (separate concerns).
+- **Out:** `continue-after-clear`, `sync-plugin-manifest` (removed — unused). Identity skills `lithos-voice` / `lithos-email` (private dotfiles). Third-party copies (`web-design-guidelines`, `marp-slides`, `excalidraw-diagram`, `mermaid-visualizer`, `obsidian-canvas-creator`, `ux-designer-skill`, `graphify`). Hooks, agents, settings, CLAUDE.md (separate concerns).
