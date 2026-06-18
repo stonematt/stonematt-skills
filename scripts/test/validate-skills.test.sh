@@ -92,6 +92,34 @@ else
   bad "installer manifest matches shipped skills" "expected manifest skills to match non-deprecated, non-in-progress skills"
 fi
 
+marketplace_manifest="$repo/.claude-plugin/marketplace.json"
+if [ -f "$marketplace_manifest" ]; then
+  ok "marketplace manifest exists"
+else
+  bad "marketplace manifest exists" "missing .claude-plugin/marketplace.json"
+fi
+
+mkt_name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("name",""))' "$marketplace_manifest" 2>/dev/null)"
+if [ "$mkt_name" = "stonematt-skills" ]; then
+  ok "marketplace manifest name is stonematt-skills"
+else
+  bad "marketplace manifest name is stonematt-skills" "found '$mkt_name'"
+fi
+
+mkt_plugin="$(python3 -c 'import json,sys; ps=json.load(open(sys.argv[1])).get("plugins",[]); print(ps[0].get("name","") if len(ps)==1 else "")' "$marketplace_manifest" 2>/dev/null)"
+if [ "$mkt_plugin" = "stonematt-skills" ]; then
+  ok "marketplace lists the stonematt-skills plugin"
+else
+  bad "marketplace lists the stonematt-skills plugin" "expected exactly one plugin named stonematt-skills"
+fi
+
+mkt_source="$(python3 -c 'import json,sys; ps=json.load(open(sys.argv[1])).get("plugins",[]); print(ps[0].get("source","") if ps else "")' "$marketplace_manifest" 2>/dev/null)"
+if [ "$mkt_source" = "./" ]; then
+  ok "marketplace plugin source is repo root"
+else
+  bad "marketplace plugin source is repo root" "expected source './', found '$mkt_source'"
+fi
+
 if grep -Fq -- "-not -path '*/deprecated/*'" "$repo/scripts/link-skills.sh" \
   && grep -Fq -- "-not -path '*/in-progress/*'" "$repo/scripts/link-skills.sh"; then
   ok "link-skills excludes deprecated and in-progress"
