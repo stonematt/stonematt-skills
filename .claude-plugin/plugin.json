@@ -1,5 +1,15 @@
 {
   "name": "stonematt-skills",
+  "version": "0.1.0",
+  "description": "Matt Stone's cross-surface stone-* skill pack — commit, merge, settings promotion, AI sniff test, client report, and dev journaling.",
+  "author": {
+    "name": "Matt Stone",
+    "email": "mstone@stonecover.com"
+  },
+  "homepage": "https://github.com/stonematt/stonematt-skills",
+  "repository": "https://github.com/stonematt/stonematt-skills",
+  "license": "MIT",
+  "keywords": ["skills", "git", "journaling", "productivity", "engineering"],
   "skills": [
     "./skills/engineering/stone-commit",
     "./skills/engineering/stone-merge",

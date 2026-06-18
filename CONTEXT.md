@@ -6,7 +6,7 @@ Public repo for portable Claude Code / Codex / opencode / claude.ai skills autho
 
 **Skill**:
 A self-contained capability with a `SKILL.md` (frontmatter `name`, `description`) + supporting files. Activates via the description string in any agent that reads SKILL.md files.
-_Avoid_: command, plugin (different concept in Claude Code)
+_Avoid_: command. ("Plugin" is a distinct, related concept — the Claude Code delivery vehicle that bundles Skills; see **Plugin** below.)
 
 **Bucket**:
 Top-level taxonomy folder under `skills/`. One of: `engineering/`, `productivity/`, `misc/`, `personal/`, `in-progress/`, `deprecated/`. Mirrors the mattpocock convention.
@@ -21,10 +21,19 @@ _Avoid_: scope, vendor-prefix
 _Avoid_: registry, cache
 
 **Surface**:
-A platform a skill runs on. Three relevant surfaces: **Claude Code** (filesystem, hooks), **claude.ai** (web/desktop/mobile — no CLI or filesystem; skills upload as zip Bundles via Settings → Customize → Skills), **Codex/opencode** (filesystem-similar to CC).
+A platform a skill runs on, grouped by install mechanism. **Filesystem surfaces** install via the `skills` CLI: **Claude Code** — both the CLI *and* the native desktop app, which share `~/.claude/skills/` on a machine (filesystem, hooks) — and **Codex/opencode**. **claude.ai** (the chat app: web/desktop/mobile, no CLI or filesystem) takes uploaded zip Bundles via Settings → Customize → Skills.
+_Note_: the **Claude Code desktop app** (a filesystem coding tool) and the **claude.ai desktop app** (the chat app) are different surfaces with different install paths — don't conflate them.
+_Avoid_: treating "desktop" as a single surface.
 
 **Bundle (claude.ai)**:
 A zip containing one skill's folder at the zip root. Built by `scripts/build-claudeai-zip.sh <skill>`; uploaded by hand via claude.ai Settings → Customize → Skills.
+
+**Plugin**:
+The Claude Code packaging unit declared by `.claude-plugin/plugin.json`. This repo ships one Plugin (`stonematt-skills`) that bundles all shipped Skills; Claude Code installs it from the Marketplace. A Plugin is the *delivery vehicle* for Claude Code — distinct from a Skill (the capability it carries). Codex/opencode have no Plugin concept; they consume the same Skills via the `skills` CLI.
+_Avoid_: pack, bundle (Bundle is the claude.ai zip).
+
+**Marketplace**:
+`.claude-plugin/marketplace.json` — the catalog Claude Code reads when a user runs `/plugin marketplace add stonematt/stonematt-skills`. Lists the `stonematt-skills` Plugin with `source: "./"` (the Plugin is this repo's root). Install with `/plugin install stonematt-skills@stonematt-skills`.
 
 ## Relationships
 
@@ -36,8 +45,8 @@ A zip containing one skill's folder at the zip root. Built by `scripts/build-cla
 
 > **Matt:** "Why is my commit skill called `stone-commit`?"
 > **Agent:** "**Namespace.** The `skills` CLI installs into a flat **Central store** keyed by bare name, so a generic `commit` would clobber another pack's. The `stone-` prefix is collision-proof — you still trigger it by saying 'commit this'; only `/stone-commit` carries the prefix."
-> **Matt:** "And on the desktop app?"
-> **Agent:** "Different **Surface**. claude.ai has no filesystem — build a **Bundle** with `build-claudeai-zip.sh stone-commit` and upload it via Settings → Customize → Skills."
+> **Matt:** "And on the claude.ai desktop app?"
+> **Agent:** "Different **Surface** — the claude.ai chat app, not the Claude Code desktop app. claude.ai has no filesystem, so build a **Bundle** with `build-claudeai-zip.sh stone-commit` and upload it via Settings → Customize → Skills. (The Claude Code desktop app, by contrast, reads `~/.claude/skills/` — same filesystem path as the CLI.)"
 
 ## Flagged ambiguities
 
@@ -47,4 +56,4 @@ A zip containing one skill's folder at the zip root. Built by `scripts/build-cla
 
 - **In:** 7 `stone-*` skills authored by Matt Stone — `stone-commit`, `stone-merge`, `stone-promote-settings` (engineering); `stone-ai-sniff-test`, `stone-client-report` (productivity); `stone-journal`, `stone-journal-status` (personal).
 - **Deferred** (parked on `feat/voice-personas`): the generic `voice` / `email` / `define-voice` skills, `bin/persona-init`, persona-bundling in the zip builder, and ADR-0001 (cross-surface persona architecture). Re-integrate as one unit later.
-- **Out:** `continue-after-clear`, `sync-plugin-manifest` (removed — unused). The Claude plugin path (`.claude-plugin/` — superseded by the `skills` CLI). Identity skills `lithos-voice` / `lithos-email` (private dotfiles). Third-party copies (`web-design-guidelines`, `marp-slides`, `excalidraw-diagram`, `mermaid-visualizer`, `obsidian-canvas-creator`, `ux-designer-skill`, `graphify`). Hooks, agents, settings, CLAUDE.md (separate concerns).
+- **Out:** `continue-after-clear`, `sync-plugin-manifest` (removed — unused). Identity skills `lithos-voice` / `lithos-email` (private dotfiles). Third-party copies (`web-design-guidelines`, `marp-slides`, `excalidraw-diagram`, `mermaid-visualizer`, `obsidian-canvas-creator`, `ux-designer-skill`, `graphify`). Hooks, agents, settings, CLAUDE.md (separate concerns).

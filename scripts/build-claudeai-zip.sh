@@ -54,4 +54,5 @@ rm -f "$out"
 (cd "$BUILD_DIR" && zip -qr "$out" "$skill")
 
 echo "built $out"
-echo "upload via claude.ai Settings → Customize → Skills"
+echo "upload to the claude.ai chat app (web/desktop/mobile) via Settings → Customize → Skills"
+echo "note: this is NOT for the Claude Code desktop app — that uses the filesystem install (npx skills add)"

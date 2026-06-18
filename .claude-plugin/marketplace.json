@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "stonematt-skills",
+  "description": "Matt Stone's cross-surface Claude Code / Codex / opencode / claude.ai skills.",
+  "owner": {
+    "name": "Matt Stone",
+    "email": "mstone@stonecover.com"
+  },
+  "plugins": [
+    {
+      "name": "stonematt-skills",
+      "description": "stone-* skill pack: commit, merge, settings promotion, AI sniff test, client report, and dev journaling.",
+      "category": "productivity",
+      "author": {
+        "name": "Matt Stone"
+      },
+      "homepage": "https://github.com/stonematt/stonematt-skills",
+      "source": "./"
+    }
+  ]
+}
