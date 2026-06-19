@@ -36,6 +36,9 @@ cat > "$fix/CHANGELOG.md" <<'EOF'
 
 ### Added
 - older note.
+
+[9.9.9]: https://example.com/compare/v9.9.8...v9.9.9
+[9.9.8]: https://example.com/releases/tag/v9.9.8
 EOF
 
 git -C "$fix" init -q
@@ -60,8 +63,9 @@ out="$(run --dry-run)"; rc=$?
 { [ "$rc" -eq 0 ] \
     && grep -q "fixture release note line." <<<"$out" \
     && ! grep -q "older note." <<<"$out" \
+    && ! grep -q "example.com" <<<"$out" \
     && [ -z "$(git -C "$fix" tag --list 'v9.9.9')" ]; } \
-  && ok "dry-run succeeds, extracts only this version's notes, no tag made" \
+  && ok "dry-run succeeds, extracts only this version's notes (no older section, no link refs), no tag made" \
   || bad "dry-run happy path" "rc=$rc tags=[$(git -C "$fix" tag --list)] out=$out"
 
 # --- Case 3: dirty tree blocks --------------------------------------------
