@@ -46,6 +46,7 @@ TAG="v$VERSION"
 NOTES="$(awk -v ver="$VERSION" '
   $0 ~ "^## \\[" ver "\\]" { grab=1; next }
   grab && /^## / { exit }
+  grab && /^\[[^]]+\]:[[:space:]]/ { exit }   # link-reference block at EOF
   grab { print }
 ' "$CHANGELOG" | sed '/^$/d')"
 
