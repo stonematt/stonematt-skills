@@ -49,6 +49,16 @@ rm -rf "$stage"
 mkdir -p "$stage"
 cp -R "$skill_src/." "$stage/"
 
+# Stamp the pack version so claude.ai consumers (no filesystem, no git) can see
+# which release a manually-uploaded zip came from. Source of truth: plugin.json.
+plugin_json="$REPO/.claude-plugin/plugin.json"
+if [ -f "$plugin_json" ]; then
+  version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugin_json" | head -1)"
+  if [ -n "$version" ]; then
+    printf 'stonematt-skills %s\n' "$version" > "$stage/VERSION"
+  fi
+fi
+
 out="$REPO/$skill.zip"
 rm -f "$out"
 (cd "$BUILD_DIR" && zip -qr "$out" "$skill")

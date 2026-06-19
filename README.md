@@ -86,6 +86,36 @@ current uploader. Build one per skill:
 The generic persona skills (`voice`, `email`, `define-voice`) and their tooling are
 parked on the `feat/voice-personas` branch for future re-integration.
 
+## Versioning
+
+The pack is versioned with [SemVer](https://semver.org). The canonical number
+lives in [`.claude-plugin/plugin.json`](./.claude-plugin/plugin.json); every
+release tag (`vMAJOR.MINOR.PATCH`) on `main` matches it, and each is published as
+a [GitHub Release](https://github.com/stonematt/stonematt-skills/releases). See
+[`CHANGELOG.md`](./CHANGELOG.md) for what changed.
+
+**Am I on the latest?**
+
+```bash
+./scripts/check-latest.sh
+```
+
+Compares your installed version against the newest release (curl only — no `gh`
+or `jq` needed). Works for plugin-marketplace installs and repo clones. The
+`npx skills add` path copies individual skill dirs without the pack manifest, so
+it has no local anchor yet — per-skill frontmatter stamping is the planned
+follow-up. claude.ai zips carry a `VERSION` file at the zip root.
+
+**Cutting a release** (maintainer): bump `version` in `plugin.json` and add a
+`CHANGELOG.md` section on the dev→main release PR, then once it lands on `main`:
+
+```bash
+./scripts/release.sh            # tag + push + GitHub Release; --dry-run to preview
+```
+
+It refuses unless run from a clean `main`, the tag is new, and the CHANGELOG has
+a matching section — so the version number, the tag, and the release never drift.
+
 ## Repository conventions
 
 - See [`CLAUDE.md`](./CLAUDE.md) for agent skill configuration (issue tracker, triage labels, domain docs)
@@ -100,7 +130,8 @@ Run the lightweight pre-merge gate before merging to `main`:
 ./scripts/test.sh
 ```
 
-This validates skill naming/index consistency and the claude.ai zip smoke test.
+This validates skill naming/index consistency, the claude.ai zip smoke test, and
+the release-script guards.
 
 ## License
 
