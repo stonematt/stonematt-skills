@@ -24,6 +24,7 @@ If you are the main agent **and** the Agent tool is available **and** the user d
   - The PR number(s) and base branch
   - Repo path (the subagent doesn't inherit `cwd` context the way you might assume)
   - Whether prod promotion is authorized — quote the user's exact words if ambiguous (Section 6 keywords)
+  - Whether the code-review gate (Section 2.0) is waived — pass `--no-review` scope only if the user explicitly said so; otherwise the subagent enforces the gate and stops to ask
   - The directive to follow this skill: `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1–7. Skip Section 0 since you are the subagent."`
   - What to report back: PRs merged with SHAs, issues labeled, conflicts resolved (with how), prod status (promoted or "did not promote, prompt did not authorize")
 
@@ -64,6 +65,31 @@ Note the result and adapt:
 - **Default branch vs base**: if base is the default branch, the kanban-staging step (Section 5) is skipped — there's no staging to label.
 
 ### 2. Check readiness
+
+#### 2.0 Preflight: code-review gate (run first)
+
+Before probing mergeability, confirm a code review ran on this branch. Never merge substantive product code that was never reviewed. Two detection modes:
+
+**CI-check mode (preferred).** If the repo runs `/code-review` as a GitHub Action — a check whose name matches `code.?review` — require it:
+
+```bash
+gh pr checks <number> --json name,state --jq '.[] | select(.name|test("(?i)code.?review")) | "\(.name) \(.state)"'
+```
+
+- `SUCCESS` → gate passes, continue to the readiness checks below.
+- `PENDING`/`IN_PROGRESS`/`QUEUED` → the watch loop (2a) will cover it; note it and proceed.
+- `FAILURE` → treat like any failed check (2b): read the review output, do **not** merge over unaddressed findings.
+- No matching check returned → fall to local mode.
+
+**Local mode (no CI review check).** Git history can't reliably prove a local `/code-review` run happened, so confirm rather than guess:
+
+> "No code-review CI check on this PR. Has `/code-review` run on this branch since the last commit? (already did / run it now / skip — trivial docs-only)"
+
+Block until the user confirms review ran or explicitly waives it. When you ARE a subagent, surface this to the dispatcher — never self-waive.
+
+**Bypass.** `/stone-merge --no-review` (or the user saying "skip review") waives the gate for trivial docs/infra PRs. Record the waiver in the final report.
+
+#### 2.1 Readiness checks
 
 Run **sequentially**, not in parallel. `gh pr checks` exits non-zero when any check is still pending or has failed (exit 8 = pending). If you launch it as a parallel sibling to `gh pr view`, the harness sees one tool error and may cancel the other call mid-flight, costing you both signals at once. Run them one after the other so you can interpret each exit code on its own:
 
@@ -241,6 +267,7 @@ The skill accepts optional arguments after the command:
 - `/stone-merge 45 88 91` — merge multiple PRs sequentially in the order given (rebase-on-conflict applies for siblings that collide)
 - `/stone-merge prod` or `/stone-merge production` — merge current PR then promote to production
 - `/stone-merge and release` — same as above
+- `/stone-merge --no-review` — waive the Section 2.0 code-review gate (trivial docs/infra PRs only); combinable with the above
 
 When merging multiple PRs sequentially, expect later PRs to go `CONFLICTING` once an earlier sibling lands — handle each in turn per Section 2d.
 
@@ -257,6 +284,7 @@ Section 0 dispatches the work to a sonnet subagent by default. When you ARE that
 ## Safety
 
 - Never merge a PR with failing checks (after one re-run attempt for clearly unrelated flake)
+- Never merge substantive product code past the Section 2.0 code-review gate unless it passed or was explicitly waived (`--no-review`); subagents surface the gate, never self-waive
 - Never force-merge or bypass review requirements (`--admin`)
 - Always delete the local branch after merge to prevent stale-branch work
 - Always switch to the base branch after cleanup — never leave the user on a deleted branch
