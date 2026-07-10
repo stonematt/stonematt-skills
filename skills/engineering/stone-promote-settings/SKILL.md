@@ -1,10 +1,18 @@
 ---
 name: stone-promote-settings
 description: >
-  Review and promote Claude Code permissions and settings from settings.local.json
-  to settings.json in the current project. Use when the user says "promote settings",
-  "review settings", "clean up settings", "sync settings", "promote permissions",
-  or asks about moving local settings to repo-tracked settings.
+  Reconcile Claude Code settings.local.json (personal, gitignored) against
+  settings.json (repo-tracked, shared): diff the two, promote stable rules to
+  the shared file, drop duplicates, and flag secrets/machine-specific paths to
+  keep local. Use when the user says "promote settings", "review settings",
+  "clean up settings", "sync settings", "promote permissions", or asks about
+  moving local settings to repo-tracked settings. This skill owns the
+  local-to-shared promotion diff — a niche neither built-in covers. NOT for:
+  editing settings.json in place, moving a permission to user scope, or adding
+  env vars/hooks (use the update-config skill); auto-generating an allowlist
+  from transcript noise to cut permission prompts (use /fewer-permission-prompts,
+  which writes new rules to project settings.json but does not reconcile your
+  existing local vs repo files).
 ---
 
 # Promote Settings
