@@ -1,0 +1,7 @@
+  on-ramp: wayfinder
+  spec: to-spec
+  slice-to-tickets: to-tickets
+  implement: implement
+  review: code-review
+  setup: setup-matt-pocock-skills
+  wayfinder: wayfinder

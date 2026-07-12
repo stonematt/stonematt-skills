@@ -69,8 +69,10 @@ It performs, idempotently and without clobbering existing files:
    table (below).
 2. Adds the `## Agent skills` block to `CLAUDE.md` (creates the file if absent).
 3. Writes `docs/agents/pocock-stamp.md` — the suite version + static translation
-   table. `bindings` is left `null`; live role-binding discovery is deferred to
-   the role-binding ticket (#35).
+   table + the live-discovered role-binding recipe. When an installed suite is
+   available (`POCOCK_SUITE_DIR`, default `~/.agents/skills`), `pocock-bind.sh`
+   (#53) binds the tracker-touching roles from the suite and caches them into the
+   stamp's `bindings:` block; with no suite, `bindings` is left `null`.
 4. Creates the canonical labels via `gh label create` (the `status:*` lifecycle
    plus the orthogonal `afk` and `needs-info` facets).
 
@@ -86,8 +88,7 @@ docs + stamp artifacts should all be present.
 ## Static translation table
 
 The wrapper applies this mapping and never learns board column names. Divergence
-is free as long as the mapping stays lossless. (Live discovery of Matt's currently
-installed skills against abstract roles is deferred to the role-binding ticket.)
+is free as long as the mapping stays lossless.
 
 | Canonical role (skills speak this) | Board expression |
 |---|---|
@@ -99,6 +100,28 @@ installed skills against abstract roles is deferred to the role-binding ticket.)
 The flag is `afk`, **not** `afk-ready`. `needs-info` is an orthogonal facet, not
 a seventh lane. `Released` is label-less — the issue's closed state.
 
+## Live role-binding (#53)
+
+Distinct from the translation table above (canonical role -> board expression),
+role-binding maps each **tracker-touching abstract role** to the installed skill
+that currently fills it. `pocock-bind.sh` discovers this live from the installed
+suite rather than hardcoding a slug table that a single rename would break:
+
+```bash
+bash scripts/pocock-bind.sh --suite ~/.agents/skills
+```
+
+- **Authority order:** release notes / changelog -> installed `SKILL.md` text ->
+  `ask-matt` (the router that answers "which skill fills this role").
+- **Narrow scope** — only the tracker-touching roles are bound: `on-ramp`,
+  `spec`, `slice-to-tickets`, `implement`, `review`, `setup`, `wayfinder`.
+- **Stop-and-surface** — an ambiguous (split) or empty (vanished) bind exits 4
+  and prints findings; no bind is written. Durable config later sessions trust
+  must never carry a guessed bind.
+- **Forked commit/merge skills** are flagged in the recipe, never auto-rewritten.
+- The recipe (bindings + version delta) is **cached into the stamp** keyed by
+  version. On the current suite it reproduces the static table (a pure expand).
+
 ## Guardrails
 
 - **Greenfield only (this skeleton).** Never apply to a migrant or current repo —
@@ -106,13 +129,13 @@ a seventh lane. `Released` is label-less — the issue's closed state.
   reconciling a provisional banner belong to the migrant mode.
 - **Never fork the suite.** This skill wraps `setup-matt-pocock-skills`; it never
   edits or re-implements Pocock's skills.
-- **Bindings stay null here.** Do not hand-write role bindings into the stamp;
-  the role-binding ticket owns live discovery.
+- **Never hand-write role bindings.** `pocock-bind.sh` discovers them live from
+  the installed suite; on an ambiguous/empty bind it stops and surfaces for a
+  human rather than guessing.
 
 ## Out of scope (this skeleton)
 
 - Migrant upgrade and current patch modes.
-- Live role-binding discovery (#35).
 - The optional Project board + CI-workflow projection (a prompted flex point).
 - Standing up a multi-repo org — the wrapper configures a repo to *join* an org
   board; standing up the org is a one-time human act.

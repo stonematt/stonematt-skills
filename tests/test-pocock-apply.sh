@@ -4,9 +4,11 @@
 # refuses (and does not clobber) on a re-run once the repo is no longer greenfield.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 . "$TESTS_DIR/pocock-fixtures.sh"
+. "$TESTS_DIR/pocock-suite-fixtures.sh"
 
 SANDBOX="$(mktemp -d)"; trap 'rm -rf "$SANDBOX"' EXIT
 build_pocock_fixtures "$SANDBOX"
+build_pocock_suite_fixtures "$SANDBOX/suite"
 
 REPO="$SANDBOX/greenfield"
 chmod +x "$TESTS_DIR/gh-label-shim"
@@ -16,6 +18,9 @@ export POCOCK_GH="$TESTS_DIR/gh-label-shim"
 export GH_LABEL_LOG="$LABELLOG"
 export POCOCK_INSTALLED_VERSION="1.4.0"
 export POCOCK_STAMP_DATE="2026-07-12"
+# Live role-binding (#53): apply discovers bindings from the installed suite and
+# caches the recipe into the stamp. The current suite reproduces the static table.
+export POCOCK_SUITE_DIR="$SANDBOX/suite/current"
 
 OUT="$(bash "$SCRIPTS_DIR/pocock-apply.sh" --root "$REPO" 2>&1)"
 RC=$?
@@ -45,8 +50,20 @@ assert_file "$REPO/docs/agents/pocock-stamp.md" "pocock-stamp.md written"
 STAMP="$(cat "$REPO/docs/agents/pocock-stamp.md")"
 assert_contains "$STAMP" "version: 1.4.0"        "stamp records installed version"
 assert_contains "$STAMP" "stamped: 2026-07-12"   "stamp records stamped date"
-assert_contains "$STAMP" "bindings: null"        "stamp defers live role-binding (bindings null)"
 assert_contains "$STAMP" "Translation table"     "stamp carries the static translation table"
+
+# ---- live role-binding recipe cached into the stamp (#53) ------------------
+assert_not_contains "$STAMP" "bindings: null"    "stamp no longer defers bindings (suite available)"
+for b in "on-ramp: wayfinder" "spec: to-spec" "slice-to-tickets: to-tickets" \
+         "implement: implement" "review: code-review" \
+         "setup: setup-matt-pocock-skills" "wayfinder: wayfinder"; do
+  assert_contains "$STAMP" "$b" "stamp caches live binding: $b"
+done
+# AC6 pure-expand: the cached bindings equal what pocock-bind emits for the suite.
+EXPECT_BINDINGS="$(bash "$SCRIPTS_DIR/pocock-bind.sh" --suite "$POCOCK_SUITE_DIR" \
+                    --version 1.4.0 --format bindings-block)"
+STAMP_BINDINGS="$(awk '/^bindings:/{f=1;next} /^[^ ]/{f=0} f{print}' "$REPO/docs/agents/pocock-stamp.md")"
+assert_eq "$EXPECT_BINDINGS" "$STAMP_BINDINGS" "stamp bindings == live-discovered recipe (pure expand)"
 
 # ---- labels created via gh (recording shim) -------------------------------
 LABELS="$(cat "$LABELLOG")"
