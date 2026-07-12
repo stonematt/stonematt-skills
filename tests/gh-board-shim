@@ -1,23 +1,62 @@
 #!/usr/bin/env bash
-# Fake `gh` for pocock-board audit-sweep tests. Point POCOCK_GH at this script.
+# Fake `gh` for the pocock-board Projects-v2 helper (Seam 2, offline).
+# Point POCOCK_GH at this script.
 #
-#   gh issue list ... --json ...  -> prints canned issue JSON from $GH_ISSUE_JSON
-#   gh pr list    ... --json ...  -> prints canned PR JSON from $GH_PR_JSON
-#   gh issue edit <n> --add-label <lane>  -> records "<n>\t<lane>" to $GH_EDIT_LOG
+#   gh api graphql -f query='<mutation ...>' -F k=v ...
+#     -> appends "<mutation-name>\t<flattened query>\t<-F bindings>" to
+#        $GH_GQL_LOG, and prints canned response JSON so the helper can parse
+#        back the field / option / item ids it captures.
 #   anything else -> no-op success
 set -u
 
-case "${1:-} ${2:-}" in
-  "issue list") cat "${GH_ISSUE_JSON:-/dev/null}"; exit 0 ;;
-  "pr list")    cat "${GH_PR_JSON:-/dev/null}";    exit 0 ;;
-  "issue edit")
-    n="${3:-}"; lane=""
-    shift 3
-    while [ $# -gt 0 ]; do
-      [ "$1" = "--add-label" ] && { lane="$2"; break; }
-      shift
-    done
-    [ -n "${GH_EDIT_LOG:-}" ] && printf '%s\t%s\n' "$n" "$lane" >> "$GH_EDIT_LOG"
-    exit 0 ;;
-esac
+if [ "${1:-}" = "api" ] && [ "${2:-}" = "graphql" ]; then
+  shift 2
+  query=""; fields=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -f) case "${2:-}" in query=*) query="${2#query=}" ;; esac; shift 2 ;;
+      -F) fields="$fields ${2:-}"; shift 2 ;;
+      *)  shift ;;
+    esac
+  done
+
+  # Identify the mutation by name.
+  mut="unknown"
+  case "$query" in
+    *updateProjectV2ItemFieldValue*) mut="updateProjectV2ItemFieldValue" ;;
+    *updateProjectV2Field*)          mut="updateProjectV2Field" ;;
+    *addProjectV2ItemById*)          mut="addProjectV2ItemById" ;;
+  esac
+
+  if [ -n "${GH_GQL_LOG:-}" ]; then
+    # Flatten the query to a single line so grep-style assertions can see the
+    # whole payload (singleSelectOptions, singleSelectOptionId, colors, …).
+    flat="$(printf '%s' "$query" | tr '\n' ' ')"
+    printf '%s\t%s\t%s\n' "$mut" "$flat" "$fields" >> "$GH_GQL_LOG"
+  fi
+
+  case "$mut" in
+    updateProjectV2Field)
+      cat <<'JSON'
+{"data":{"updateProjectV2Field":{"projectV2Field":{"id":"FIELD_STATUS","options":[
+{"id":"opt_triage","name":"Triage"},
+{"id":"opt_ready","name":"Ready"},
+{"id":"opt_wip","name":"WIP"},
+{"id":"opt_staged","name":"Staged"},
+{"id":"opt_blocked","name":"Blocked"},
+{"id":"opt_released","name":"Released"}]}}}}
+JSON
+      ;;
+    addProjectV2ItemById)
+      echo '{"data":{"addProjectV2ItemById":{"item":{"id":"ITEM_NEW"}}}}'
+      ;;
+    updateProjectV2ItemFieldValue)
+      echo '{"data":{"updateProjectV2ItemFieldValue":{"projectV2Item":{"id":"ITEM_NEW"}}}}'
+      ;;
+    *)
+      echo '{"data":{}}'
+      ;;
+  esac
+  exit 0
+fi
 exit 0
