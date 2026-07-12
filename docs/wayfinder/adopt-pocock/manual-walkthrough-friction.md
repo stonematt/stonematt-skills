@@ -87,10 +87,24 @@ Dual purpose: (1) capture friction as highest-fidelity input to #35/#36/#38 and 
   seeding upfront guesses wrong. Spec (#39): slot-resolution is **detect-then-confirm**, and `area:` in
   particular should default to *empty, emergent* — the wrapper must not fabricate an area taxonomy.
 
-### D6 — Backfill: board = status-work only; wayfinder tickets stay off it
-- **Decision:** the kanban board carries only `status:*`-labelled work; wayfinder issues (map + tickets)
-  keep their own axis (map + native dependency edges, #7). Confirms two-axis coexistence isn't just
-  conceptual — it forces a **backfill scope rule**.
+### D6 — Backfill scope + wayfinder maps on the board (revised)
+- **Revised decision:** the kanban board carries `status:*`-labelled work **and the wayfinder MAP** (the
+  spine issue) — but **not** its child tickets. A map is significant, long-running human effort and
+  deserves board space; hiding it in the issue list is the anomaly. Children stay off (their axis is the
+  map + native dependency edges + frontier query).
+- **Map lifecycle status:** `triage` (filed, not yet charted) → **`wip`** (charting / resolving tickets —
+  where a map lives) → closed = **`Released`** (destination reached, gone to spec). Maps **never** hit
+  `ready` (not a pickup unit) or `staged` (no dev-merge semantics), and carry no `afk-ready`.
+- **No query collision:** a `status:*` on the map doesn't disturb wayfinder ops — the map is still found
+  by `wayfinder:map`; child frontier/dependency queries are unaffected by the parent's status.
+- **Rejected alternative:** a *second* board for wayfinders — heavier, and re-creates the "only in a list"
+  invisibility for regular work. One board, maps get a status.
+- **Spec input (#39):** the two axes coexist *on one board* — kanban status is the **shared spine**, and a
+  wayfinder map is just a kanban item whose type happens to be `wayfinder:map`. The wrapper should place
+  maps on the board at `wip` and leave children off. (Supersedes the initial "all wayfinder issues off the
+  board" cut.)
+- **Original narrow cut (superseded):** the board carried only `status:*` work; both map and children were
+  kept off. Confirms two-axis coexistence forces a **backfill scope rule** — now: map-on, children-off.
 - **Gotcha:** CI sync is dormant until it reaches `main`, so backfill is **manual GraphQL**
   (`addProjectV2ItemById` + `updateProjectV2ItemFieldValue`) per issue. Spec (#39, F3): the wrapper's
   backfill step can't lean on the freshly-added workflow — it must add existing issues by hand.

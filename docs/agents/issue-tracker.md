@@ -62,7 +62,7 @@ Wayfinder maps/tickets use **GitHub-native** structure (no board dependency):
 - **Nesting (parent→child)** = native sub-issues via GraphQL `addSubIssue(input:{issueId, subIssueId})` with header `GraphQL-Features: sub_issues` (needs node IDs).
 - **Blocking** = native REST `POST /repos/{owner}/{repo}/issues/{N}/dependencies/blocked_by -F issue_id=<blocker DATABASE id>` (the `.id`, not the issue number). Renders the frontier visually in the GH UI.
 - **Frontier** = open + unassigned + no open blockers. **Claim** = assign to yourself (`gh issue edit N --add-assignee @me`).
-- Wayfinder tickets live on the **map**, not the kanban board — the two axes coexist (a ticket needn't carry a `status:*` label).
+- **The map sits on the kanban board; child tickets do not.** A map is long-running human effort, so it carries a normal `status:*` and appears on board #7: `triage` (filed) → `wip` (charting / resolving tickets — its usual state) → closed = `Released` (destination reached). Maps never enter `ready` or `staged` and carry no `afk-ready`. Child tickets keep their own axis (map + dependency edges + frontier query) and stay off the board.
 
 ## Release notes
 
