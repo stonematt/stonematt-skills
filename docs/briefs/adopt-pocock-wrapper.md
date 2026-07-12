@@ -1,169 +1,307 @@
-# Adopt-Pocock Wrapper — Skill Spec
+# Adopt-Pocock Wrapper — Spec
 
-Finalized spec for a manually-run, rare, context-quiet Claude Code skill that configures a repo to Matt Stone's standing Pocock-suite setup and keeps it durable across Matt Pocock's version bumps. The skill reads Matt Pocock's *currently-installed* skill suite, audits the repo's state (greenfield / migrant / current), reconciles it against Matt's canonical config (Kanban spine, triage roles, eligibility flags, intent/area slots), and writes durable per-repo config. **It wraps the suite; it never forks it.** This document is the handoff to a future `/write-a-skill` build session — it stops at the spec; no build here.
+Finalized spec for `stone-adopt-pocock`: a manually-run, rare, context-quiet skill
+that adopts (installs **or** upgrades) Matt Stone's standing Matt-Pocock skill-suite
+setup on any repo, in one invocation, leaving no straggling tasks. **It runs Matt
+Pocock's own `setup-matt-pocock-skills` and overlays Matt Stone's conventions on top
+— it never re-implements his spine.**
 
-Charted by wayfinder map [#31](https://github.com/stonematt/stonematt-skills/issues/31). Resolved-ticket detail and primary-source friction assets live in [`docs/wayfinder/adopt-pocock/`](../wayfinder/adopt-pocock/).
+Charted by wayfinder map [#31](https://github.com/stonematt/stonematt-skills/issues/31);
+build tracked by [#49](https://github.com/stonematt/stonematt-skills/issues/49).
+Primary-source friction assets live in [`docs/wayfinder/adopt-pocock/`](../wayfinder/adopt-pocock/).
 
-## The skill
+> **This revision supersedes the prior brief.** The prior shape — a deterministic
+> ~2,100-line bash suite (`pocock-plan/apply/bind/member/migrant/preflight`) that
+> re-implemented Pocock's spine and hardcoded a v1.0→v1.1 role-slug table — is
+> **demolished** (see [Out of Scope: kill list](#out-of-scope)). It inverted the
+> founding intent (*wrap not fork*, *trust live agent reasoning over a hardcoded
+> map*), overfit to the 1.0→1.1 migration, and refused migrant repos outright. This
+> spec restores the LLM-led shape and reduces the bash surface to a single helper.
 
-- **Role:** the *setup/precondition* role of the suite — the enhancement of `/setup-matt-pocock-skills` with an **upgrade mode** (genesis product ask, [#45](https://github.com/stonematt/stonematt-skills/issues/45)). Whether it ships as a new sibling skill or as new modes of `setup-matt-pocock-skills` is a build-time naming call (see Open questions).
-- **Invocation:** manual only. `disableModelInvocation: true` — the model never auto-fires it; a human runs it on a version bump or when onboarding a repo.
-- **Cadence:** rare (a version bump, or first wiring of a repo) and **context-quiet** — it should not bloat everyday sessions.
-- **Modes (all one skill):** *greenfield* scaffold · *migrant* upgrade · *current* patch. Mode is detected, not asked (see State detection).
+## Problem Statement
 
-## Founding decisions (settled while charting — fixed inputs, not open)
+Matt runs a spread of repos — the last four months land in *every* starting
+position imaginable: fresh repos with no config, repos carrying Pocock v1.0 config,
+partially-wired repos with a provisional banner, trackerless local corpora. Matt
+Pocock's skill suite bumps versions with changes neither Matt has seen in advance.
 
-1. **Wrap, never fork.** Durability across Matt's versions is the whole point.
-2. **Deliverable = one skill**, manual & rare.
-3. **Nitimini is canonical** config; other boards are a *flex-point catalog*, not co-equal models.
-4. **Intention-led abstraction** — a FIXED SPINE (board, statuses, progression, eligibility) vs CONTEXTUAL SLOTS (intent values, area values, source-of-truth seam) filled per-project by the running agent.
-5. **Durability = role-binding** (bind Matt's current skills to abstract roles) **+ a recorded Matt-version stamp** per run for diff-based audit.
-6. **Translation-table decoupling** — Matt's canonical roles/labels are a *translation table onto the project's richer board vocabulary, independent of it*. Skills apply the mapping and never learn column names. Divergence is free as long as the mapping is lossless. This is how wrap-not-fork works for vocabulary.
-7. **Executor is an orthogonal facet, not a lane** — `afk` is a status-independent label; kanban (`status:*` + `afk`) and wayfinder (`wayfinder:<type>` + `wayfinder:afk`) are two coexisting axes, same concept, no collision.
+Matt wants to walk up to **any** of these repos, invoke one skill, and have the repo
+end up fully adopted to the current suite — install if fresh, upgrade if not —
+**with nothing left over for him to do by hand**. The skill must figure out which
+path it's on and finish the job. It must not overfit to today's version delta,
+because the whole point is durability across the *next*, unseen bump. And it must
+*leverage* Pocock's process, not reproduce or fork it.
 
-## Preflight wiring gate (hard requirement)
+The prior build failed this: it re-created Pocock's spine in bash (so a v2 change
+means chasing it in scripts), hardcoded the role bindings as a slug table (one
+rename breaks it), classified repos with filesystem heuristics (brittle), and only
+handled greenfield (migrant refused). Competent code, wrong shape.
 
-A Pocock skill — `/wayfinder` especially — will **silently run on an unwired repo and appear to succeed** ([#45](https://github.com/stonematt/stonematt-skills/issues/45), genesis breakage). "The map built successfully" is **not** proof of correct wiring. So the wrapper's first act is a preflight check:
+## Solution
 
-- Does `docs/agents/issue-tracker.md` exist, and is it **reconciled** (no "provisional / not reconciled" banner)?
-- Are the canonical roles **bound** to real labels (not left at seed identity defaults)?
-- Are `docs/agents/triage-labels.md` and `docs/agents/domain.md` present?
-- Any **stale references** to renamed/removed v1.0 skills in the wrapping layer?
+A single manual skill, **`stone-adopt-pocock`** (`disableModelInvocation: true`),
+that is **LLM-led with bash only as hands**:
 
-On any miss: reconcile config **first** (setup-reconcile), **then** audit the wrapping layer — **never audit-only** (audit-only misses the config seam entirely).
+1. **Preflight** — a read-only readiness gate. Inspect the environment; on any
+   unmet precondition, halt with the exact copy-paste fix and stop. Never mutate the
+   user's machine or credentials.
+2. **Run `setup-matt-pocock-skills`** — Pocock's own install/reconcile owns the
+   suite spine. Trust its output; never re-create it. Idempotent, so it covers both
+   install and upgrade of *his* half.
+3. **Present the directive** — the model audits the repo (by reading, not bash
+   probing), consults its local workbench of prior adoptions, and declares this
+   repo's **goal + per-project success criteria + detected contextual slots +
+   planned Stone-delta mutations**. One go/no-go checkpoint.
+4. **Overlay the Stone delta only** — the seam between Pocock's way and Matt's:
+   translation-table conventions, the durable version stamp with a **live-discovered
+   binding recipe** (the model reads the installed suite; no slug table), workbench-
+   informed slot choices, a full stale-v1.0-prose rewrite of the wrapping layer, and
+   (optionally, prompted) the board projection. Install-vs-upgrade dissolves — both
+   run one idempotent delta-reconcile path that backfills what's missing and clobbers
+   nothing the human authored.
+5. **Behavioral smoke** — create a throwaway issue, move it across lanes, close it,
+   confirm the board reflects the progression. The anti-silent-success gate.
+6. **Verify + report + append the workbench** — check the declared criteria, report,
+   and record what was proposed / corrected / surprised into the local learning
+   ledger for the next run and the next suite version.
 
-## Config model — fixed spine + contextual slots
+The result is a *small* skill: Pocock's setup does the heavy suite wiring; the
+wrapper owns only the thin durable layer on top. When the suite hits v2, Matt
+inherits Pocock's changes for free and the model reasons about the delta from its
+workbench of precedent — not from a stale bash table.
 
-### Constant spine (must NOT vary)
+## User Stories
 
-- `docs/agents/{domain,issue-tracker,triage-labels}.md` trio + the CLAUDE.md `## Agent skills` block.
-- GitHub Issues via `gh`; PRDs/briefs in-repo (`docs/briefs/`), not as issues.
-- Board state machine: `triage → ready → wip → staged → Released`, with `blocked` as a side state.
-- Triage core: `status:*` lifecycle + orthogonal facets (`afk`, `needs-info`); the wayfinder shape.
-- `Released` is **label-less** (nitimini invariant): in label-only mode it is the issue's `closed` state; where a board exists, `Status=Released` is just the projection of closed.
+1. As Matt, I want to invoke one skill on any repo and have it adopt the current
+   Pocock suite, so that I never hand-migrate a repo again.
+2. As Matt, I want the skill to detect whether this is an install or an upgrade and
+   do the right one, so that I don't have to tell it which path it's on.
+3. As Matt, I want the skill to leave zero straggling tasks, so that "adopted" means
+   the system is actually ready to run, not "mostly wired."
+4. As Matt, I want the skill to run Pocock's own `setup-matt-pocock-skills` first, so
+   that his suite is wired his way and I only maintain the thin layer on top.
+5. As Matt, I want the skill to never re-implement Pocock's spine, so that a future
+   suite version doesn't force me to chase his changes in my own scripts.
+6. As Matt, I want role bindings discovered live by the model reading the installed
+   suite, so that a single skill rename in a bump doesn't silently break my config.
+7. As Matt, I want repo classification done by the model reading the repo, not by
+   directory heuristics, so that unusual repos aren't misclassified by a brittle
+   probe.
+8. As Matt, I want a read-only preflight that halts on a missing precondition with
+   the exact fix, so that I fix one thing in my own shell and re-invoke, rather than
+   the skill silently degrading or half-running.
+9. As Matt, I want preflight to never touch my machine's auth or credentials, so that
+   scope/PAT changes stay deliberate and in my own shell history.
+10. As Matt, I want a single go/no-go checkpoint after the skill presents its plan,
+    so that I can review durable config before it's written without approving each
+    mutation one at a time.
+11. As Matt, I want the skill to declare per-repo success criteria up front, so that
+    "done" has an explicit, checkable meaning for this specific repo.
+12. As Matt, I want the skill to verify its own work against those criteria, so that
+    I trust the outcome without re-auditing by hand.
+13. As Matt, I want a behavioral smoke that drives a real issue across the board, so
+    that I know the system *runs*, not just that files exist (the genesis breakage:
+    a suite skill silently succeeded on an unwired repo).
+14. As Matt, I want the smoke to create and clean up a throwaway issue, so that the
+    proof-of-wiring doesn't litter my tracker.
+15. As Matt, I want the skill to keep a local workbench of every adoption run, so that
+    later runs propose better and the skill learns from itself.
+16. As Matt, I want the workbench gitignored and local, so that each install grows its
+    own and no private-repo detail is ever pushed to the public skills repo.
+17. As Matt, I want the workbench read before each audit and appended after, so that
+    the next repo benefits from what the last one taught the skill.
+18. As Matt, I want the workbench to be the durability engine for the unseen v2, so
+    that when the suite changes in ways neither of us predicted, the model reasons
+    from precedent instead of a hardcoded map.
+19. As Matt, I want the skill to ask once, early, whether I want a real GitHub Projects
+    board, so that the board is a deliberate opt-in, not an assumption.
+20. As Matt, I want to be told at that moment if `gh` lacks `project` scope, with the
+    exact `gh auth refresh` command, so that a missing scope is a front-loaded fix,
+    not a mid-run surprise.
+21. As Matt, when I opt into the board, I want it created and backfilled live by the
+    skill using my own `gh`, so that it works day one.
+22. As Matt, I want the CI sync workflows written regardless, dormant until the
+    `PROJECT_TOKEN` secret exists and they reach `main`, so that the plumbing is all
+    present and "auto-sync later" is a note, never a blocker.
+23. As Matt, I want the un-deletable Projects v2 Status field handled correctly
+    (overwrite-in-place, capture field + option ids), so that the fiddliest board
+    step doesn't break.
+24. As Matt, I want the board GraphQL handled by a deterministic helper the model
+    calls, not freehanded, so that a wrong mutation can't corrupt the board.
+25. As Matt, I want the skill to reconcile a partially-wired or provisional-banner
+    repo without clobbering my hand edits, so that an upgrade backfills rather than
+    overwrites.
+26. As Matt, I want stale v1.0 skill references in my wrapping layer
+    (`CLAUDE.md`/`WORKFLOW.md`, command maps, conventions) rewritten to the current
+    contracts, so that no old-shape invocation runs silently under a new name.
+27. As Matt, I want the skill to stop and surface an ambiguous or vanished role bind
+    with what it found, so that durable config later sessions trust never carries a
+    guessed bind.
+28. As Matt, I want forked commit/merge skills flagged, never auto-rewritten, so that
+    my customizations stay a human call.
+29. As Matt, I want a trackerless local corpus (`facts/ + sources/ + refs/`) adopted
+    without forced tracker machinery, so that a corpus-is-the-artifact repo gets the
+    domain doc and stamp but no labels or board.
+30. As Matt, I want a durable version stamp recording the suite version and binding
+    recipe, so that a future run can tell current from drifted at a glance.
+31. As Matt, I want the skill to assume a capable (Opus-class) processor for its
+    reasoning, but to hard-gate on the presence + smoke evals, so that a weaker model
+    can't silently ship a bad adoption.
+32. As Matt, I want the skill to stay `disableModelInvocation: true` and manual, so
+    that it never auto-fires and bloats an everyday session.
+33. As a future maintainer, I want the bash surface reduced to one board helper, so
+    that the skill is legible and portable and the model owns all the judgment.
+34. As a downstream user who installs this skill, I want it to grow its own local
+    workbench on my machine, so that it adapts to my repos without shipping me Matt's.
 
-### Contextual slots (agent varies, per repo, detect-then-confirm)
+## Implementation Decisions
 
-**Code-vs-docs axis:**
-- **R1 — source-of-truth declaration:** in-repo vs external vault / `contracts/`+ADRs / `facts/` corpus. Cross-seam links are one-way when the SoT is external.
-- **R2 — lifecycle overlay:** optional. Full `status:*` kanban / flat / identity — not hardcoded.
-- **R3 — idea→issue gate:** governance/docs repos forbid `to-tickets` on raw ideas (ADR/spec first).
-- **R4 — PRs-as-request-surface:** boolean, default `no`.
-- **R5 — area labels:** content-defined; **default empty, emergent** — never fabricate a taxonomy.
+- **Deliverable = one skill, LLM-led executor.** `stone-adopt-pocock`,
+  `disableModelInvocation: true`, manual, rare, context-quiet. It wires the repo in
+  the same run (bias to action), not a generator that emits a plan for later.
+- **Division of labor = LLM-led, bash-as-hands.** The model does all detection and
+  role-binding by *reading* the repo and the installed suite. Scripts survive only
+  for deterministic, error-prone mutations. No detection heuristics, no slug table.
+- **Step one is invoking `setup-matt-pocock-skills`.** The wrapper *calls* Pocock's
+  setup for the suite-config seam and trusts its output (trust-then-verify via the
+  end smoke). It never reproduces the `docs/agents/*` spine or the label set that his
+  setup owns. This is "wrap, never fork" made literal.
+- **The Stone delta is the only thing the wrapper authors:** the translation-table
+  conventions (canonical role → board expression), `docs/agents/pocock-stamp.md`
+  (suite version + live-discovered binding recipe), workbench-informed contextual
+  slots, the stale-v1.0-prose rewrite of the wrapping layer, and the optional board
+  projection.
+- **Install-vs-upgrade dissolves into one idempotent delta-reconcile.** Pocock's
+  setup and the Stone delta are both idempotent; "greenfield" is just the special
+  case where the delta is "everything." Reconcile the delta, backfill the missing,
+  clobber nothing the human authored. No separate migrant/greenfield code paths.
+- **Role binding is model-discovered live**, in order of authority: release
+  notes/changelog → installed `SKILL.md` text (semantic contract match) → `ask-matt`
+  router. Ambiguous (split) or empty (vanished) → **stop and surface**, never guess.
+  Forked commit/merge skills → **flag, never auto-rewrite**. Scope is narrow —
+  tracker-touching roles only.
+- **Preflight is a read-only readiness gate.** Inspect `gh` auth + `project` scope,
+  suite installed at `~/.agents/skills`, origin remote, current repo state. Any gap →
+  halt with the exact copy-paste fix; the user runs it and re-invokes. Preflight
+  **never mutates the user's machine or credentials** (no auto `gh auth refresh`).
+- **One approval checkpoint.** After preflight passes and Pocock's setup runs, the
+  model presents the directive (goal + criteria + detected slots + planned mutations)
+  for a single go/no-go, then runs autonomously to done, re-surfacing only on a true
+  blocker (ambiguous bind, credential wall).
+- **The board is an early, explicit opt-in.** One question near preflight: real
+  GitHub Projects board, or label-only? Label-only is the portable default and a
+  complete config. On opt-in, if `gh` lacks `project` scope, that surfaces at
+  preflight with the `gh auth refresh -s project` command.
+- **Credentials are never silent stragglers.** `gh auth refresh -s project` (user's
+  shell, if board wanted) is a preflight fix, not skill-run. `PROJECT_TOKEN` (repo
+  secret, `project` write — `GITHUB_TOKEN` can't write user Projects v2) is required
+  only by the CI sync workflows; the skill *writes those workflows regardless*, and
+  they stay dormant until the secret exists AND they reach `main` via `dev→main`. The
+  board is live + backfilled at run time by the skill's own `gh`; CI takes over later.
+- **Board mutation stays a deterministic helper.** The one surviving script wraps the
+  Projects v2 GraphQL gotchas: overwrite the un-deletable built-in Status single-select
+  in place (`updateProjectV2Field`), capture field + option ids for the sync, and
+  backfill existing issues (`addProjectV2ItemById` + `updateProjectV2ItemFieldValue`).
+  The model calls it; it never freehands GraphQL.
+- **Trackerless-local corpus** (`facts/ + sources/ + refs/` all present) is adopted
+  without tracker machinery: domain doc + stamp + a corpus-flavored `## Agent skills`
+  block; no `issue-tracker.md`/`triage-labels.md`, no labels, no board.
+- **Translation-table invariants carry forward:** `needs-triage`→`status: triage`;
+  `needs-info` an orthogonal facet, not a lane; `ready-for-agent`→`status: ready` +
+  the `afk` flag; `ready-for-human`→`status: ready` (no flag); `Released` is
+  label-less (the closed state). Skills apply the mapping and never learn column
+  names; divergence is free while the mapping stays lossless. (Note the host repo's
+  own tracker uses `afk-ready`; the wrapper's canonical flag is `afk` — the mapping
+  is per-repo, not identity.)
+- **The workbench (v2-durability engine):** central to `stonematt-skills`,
+  **gitignored, local-only**. Layout mirrors the auto-memory index+siblings pattern —
+  `workbench/INDEX.md` (one line per run) + `workbench/<date>-<slug>.md` siblings with
+  YAML frontmatter (`suite_version`, `repo_kind`, `corrections_count`, `unresolved`)
+  and a prose body (what was proposed, what the human corrected and why, what
+  surprised the model). Read-before-audit, append-after. Full-fidelity local — no
+  sanitization burden because it is never pushed; each install grows its own.
+- **Model assumption:** the skill assumes an Opus-class processor for the audit/bind
+  reasoning. Degradation is safe because the presence + smoke evals hard-gate — a
+  weaker model cannot silently ship a bad bind.
+- **Location:** stays `skills/in-progress/stone-adopt-pocock/` until it runs clean on
+  3–4 real repos, then promotes out of in-progress.
 
-**Single-vs-multi-repo axis:**
-- **R6 — board scope:** `own` vs `shared org Project`.
-- **R7 — project-sync plumbing** + a documented per-repo `PROJECT_TOKEN` PAT.
-- **R8 — no per-repo Milestones in shared mode:** ROADMAP → board Epics; use built-in Repository + Parent/Sub-issue fields.
-- **R9 — governance/mechanics split** as a documented rule (not a copyable file set).
+## Testing Decisions
 
-**Intent slot:** seed for the repo's kind. For a skills/docs repo: `intent:{structural, voice, capability}` — each selects a different review/acceptance lens (`structural` = refactor no-behavior-change; `voice` = prose/persona, snapshot diff IS the review; `capability` = new behavior, acceptance = behavior test).
+Good tests here assert **external behavior and outcomes**, never the model's internal
+reasoning. Detection and binding are model judgment now — they are proven by the
+adoption *outcome*, not by golden files (which is why the prior detection goldens are
+deleted, not ported). Two seams, highest-possible, fewest-possible:
 
-**How the agent lands on slots — detect-then-confirm:** inspect (file mix, presence of vault/`contracts/`/`facts/`, `git remote`, shared org board) and **propose** the slot values ("docs repo, external SoT = vault, no kanban, member of org board X"); the dev confirms or corrects. Not a blank interview, not silent auto-config.
+- **Seam 1 — runtime acceptance gate (integration, primary, highest).** One seam over
+  the whole skill run. After adoption, assert the declared success criteria hold:
+  the spine present (or the corpus subset), the `## Agent skills` block, the canonical
+  labels created (or `[]` for a corpus), the version stamp written, no lingering v1.0
+  references, no provisional banner, all tracker-touching roles bound. **Plus the
+  behavioral smoke:** create a throwaway issue, move it across lanes, close it, and
+  confirm the board reflects the progression — then clean the issue up. This is the
+  anti-silent-success gate (brief line: *"the map built successfully" is not proof of
+  correct wiring*). It exercises the LLM-led half by outcome. Prior art: the existing
+  `tests/pocock-e2e-smoke.sh` gestures at this shape; the held-out e2e smoke (#59) is
+  the seed to grow from.
+- **Seam 2 — board GraphQL helper (unit, offline).** The one surviving script:
+  deterministic input → correct GraphQL/mutation output (Status-field overwrite, field
+  + option id capture, backfill payloads). Fixture-tested, no network. Prior art: the
+  `gh-*-shim` fakes and `tests/test-pocock-board.sh` in the current suite are the
+  starting point — kept and refocused on just the helper.
 
-## Role-binding contract ([#35](https://github.com/stonematt/stonematt-skills/issues/35))
+No golden-file detection tests. No per-mode (migrant/greenfield) unit seams — the
+modes dissolved into one idempotent path, tested through Seam 1. The
+`setup-matt-pocock-skills` invocation is Pocock's seam, not ours; it is trusted and
+verified transitively through Seam 1's smoke.
 
-**Binding is LLM-discovered live, not a coded map.** No slash-name table (breaks on rename), no DAG-position matcher, no hand-maintained manifest. At run time the agent reads the *installed* suite and binds each abstract role to the skill that currently fills it, by semantic contract match.
+## Out of Scope
 
-**Discovery procedure — consult in order of authority:**
-1. **Matt's release notes / changelog** (a bump usually announces the split/merge/rename outright).
-2. **Installed `SKILL.md` text** — description + in/out contract, matched to the role's contract.
-3. **`ask-matt`** — the router skill exists to answer "which skill fills this role"; engage when 1–2 are ambiguous.
+**Kill list (the negative delta — must happen as part of this build):**
 
-**Roles bound (narrow — tracker-touching only):** on-ramp/decision (wayfinder, triage, diagnosing-bugs, improve-codebase-architecture) · spec (to-spec) · slice-to-tickets (to-tickets) · implement · review (code-review) · setup/precondition · wayfinder itself. **Not bound:** idea-sharpening, vocabulary-layer, investigation, session-crossing, flow/ask router, learning.
+- Delete `scripts/pocock-plan.sh` (detection heuristics → model reads).
+- Delete `scripts/pocock-bind.sh` (the forbidden slug table → live binding).
+- Delete `scripts/pocock-apply.sh` (re-implements Pocock's spine → his setup owns it).
+- Delete `scripts/pocock-member.sh` (classification → model reasoning).
+- Delete `scripts/pocock-migrant.sh` (migrant branch → dissolved idempotent path).
+- Delete `scripts/pocock-preflight.sh` (preflight is now read-only model inspection).
+- Delete the detection goldens `tests/golden/pocock-*.{json,yaml,md}` and the
+  per-script tests `tests/test-pocock-{plan,bind,apply,member,migrant,slots,trackerless}.sh`.
+- Refactor `scripts/pocock-board.sh` down to the single board/GraphQL helper the model
+  calls (keep, don't delete). Optionally fold a tiny idempotent `gh label` creator in.
 
-**Guardrail — stop and surface:** on an ambiguous or empty bind (a role that split, merged, or vanished), the agent **stops and surfaces to the human** with what it found. No silent auto-bind — this wrapper writes durable config that later sessions trust; a bad bind must not propagate. **Forked commit/merge skills stay a human call** — flag, never auto-rewrite.
+Net: ~2,100 lines of bash → ~300.
 
-**Cacheable, keyed by version:** discovered bindings + version delta cache as a per-version recipe (mechanism → #37).
+**Genuinely out of scope:**
 
-**Philosophy — under-engineer on purpose.** Trust an improving process + live agent reasoning over a hardcoded map that a single rename would break.
+- Building the `SKILL.md` itself — that is the `/write-a-skill` session that consumes
+  this spec (tracked by #49).
+- Modifying anything Pocock's `setup-matt-pocock-skills` owns — the wrapper calls it,
+  never edits it.
+- Standing up a multi-repo org (governance + `.github` mechanics repos) — the wrapper
+  configures a repo to *join* an existing org board; standing up the org is a one-time
+  human act. The board helper never scaffolds the org.
+- Auto-provisioning credentials — `gh auth refresh` and `PROJECT_TOKEN` are the user's
+  deliberate acts; the skill surfaces the exact commands and stops.
+- Sanitizing the workbench for publication — it is gitignored and local; distilling
+  sanitized *patterns* into committed skill prose is a later, deliberate act.
 
-## Translation table — the durability engine ([#43](https://github.com/stonematt/stonematt-skills/issues/43))
+## Further Notes
 
-Matt's canonical triage roles map onto the project's richer board vocabulary, independent of it. A skill wanting a role applies the board expression and never learns column names:
+**Founding decisions that still hold** (carried from the prior brief, re-grounded):
+wrap-never-fork (now literal: *call* his setup); fixed spine (Pocock's setup output)
+vs contextual slots (the Stone delta the model reasons about); translation-table
+decoupling; stop-and-surface on ambiguous/empty binds and forked commit/merge skills;
+two orthogonal `afk` axes (kanban `status:*`+`afk`, wayfinder `wayfinder:*`) coexist.
 
-| Canonical role (skills speak this) | Board expression (this repo) |
-|---|---|
-| `needs-triage` | `status: triage` |
-| `needs-info` | `needs-info` (orthogonal facet) |
-| `ready-for-agent` | `status: ready` **+** `afk` |
-| `ready-for-human` | `status: ready` (no `afk`) |
+**Why the demolition is justified** (the reasoning behind deleting 2,100 lines lives
+in the grilling session, Q1–Q14): the prior build re-implemented Pocock's spine
+instead of calling his setup, hardcoded the exact "slug-name table that breaks on
+rename" the founding brief forbade (its alternates were literally the v1.0 names —
+overfit confirmed in code), classified repos with `[ -d ]` filesystem probes, and
+left the durability value-prop (migrant mode) unbuilt (apply refused migrant, exit 3).
+Competent deterministic 1.0→1.1 migration tooling, mislabeled as the adopt skill.
 
-- Flag is `afk`, **not** `afk-ready` (don't re-smuggle "ready" into a status-independent facet).
-- **Two orthogonal afk axes coexist by design:** kanban (`status:*` + `afk`) and wayfinder (`wayfinder:<type>` + `wayfinder:afk`). Same concept, two scoped labels, no collision.
-- The seed's **identity** default (`needs-triage`→`needs-triage`) is the **wrong** baseline for this fleet — binding must force an explicit per-repo map, never accept identity silently.
-- Divergence is free as long as the mapping is **lossless**; the board may enrich with orthogonal facets (e.g. `needs-info` as a facet, not a 7th lane) without forking the spine.
-
-## State detection + migrant scope ([#36](https://github.com/stonematt/stonematt-skills/issues/36))
-
-**Detection = two orthogonal axes** (not a flat 4-way branch). Walk **substrate first**, then **freshness** within it.
-
-- **Substrate** — does `git remote` have an origin?
-  - *tracker-backed* — GitHub Issues present; `docs/agents/*` config applies.
-  - *trackerless-local* — no remote; a `facts/ + sources/ + refs/` corpus is the artifact, no GitHub tracker.
-- **Freshness:**
-  - *greenfield* — no `docs/agents/`, no old slugs → scaffold fresh.
-  - *migrant* — old slugs or a stale version-stamp → run migration.
-  - *current* — config present, stamp == installed → patch only the user's overlay.
-
-**Migrant-vs-current signal = both, layered:** the version-stamp (#37) is the fast path; a **slug-scan** for v1.0 names (`to-prd`, `to-issues`, `decision-mapping`, `review`) across WORKFLOW/CLAUDE/prose is the belt-and-suspenders that catches a repo migrated without a stamp. Partial config (some `docs/agents/` present, some missing) is a migrant sub-case: backfill the missing pieces; reconcile a "provisional" banner, don't clobber.
-
-**Migrant scope = both halves, in order** (from #45 primary source):
-1. **Config seam first** — reconcile the suite's own config (issue-tracker / triage-labels / domain docs) to the installed version.
-2. **Then the wrapping layer** — full stale-ref **+ contract** rewrite of `WORKFLOW.md`, `CLAUDE.md`/`AGENTS.md` rules, `status:*` conventions, command maps, prose. Audit-only misses the config half; find-and-replace misses the *contract* changes (old shape runs silently under a new name).
-
-**Fleet split:** carry the portable `status:*` label mapping to other repos, but **drop** the local wayfinder section — it is bespoke to a wayfinding repo.
-
-## Version-stamp + drift audit ([#37](https://github.com/stonematt/stonematt-skills/issues/37))
-
-One artifact unifies the version stamp, the #36 freshness fast-path, and the #35 role-binding recipe cache.
-
-**Stamp — `docs/agents/pocock-stamp.md`** (markdown + YAML frontmatter; human-readable, machine-parses). Fields: `suite`, `version`, `stamped` date, `source: ~/.agents/skills` (canonical catalog — **not** the `~/.claude/skills` activated projection), a **light whole-catalog** map (name + `dmi` + `activated`, so drift flags any skill Matt ships/kills), and **full `bindings` only for the tracker-touching roles**.
-
-**No content fingerprints.** Keyed on the **version string alone**. On any bump the agent re-reads `SKILL.md` live (#35 discovery) and judges drift itself — no stored hashes. The rare unbumped-contract-change case is covered by the #36 slug-scan + live re-read.
-
-**Staleness rule:**
-1. Read installed `version` from `~/.agents/skills`.
-2. `installed == stamp` → **current**: trust cached `bindings`, skip re-discovery.
-3. else → **migrant**: re-discover live (#35), emit drift report, run migrant flow (#36), overwrite the stamp with the new recipe.
-
-**Drift report — `docs/agents/pocock-drift-<date>.md` + session echo.** Dated file (migration audit across ~a dozen repos is worth a record) and printed. Grouped: renamed/merged · **contract-changed** (the silent-breakage class, from the live re-read) · added · removed · bindings-shifted · stale-refs-in-wrapping-layer → hands to the migrant flow.
-
-## Board / CI projection — optional, prompted ([#38](https://github.com/stonematt/stonematt-skills/issues/38), [#40](https://github.com/stonematt/stonematt-skills/issues/40))
-
-**Portable default = label-only.** The spine that ports everywhere is the **label vocabulary + state machine**, not the CI machinery. The Project v2 board + `project-sync.yml` + `clean-status-on-close.yml` are a **flex point** — never a requirement. The config is valid and complete without them.
-
-**End-of-run prompt:** after configuring, **ask** whether to also wire the CI workflows + Project board (optionally sharing an org board via PAT sync). Default leans yes — the dev usually wants glanceable visibility — but "docs/skills repo, no prod deploy" does **not** imply skip-the-board. Ask, don't assume. On a **member repo of an existing org board**, this prompt is the opt-out seam and is skipped (org plumbing already exists).
-
-**Board-setup gotchas the wrapper must handle (from #40 hands-on audit):**
-- **Status field is not pure `gh project`.** A fresh Project ships a built-in **Status** single-select that is **un-deletable** (`deleteProjectV2Field` → "Only custom fields can be deleted"). Overwrite its options in place via raw `gh api graphql updateProjectV2Field(input:{fieldId, singleSelectOptions:[…]})` — the mutation replaces the whole option set. Then **capture the field id + option ids** for the CI sync. This is the single fiddliest step.
-- **Irreducible human secret step.** Project mutations need a PAT with `project` write; `GITHUB_TOKEN` cannot write user-owned Projects v2. The agent writes the YAML but **stops** and hands the human a precise `PROJECT_TOKEN` checklist (hardened variant = fine-grained PAT).
-- **CI activation lags to the default branch.** `issues`-triggered workflows run from the default branch, so under `feature→dev→main` they are **dormant until the first `dev→main` release PR** lands them on `main`. Backfill of existing issues must therefore be **manual GraphQL** (`addProjectV2ItemById` + `updateProjectV2ItemFieldValue`), not lean on the fresh workflow.
-- **Audit sweep for unlabelled issues.** An open issue with a live branch but no `status:*` label is invisible to the board — sweep and reconcile status from branch/PR state; don't assume every issue carries a lane.
-- **Multi-repo:** on a member repo apply the **uniform spine incl. the same `status:*` vocabulary** (consistency is the point — this overrides a surveyed "flat, no kanban" state). Board/project automation is decoupled and per-member. The wrapper **never scaffolds the org itself**.
-
-## Outputs (first-class artifacts, not just GitHub state)
-
-- `docs/agents/issue-tracker.md`, `triage-labels.md`, `domain.md` — written/updated. **The tracker agent-doc is a first-class output** — configuring isn't done when labels+board+CI exist; else every future session re-derives the spine from nitimini.
-- `docs/agents/pocock-stamp.md` — version stamp + binding recipe.
-- `docs/agents/pocock-drift-<date>.md` — on a migrant run.
-- CLAUDE.md `## Agent skills` block, and (migrant) rewritten wrapping-layer prose/command maps.
-- GitHub state: labels, and optionally the Project board + CI workflows + backfill.
-
-## Guardrails (stop-and-surface points)
-
-- Ambiguous/empty role bind → stop, surface findings, don't auto-bind.
-- Forked commit/merge skills → flag, never auto-rewrite.
-- `PROJECT_TOKEN` provisioning → emit checklist, stop for the human.
-- Seed identity label-map → reject as a silent default; force an explicit per-repo map.
-- Provisional/partial prior-run state → detect and reconcile, don't clobber or blindly trust.
-
-## Out of scope
-
-- Building the wrapper skill (this spec is the destination; build is a separate `/write-a-skill` session).
-- Cold-installing / validating the wrapper on any repo.
-- **Scaffolding a multi-repo org** (standing up governance + `.github` mechanics repos) — the wrapper configures a repo to *join* an existing org board; standing up the org is a human/one-time act.
-
-## Open questions (for the build session)
-
-- **Skill identity/name:** new sibling skill vs new `greenfield|migrant|current` modes on `setup-matt-pocock-skills`. The genesis framed it as giving setup an "upgrade mode"; the map framed a single "adopt-Pocock wrapper." Resolve at build time — the contract above holds either way.
+**Next step:** `/write-a-skill` (with `/writing-great-skills` as the quality lens) to
+author the `SKILL.md` from this spec — a short, optimized skill, since Pocock's setup
+carries the heavy wiring and the wrapper owns only the seam between his way and Matt's.
