@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fake `gh` for pocock-apply label tests. Point POCOCK_GH at this script.
+# Fake `gh` for the pocock-board `labels` verb tests. Point POCOCK_GH at this script.
 # Records every `gh label create <name> ...` to $GH_LABEL_LOG (one name per line)
 # and exits 0. Any other gh subcommand is a no-op success.
 set -u
