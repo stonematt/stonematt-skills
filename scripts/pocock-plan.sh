@@ -110,6 +110,34 @@ detect_source_of_truth() {
   fi
 }
 
+# ---- wiring signals (consumed by the preflight gate, #54) ------------------
+# The emitter is the single detection authority; the gate never re-scans the
+# tree — it reads these booleans off the plan. Keep all filesystem probing here.
+
+doc_present() { [ -f "$ROOT/docs/agents/$1" ]; }
+
+# issue-tracker.md is *reconciled* iff present and carrying no "provisional /
+# not reconciled" banner (a partial prior run leaves the banner behind).
+issue_tracker_reconciled() {
+  local f="$ROOT/docs/agents/issue-tracker.md"
+  [ -f "$f" ] || return 1
+  grep -qiE 'provisional|not[[:space:]]*reconciled' "$f" && return 1
+  return 0
+}
+
+# Roles are bound iff the stamp records a non-empty `bindings:` block (canonical
+# roles mapped to the installed skills). No stamp or an empty block => unbound.
+roles_bound() {
+  local f="$ROOT/docs/agents/pocock-stamp.md"
+  [ -f "$f" ] || return 1
+  awk '
+    /^bindings:[[:space:]]*$/ { inb=1; next }
+    inb && /^[^[:space:]]/    { inb=0 }
+    inb && /^[[:space:]]+[^[:space:]#-]/ { found=1 }
+    END { exit(found?0:1) }
+  ' "$f"
+}
+
 # Freshness within the substrate. Greenfield needs no installed-version lookup;
 # current-vs-migrant is decided by the stamp/slug signals, layered.
 detect_freshness() {
@@ -144,6 +172,9 @@ json_array() { # pad item...
 # null when empty, else a quoted JSON string.
 json_str_or_null() { [ -n "$1" ] && printf '"%s"' "$1" || printf 'null'; }
 
+# Echo a JSON boolean for a command's success (0 => true).
+json_bool() { if "$@"; then printf 'true'; else printf 'false'; fi; }
+
 emit_plan() {
   local substrate freshness stamp sot
   local -a stale=() slots_intent=("structural" "voice" "capability")
@@ -167,6 +198,15 @@ emit_plan() {
   printf '  "freshness": "%s",\n' "$freshness"
   printf '  "stamp_version": %s,\n' "$(json_str_or_null "$stamp")"
   printf '  "stale_slugs": %s,\n' "$(json_array '  ' "${stale[@]}")"
+  # Wiring signals — the preflight gate (#54) reads these off the plan so it
+  # never duplicates the emitter's detection.
+  printf '  "wiring": {\n'
+  printf '    "issue_tracker_present": %s,\n'    "$(json_bool doc_present issue-tracker.md)"
+  printf '    "issue_tracker_reconciled": %s,\n' "$(json_bool issue_tracker_reconciled)"
+  printf '    "triage_labels_present": %s,\n'    "$(json_bool doc_present triage-labels.md)"
+  printf '    "domain_present": %s,\n'           "$(json_bool doc_present domain.md)"
+  printf '    "roles_bound": %s\n'               "$(json_bool roles_bound)"
+  printf '  },\n'
   printf '  "proposed_slots": {\n'
   printf '    "source_of_truth": "%s",\n' "$sot"
   printf '    "lifecycle_overlay": "status-kanban",\n'
