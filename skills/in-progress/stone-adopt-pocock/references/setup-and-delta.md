@@ -147,6 +147,12 @@ do **not** rewrite it — flag it (see `role-binding.md`, forked-skill rule).
   is a note, not a straggler. On a **label-only** or **trackerless-local** adoption
   the live board projection (`status-field` / `backfill`) is skipped, but the dormant
   workflow files are still written.
+- **Do NOT prompt for `PROJECT_TOKEN` here.** Its need is surfaced up front by the
+  board-only preflight advisory (preflight check 5), so by the time you write the
+  workflow the operator has already seen the `gh secret set PROJECT_TOKEN` fix.
+  Write the dormant workflow and, if the secret is still absent, leave a one-line
+  note that auto-sync stays dormant until it is set — never a mid-run credential
+  prompt.
 
 ---
 

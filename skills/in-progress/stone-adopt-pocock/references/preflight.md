@@ -16,6 +16,8 @@ Spec: [`docs/briefs/adopt-pocock-wrapper.md`](../../../../docs/briefs/adopt-poco
 - **Halt on the first gap.** One gap → emit its exact fix and stop. No silent
   degrade, no half-run, no "I'll work around it." Matt runs the fix in his own
   shell (so scope/PAT changes stay in his history) and re-invokes the skill.
+  (The one exception is check 5, the `PROJECT_TOKEN` board advisory — explicitly
+  non-blocking, it surfaces the fix and passes through rather than halting.)
 - **The `project` scope check is conditional.** Label-only is the portable default
   and needs no `project` scope. Only require `project` scope when Matt has opted
   the board **in** (see the board opt-in question, asked near preflight). Skip the
@@ -27,7 +29,8 @@ Spec: [`docs/briefs/adopt-pocock-wrapper.md`](../../../../docs/briefs/adopt-poco
 
 Run each probe. On a green result, continue to the next. On a red result, print
 the paired fix verbatim inside a fenced block, state that preflight is halting,
-and stop.
+and stop. Checks 1–4 halt on a gap; check 5 is a board-only **advisory** that
+surfaces its fix and passes through (see its own note).
 
 ### 1. `gh` auth state (+ `project` scope, board-only)
 
@@ -122,9 +125,41 @@ git status --porcelain
   Do not stash, commit, or discard anything yourself. Surface the dirty paths from
   the `git status --porcelain` output so Matt sees exactly what is outstanding.
 
+### 5. `PROJECT_TOKEN` repo secret (board-only advisory — never a halt)
+
+The dormant CI board-sync workflow (written in step 4 regardless of the board
+answer) needs a `PROJECT_TOKEN` repo secret to actually run. Surface that need
+**here, up front** — not mid-run in step 4 — so Matt learns about it at the gate
+where he expects credential news. This is the one preflight check that is an
+**advisory, not a gate**: the secret is explicitly non-blocking (the workflow
+stays dormant until it exists AND reaches the default branch — see
+`setup-and-delta.md` §2d), so its absence never halts the run.
+
+**Probe** (only when the board was opted **in**):
+
+```bash
+gh secret list | grep -qi '^PROJECT_TOKEN' && echo present || echo absent
+```
+
+- **Board opted in AND secret absent** → print the advisory and the exact fix, then
+  **pass through** (do not halt, do not set the secret yourself):
+
+  ```bash
+  gh secret set PROJECT_TOKEN   # board CI sync stays dormant until this exists
+  ```
+
+  State plainly: the board projection still runs, the CI sync workflow is still
+  written, but auto-sync stays dormant until Matt runs the fix and it reaches the
+  default branch. Then continue.
+- **Board opted in AND secret present** → green, no advisory noise.
+- **Label-only / trackerless-local adoption** → skip this check entirely; there is
+  no board CI workflow to feed.
+
 ## Pass-through
 
 When checks 1–4 are green (with check 1's `project` sub-check applied only under
-board opt-in), preflight is satisfied. Proceed to the setup step: invoke
-`setup-matt-pocock-skills`. Report a one-line "preflight green" so the run is
-legible, then continue — no extra prompt.
+board opt-in) and check 5's board-only advisory has been surfaced-or-skipped,
+preflight is satisfied. Proceed to the setup step: invoke
+`setup-matt-pocock-skills`. Report a one-line "preflight green" (noting the
+`PROJECT_TOKEN` advisory if it fired) so the run is legible, then continue — no
+extra prompt.
