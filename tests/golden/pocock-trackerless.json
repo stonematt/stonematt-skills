@@ -1,0 +1,33 @@
+{
+  "substrate": "trackerless-local",
+  "freshness": "greenfield",
+  "stamp_version": null,
+  "stale_slugs": [],
+  "wiring": {
+    "issue_tracker_present": false,
+    "issue_tracker_reconciled": false,
+    "triage_labels_present": false,
+    "domain_present": false,
+    "roles_bound": false
+  },
+  "proposed_slots": {
+    "source_of_truth": "facts-corpus",
+    "lifecycle_overlay": "none",
+    "idea_to_issue_gate": "open",
+    "prs_as_request_surface": false,
+    "area_labels": [],
+    "board_scope": "none",
+    "intent": [
+      "structural",
+      "voice",
+      "capability"
+    ]
+  },
+  "cached_bindings": null,
+  "artifacts_to_write": [
+    "docs/agents/domain.md",
+    "docs/agents/pocock-stamp.md",
+    "CLAUDE.md#agent-skills"
+  ],
+  "labels_to_create": []
+}

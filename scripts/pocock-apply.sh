@@ -86,7 +86,15 @@ if [ "$FRESHNESS" != "greenfield" ]; then
   exit 3
 fi
 
-echo "pocock-apply: greenfield — wiring $ROOT"
+# Substrate steers which pieces get written. A trackerless-local repo is a
+# facts/ + sources/ + refs/ corpus, not a GitHub tracker: skip the tracker-only
+# artifacts (issue-tracker.md, triage-labels.md) and the label creation, and write
+# a corpus-flavored CLAUDE.md block + stamp. The plan is the single authority — the
+# emitter already dropped those artifacts/labels for trackerless; apply honors it.
+SUBSTRATE="$(plan_field substrate)"
+[ -n "$SUBSTRATE" ] || SUBSTRATE="tracker-backed"
+
+echo "pocock-apply: greenfield — wiring $ROOT (substrate=$SUBSTRATE)"
 
 # ---- 1. agent-doc trio (constant spine) -----------------------------------
 
@@ -127,6 +135,10 @@ If output contradicts an existing ADR, surface it explicitly rather than silentl
 overriding — but only when the friction is real enough to warrant revisiting it.
 EOF
 
+# issue-tracker.md and triage-labels.md are tracker-only: they describe the GitHub
+# Issues workflow and the status-label translation table. A trackerless-local corpus
+# has no tracker, so skip both — writing them would force machinery that never runs.
+if [ "$SUBSTRATE" != "trackerless-local" ]; then
 write_once docs/agents/issue-tracker.md <<'EOF'
 # Issue tracker: GitHub
 
@@ -212,12 +224,31 @@ status: wip    -> status: staged (merged to dev)
 status: staged -> (closed = Released) (dev -> main release)
 ```
 EOF
+fi
 
 # ---- 2. CLAUDE.md `## Agent skills` block ---------------------------------
 
 CLAUDE_MD="$ROOT/CLAUDE.md"
 agent_block() {
-  cat <<'EOF'
+  if [ "$SUBSTRATE" = "trackerless-local" ]; then
+    # Trackerless corpus: no GitHub tracker block. The corpus IS the artifact.
+    cat <<'EOF'
+## Agent skills
+
+### Corpus (source of truth)
+
+No GitHub tracker. This repo is a `facts/ + sources/ + refs/` corpus — the corpus
+is the artifact: `facts/` holds distilled claims, `sources/` the primary material,
+`refs/` supporting references. Treat the corpus as the source of truth; there is no
+issue tracker, no `status:*` labels, and no board/CI to wire.
+
+### Domain docs
+
+Glossary at `CONTEXT.md` (if present); briefs in `docs/briefs/` (lazy); ADRs in
+`docs/adr/`. See [`docs/agents/domain.md`](./docs/agents/domain.md).
+EOF
+  else
+    cat <<'EOF'
 ## Agent skills
 
 ### Issue tracker
@@ -236,6 +267,7 @@ orthogonal facets. See [`docs/agents/triage-labels.md`](./docs/agents/triage-lab
 Glossary at `CONTEXT.md` (if present); briefs in `docs/briefs/` (lazy); ADRs in
 `docs/adr/`. See [`docs/agents/domain.md`](./docs/agents/domain.md).
 EOF
+  fi
 }
 
 if [ -f "$CLAUDE_MD" ] && grep -Fq "## Agent skills" "$CLAUDE_MD"; then
@@ -250,15 +282,43 @@ fi
 
 # ---- 3. version stamp -----------------------------------------------------
 
-# The stamp records the suite version + the STATIC translation table. Live
-# role-binding discovery is deferred to the role-binding ticket (#35): bindings
-# are written null here, to be filled by that later step.
-write_once docs/agents/pocock-stamp.md <<EOF
+# The stamp records the suite version + substrate. Live role-binding discovery is
+# deferred to the role-binding ticket (#35): bindings are null here. A trackerless
+# corpus has no status labels / translation table, so its stamp records neither.
+if [ "$SUBSTRATE" = "trackerless-local" ]; then
+  write_once docs/agents/pocock-stamp.md <<EOF
 ---
 suite: matt-pocock-skills
 version: $STAMP_VERSION
 stamped: $STAMP_DATE
 source: ~/.agents/skills
+substrate: trackerless-local
+freshness_applied: greenfield
+bindings: null   # live role-binding discovery deferred to role-binding ticket (#35)
+labels: []       # trackerless corpus: no GitHub tracker, no status labels
+---
+
+# Pocock stamp
+
+Records the installed Matt Pocock suite version this repo was wired against, so a
+later run can diff-audit for drift. Written by \`pocock-apply.sh\` on the greenfield
+scaffold.
+
+## Substrate: trackerless-local
+
+This repo is a \`facts/ + sources/ + refs/\` corpus, not a GitHub tracker. No
+\`status:*\` labels, no translation table, and no board/CI were wired — the corpus
+is the artifact and the source of truth. Live role-binding discovery is deferred to
+the role-binding ticket; \`bindings\` stays null until then.
+EOF
+else
+  write_once docs/agents/pocock-stamp.md <<EOF
+---
+suite: matt-pocock-skills
+version: $STAMP_VERSION
+stamped: $STAMP_DATE
+source: ~/.agents/skills
+substrate: tracker-backed
 freshness_applied: greenfield
 bindings: null   # live role-binding discovery deferred to role-binding ticket (#35)
 labels:
@@ -292,10 +352,15 @@ mapping and never learn column names.
 Live role-binding discovery (binding Matt's currently-installed skills to abstract
 roles) is deferred to the role-binding ticket; \`bindings\` stays null until then.
 EOF
+fi
 
 # ---- 4. labels ------------------------------------------------------------
 
-if [ "$CREATE_LABELS" -eq 1 ]; then
+# Label creation is tracker-only. A trackerless corpus has no GitHub tracker, so the
+# plan's labels_to_create is empty and there is nothing to create — say so and skip.
+if [ "$SUBSTRATE" = "trackerless-local" ]; then
+  echo "  labels skipped (trackerless-local corpus — no GitHub tracker)"
+elif [ "$CREATE_LABELS" -eq 1 ]; then
   echo "  labels via '$GH':"
   while IFS= read -r label; do
     [ -n "$label" ] || continue

@@ -68,6 +68,12 @@ detect_substrate() {
   if has_origin "$ROOT"; then printf 'tracker-backed'; else printf 'trackerless-local'; fi
 }
 
+# A trackerless repo whose artifact is a facts/ + sources/ + refs/ corpus. All
+# three dirs present => the corpus is the source of truth; no GitHub tracker.
+has_corpus() {
+  [ -d "$ROOT/facts" ] && [ -d "$ROOT/sources" ] && [ -d "$ROOT/refs" ]
+}
+
 # Version stamped by the last adopt run (empty when none — greenfield).
 stamp_version() {
   local f="$ROOT/docs/agents/pocock-stamp.md"
@@ -101,9 +107,13 @@ scan_stale_slugs() {
   } | sort -u
 }
 
-# Source-of-truth slot: external when a vault/facts/contracts corpus is present.
+# Source-of-truth slot. A full facts/ + sources/ + refs/ corpus is recognized as
+# the artifact ("facts-corpus"); a bare vault/facts/contracts dir is "external";
+# otherwise the source of truth is in-repo.
 detect_source_of_truth() {
-  if [ -d "$ROOT/vault" ] || [ -d "$ROOT/facts" ] || [ -d "$ROOT/contracts" ]; then
+  if has_corpus; then
+    printf 'facts-corpus'
+  elif [ -d "$ROOT/vault" ] || [ -d "$ROOT/facts" ] || [ -d "$ROOT/contracts" ]; then
     printf 'external'
   else
     printf 'in-repo'
@@ -176,15 +186,9 @@ json_str_or_null() { [ -n "$1" ] && printf '"%s"' "$1" || printf 'null'; }
 json_bool() { if "$@"; then printf 'true'; else printf 'false'; fi; }
 
 emit_plan() {
-  local substrate freshness stamp sot
+  local substrate freshness stamp sot lifecycle board_scope
   local -a stale=() slots_intent=("structural" "voice" "capability")
-  local -a artifacts=(
-    "docs/agents/domain.md"
-    "docs/agents/issue-tracker.md"
-    "docs/agents/triage-labels.md"
-    "docs/agents/pocock-stamp.md"
-    "CLAUDE.md#agent-skills"
-  )
+  local -a artifacts=() labels=()
 
   substrate="$(detect_substrate)"
   stamp="$(stamp_version)"
@@ -192,6 +196,30 @@ emit_plan() {
   while IFS= read -r s; do [ -n "$s" ] && stale+=("$s"); done < <(scan_stale_slugs)
   local have_docs=0; has_agent_docs && have_docs=1
   freshness="$(detect_freshness "$stamp" "${stale[*]:-}" "$have_docs")"
+
+  # Substrate-conditional plan shape. A trackerless-local repo is a
+  # facts/ + sources/ + refs/ corpus, NOT a GitHub tracker: the wrapper writes the
+  # corpus-relevant config (domain doc + stamp + CLAUDE block) and forces NO tracker
+  # machinery — no status labels, no issue-tracker/triage-labels docs, no board/CI.
+  if [ "$substrate" = "trackerless-local" ]; then
+    lifecycle="none"; board_scope="none"
+    artifacts=(
+      "docs/agents/domain.md"
+      "docs/agents/pocock-stamp.md"
+      "CLAUDE.md#agent-skills"
+    )
+    labels=()
+  else
+    lifecycle="status-kanban"; board_scope="own"
+    artifacts=(
+      "docs/agents/domain.md"
+      "docs/agents/issue-tracker.md"
+      "docs/agents/triage-labels.md"
+      "docs/agents/pocock-stamp.md"
+      "CLAUDE.md#agent-skills"
+    )
+    labels=("${CANON_LABELS[@]}")
+  fi
 
   printf '{\n'
   printf '  "substrate": "%s",\n' "$substrate"
@@ -209,17 +237,17 @@ emit_plan() {
   printf '  },\n'
   printf '  "proposed_slots": {\n'
   printf '    "source_of_truth": "%s",\n' "$sot"
-  printf '    "lifecycle_overlay": "status-kanban",\n'
+  printf '    "lifecycle_overlay": "%s",\n' "$lifecycle"
   printf '    "idea_to_issue_gate": "open",\n'
   printf '    "prs_as_request_surface": false,\n'
   printf '    "area_labels": [],\n'
-  printf '    "board_scope": "own",\n'
+  printf '    "board_scope": "%s",\n' "$board_scope"
   printf '    "intent": %s\n' "$(json_array '    ' "${slots_intent[@]}")"
   printf '  },\n'
   # Greenfield/migrant re-discover bindings live (#35); nothing is cached yet.
   printf '  "cached_bindings": null,\n'
   printf '  "artifacts_to_write": %s,\n' "$(json_array '  ' "${artifacts[@]}")"
-  printf '  "labels_to_create": %s\n' "$(json_array '  ' "${CANON_LABELS[@]}")"
+  printf '  "labels_to_create": %s\n' "$(json_array '  ' "${labels[@]}")"
   printf '}\n'
 }
 
