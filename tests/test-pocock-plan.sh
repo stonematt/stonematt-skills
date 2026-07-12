@@ -40,9 +40,11 @@ assert_contains "$GOT" '"freshness": "greenfield"'      "bare repo (no config) =
 assert_contains "$GOT" '"stamp_version": null'          "no stamp => null version"
 assert_contains "$GOT" '"stale_slugs": []'              "no v1.0 slugs => empty stale list"
 assert_contains "$GOT" '"cached_bindings": null'        "greenfield => nothing cached, discover live"
+assert_contains "$GOT" '"issue_tracker_present": false' "greenfield => tracker doc absent (wiring)"
+assert_contains "$GOT" '"roles_bound": false'           "greenfield => roles unbound (wiring)"
 
 # Every acceptance-required key is present in the plan.
-for key in substrate freshness stamp_version stale_slugs proposed_slots \
+for key in substrate freshness stamp_version stale_slugs wiring proposed_slots \
            cached_bindings artifacts_to_write labels_to_create; do
   assert_contains "$GOT" "\"$key\":" "plan carries \"$key\""
 done

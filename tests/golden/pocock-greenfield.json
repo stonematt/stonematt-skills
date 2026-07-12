@@ -3,6 +3,13 @@
   "freshness": "greenfield",
   "stamp_version": null,
   "stale_slugs": [],
+  "wiring": {
+    "issue_tracker_present": false,
+    "issue_tracker_reconciled": false,
+    "triage_labels_present": false,
+    "domain_present": false,
+    "roles_bound": false
+  },
   "proposed_slots": {
     "source_of_truth": "in-repo",
     "lifecycle_overlay": "status-kanban",
