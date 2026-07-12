@@ -28,6 +28,10 @@
 #   POCOCK_GH                 label-creation command (default `gh`)
 #   POCOCK_INSTALLED_VERSION  installed suite version recorded in the stamp
 #   POCOCK_STAMP_DATE         `stamped` date (default: today, YYYY-MM-DD)
+#   POCOCK_SUITE_DIR          installed suite root — when set, live role-binding
+#                             (pocock-bind.sh, #53) discovers the tracker-role
+#                             bindings and caches them into the stamp. Unset =>
+#                             bindings deferred (written null) with a note.
 
 set -uo pipefail
 
@@ -250,9 +254,31 @@ fi
 
 # ---- 3. version stamp -----------------------------------------------------
 
-# The stamp records the suite version + the STATIC translation table. Live
-# role-binding discovery is deferred to the role-binding ticket (#35): bindings
-# are written null here, to be filled by that later step.
+# Live role-binding (#53): when an installed suite is available, discover the
+# tracker-touching role bindings and cache them into the stamp as a per-version
+# recipe. On the current suite this reproduces the static table (pure expand).
+# On an ambiguous/empty bind the binder stops-and-surfaces (exit 4): we DO NOT
+# guess — the stamp records `null` and the findings are echoed for the human.
+# With no suite configured, bindings are simply deferred (null).
+BIND=""
+BIND_RC=0
+BINDINGS_YAML="null"
+if [ -n "${POCOCK_SUITE_DIR:-}" ]; then
+  BIND="$(bash "$SCRIPT_DIR/pocock-bind.sh" --suite "$POCOCK_SUITE_DIR" \
+            --version "$STAMP_VERSION" --format bindings-block 2>/tmp/pocock-bind.$$ )"
+  BIND_RC=$?
+  if [ "$BIND_RC" -eq 0 ] && [ -n "$BIND" ]; then
+    BINDINGS_YAML="$(printf '\n%s' "$BIND")"
+    echo "  bind   live role-binding: cached ${STAMP_VERSION} recipe into the stamp"
+  else
+    echo "  bind   live role-binding stopped-and-surfaced — bindings left null:" >&2
+    sed 's/^/    /' /tmp/pocock-bind.$$ >&2
+  fi
+  rm -f /tmp/pocock-bind.$$
+fi
+
+# The stamp records the suite version + the STATIC translation table, plus the
+# live-discovered `bindings` recipe (or null when deferred / surfaced).
 write_once docs/agents/pocock-stamp.md <<EOF
 ---
 suite: matt-pocock-skills
@@ -260,7 +286,7 @@ version: $STAMP_VERSION
 stamped: $STAMP_DATE
 source: ~/.agents/skills
 freshness_applied: greenfield
-bindings: null   # live role-binding discovery deferred to role-binding ticket (#35)
+bindings: $BINDINGS_YAML
 labels:
   - "status: triage"
   - "status: ready"
@@ -289,8 +315,14 @@ mapping and never learn column names.
 | \`ready-for-agent\` | \`status: ready\` + \`afk\` |
 | \`ready-for-human\` | \`status: ready\` (no \`afk\`) |
 
-Live role-binding discovery (binding Matt's currently-installed skills to abstract
-roles) is deferred to the role-binding ticket; \`bindings\` stays null until then.
+## Role bindings (live-discovered)
+
+The \`bindings:\` frontmatter block above is the per-version role-binding recipe —
+Matt's currently-installed skills bound to the tracker-touching abstract roles by
+\`pocock-bind.sh\` (#53), discovered in authority order (release notes -> installed
+SKILL.md -> ask-matt). On the current suite it reproduces the static table (pure
+expand). It is \`null\` only when no suite was available or the binder stopped and
+surfaced an ambiguous/empty bind for a human to resolve.
 EOF
 
 # ---- 4. labels ------------------------------------------------------------
