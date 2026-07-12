@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Fake `gh` for pocock-board audit-sweep tests. Point POCOCK_GH at this script.
+#
+#   gh issue list ... --json ...  -> prints canned issue JSON from $GH_ISSUE_JSON
+#   gh pr list    ... --json ...  -> prints canned PR JSON from $GH_PR_JSON
+#   gh issue edit <n> --add-label <lane>  -> records "<n>\t<lane>" to $GH_EDIT_LOG
+#   anything else -> no-op success
+set -u
+
+case "${1:-} ${2:-}" in
+  "issue list") cat "${GH_ISSUE_JSON:-/dev/null}"; exit 0 ;;
+  "pr list")    cat "${GH_PR_JSON:-/dev/null}";    exit 0 ;;
+  "issue edit")
+    n="${3:-}"; lane=""
+    shift 3
+    while [ $# -gt 0 ]; do
+      [ "$1" = "--add-label" ] && { lane="$2"; break; }
+      shift
+    done
+    [ -n "${GH_EDIT_LOG:-}" ] && printf '%s\t%s\n' "$n" "$lane" >> "$GH_EDIT_LOG"
+    exit 0 ;;
+esac
+exit 0
