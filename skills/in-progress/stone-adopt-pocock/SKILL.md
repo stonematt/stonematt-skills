@@ -83,6 +83,45 @@ to write the file artifacts without touching GitHub.
 Re-emit the plan; a wired repo no longer reads `greenfield`. The four label +
 docs + stamp artifacts should all be present.
 
+### 4. Offer the optional board / CI projection (prompted)
+
+**Label-only is the portable default — the config is valid and complete without
+any board.** After the label spine is wired, **ask** the human whether to also
+project it onto a GitHub Projects v2 board + the sync CI. Default leans yes (a
+glanceable board is usually wanted), but "docs/skills repo, no prod deploy" does
+**not** imply skip — ask, don't assume. On a **member repo of an existing org
+board** (`board_scope=shared`) this prompt is the opt-out seam and is skipped —
+the org plumbing already exists.
+
+```bash
+# board_scope=own: emit the projection (workflows to stdout; add --write to save).
+bash scripts/pocock-board.sh --root .            # review the projection + gotchas
+bash scripts/pocock-board.sh --root . --write    # write the two workflow files
+
+# member repo of an existing org board — the prompt is skipped:
+bash scripts/pocock-board.sh --root . --board-scope shared
+```
+
+The projection handles the hands-on GitHub Projects gotchas (from the #40 audit):
+
+1. **Un-deletable Status field.** A fresh Project's built-in Status single-select
+   cannot be deleted (`deleteProjectV2Field` → "Only custom fields can be
+   deleted"). The script emits a raw `gh api graphql updateProjectV2Field` that
+   overwrites its options in place, and returns the field id + option ids to
+   **capture** for the CI sync.
+2. **`PROJECT_TOKEN` — human secret step. STOP.** Projects v2 mutations need a
+   PAT with `project` write (`GITHUB_TOKEN` cannot write user-owned Projects v2).
+   The script emits a precise `PROJECT_TOKEN` checklist and **stops** — provision
+   the credential, then run the mutation + backfill.
+3. **CI is dormant until the default branch.** `issues`-triggered workflows run
+   from the default branch, so under `feature→dev→main` they stay dormant until
+   the first `dev→main` release lands them on `main`. Backfill existing issues
+   with **manual GraphQL** (`addProjectV2ItemById` + `updateProjectV2ItemFieldValue`),
+   not the (dormant) workflow.
+4. **Audit sweep.** An open issue with a live branch but no `status:*` label is
+   invisible to the board — `pocock-board.sh --audit-sweep` reconciles a lane
+   from branch/PR state before backfill.
+
 ## Static translation table
 
 The wrapper applies this mapping and never learns board column names. Divergence
@@ -113,6 +152,6 @@ a seventh lane. `Released` is label-less — the issue's closed state.
 
 - Migrant upgrade and current patch modes.
 - Live role-binding discovery (#35).
-- The optional Project board + CI-workflow projection (a prompted flex point).
 - Standing up a multi-repo org — the wrapper configures a repo to *join* an org
-  board; standing up the org is a one-time human act.
+  board; standing up the org is a one-time human act. The board projection
+  (`pocock-board.sh`) never scaffolds the org itself.

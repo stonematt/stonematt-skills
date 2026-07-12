@@ -80,4 +80,11 @@ build_pocock_fixtures() {
   printf '# Issue tracker: GitHub\n\nReconciled config.\n' \
     > "$R/missing-docs/docs/agents/issue-tracker.md"
   _pocock_stamp "$R/missing-docs" "1.1.0"
+
+  # board: an own-scope repo with a live feature branch, for the board/CI
+  # projection (#56). The branch (feat/13-…) lets the audit sweep reconcile a
+  # lane from branch state.
+  _pocock_mkrepo "$R/board"
+  _pocock_remote "$R/board" "git@github.com:stonematt/board.git"
+  git -C "$R/board" branch feat/13-branch-only
 }
