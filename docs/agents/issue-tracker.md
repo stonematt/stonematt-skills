@@ -38,10 +38,10 @@ Run `gh issue view <number> --comments`. If a Milestone is referenced, also fetc
 
 ## Branch and PR flow
 
-- **Single-main flow.** Work branches off `main`. Feature PRs target `main`.
-- **Pre-merge gate.** Run `./scripts/test.sh` before merging. It validates skill structure/index consistency and the claude.ai zip smoke test.
-- No `dev` staging branch — there is no npm publish or build artifact. The repo is consumed pull-on-install via `skills.sh` (`npx skills add stonematt/stonematt-skills`) and Claude Code's `/plugin marketplace add`, which fetch the default branch.
-- `Closes #N` in the PR body fires GitHub's auto-close on merge to `main`.
+- **feature → dev → main flow.** Feature branches (`feat/*`, `fix/*`, `docs/*`) branch off `dev` and PR into `dev`. `dev` is the integration branch; `main` is the release branch. `dev` PRs into `main` for releases. Never commit straight to `main`.
+- **`main` stays the GitHub default.** It is the release + consumer branch: `skills.sh` (`npx skills add stonematt/stonematt-skills`) and Claude Code's `/plugin marketplace add` fetch the default branch, so consumers pull stable releases, not integration.
+- **Pre-merge gate.** Run `./scripts/test.sh` before merging (feature→`dev` and `dev`→`main`). It validates skill structure/index consistency and the claude.ai zip smoke test.
+- **Issue auto-close is release-gated.** `Closes #N` auto-close fires only on merge to the default branch (`main`), so feature→`dev` PRs do **not** auto-close their issues — issues close in a batch when `dev`→`main` releases. Close manually earlier if needed.
 - Releases are git tags on `main`: `git tag -a vX.Y.Z -m "..."` then `git push --tags`. Tag when persona file shapes, generic skill bodies, or shim conventions change in a way that downstream consumers need to pin.
 
 ## Release notes

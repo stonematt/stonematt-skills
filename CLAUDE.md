@@ -10,7 +10,7 @@ See [`CONTEXT.md`](./CONTEXT.md) for the domain glossary and [`docs/adr/`](./doc
 
 ### Issue tracker
 
-GitHub Issues + Milestones. PRDs/briefs live in `docs/briefs/`, not as issues. Single-main branch flow; releases tagged on `main`. See [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md).
+GitHub Issues + Milestones. PRDs/briefs live in `docs/briefs/`, not as issues. `feature → dev → main` flow (`dev` = integration, `main` = release + GitHub default); releases tagged on `main`. See [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md).
 
 ### Triage labels
 
