@@ -6,7 +6,7 @@
 # separately once authorized:  bash tests/phase0-smoke.sh
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SUITE="config detector dispatch outputs lock plist e2e pocock-plan pocock-bind pocock-apply pocock-preflight pocock-migrant"
+SUITE="config detector dispatch outputs lock plist e2e pocock-plan pocock-bind pocock-slots pocock-apply pocock-preflight pocock-migrant"
 fail=0
 for t in $SUITE; do
   echo "=================== test-$t ==================="

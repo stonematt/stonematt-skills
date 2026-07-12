@@ -12,7 +12,7 @@
   },
   "proposed_slots": {
     "source_of_truth": "in-repo",
-    "lifecycle_overlay": "status-kanban",
+    "lifecycle_overlay": "kanban",
     "idea_to_issue_gate": "open",
     "prs_as_request_surface": false,
     "area_labels": [],
