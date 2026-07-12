@@ -1,0 +1,189 @@
+# Setup invocation + Stone-delta overlay
+
+The core of `stone-adopt-pocock`. Runs **after** [`preflight.md`](./preflight.md)
+passes and the board opt-in is answered. You (the model) invoke Pocock's own setup
+for the suite spine, then overlay **only** the Stone delta — the thin seam between
+his way and Matt's. Install and upgrade are the same path; there are no separate
+greenfield/migrant branches.
+
+Spec: [`adopt-pocock-wrapper.md`](../../../../docs/briefs/adopt-pocock-wrapper.md) —
+"Step one is invoking `setup-matt-pocock-skills`", "The Stone delta is the only thing
+the wrapper authors", "Install-vs-upgrade dissolves into one idempotent
+delta-reconcile".
+
+Role binding (a sub-step of the delta) has its own procedure:
+[`role-binding.md`](./role-binding.md). The stamp shape it produces:
+[`pocock-stamp.template.md`](./pocock-stamp.template.md).
+
+---
+
+## Step 1 — Invoke Pocock's setup (trust, never fork)
+
+Run Matt Pocock's own installer/reconciler. It owns the **suite spine** and is
+idempotent, so this single call covers both a fresh install and an upgrade of *his*
+half.
+
+```bash
+setup-matt-pocock-skills
+```
+
+**What his setup owns — never edit, never re-create:**
+
+- the `docs/agents/*` spine his setup writes (the tracker + domain docs it authors);
+- the canonical label set his setup creates;
+- every skill under `~/.agents/skills` and its wiring.
+
+**Trust-then-verify.** Do not re-read his output to "confirm" each file, and never
+patch anything his setup produced — if it looks wrong, that is a Pocock-side bug, not
+a thing the wrapper repairs. His half is verified transitively by the end-to-end
+behavioral smoke (Seam 1 / #66), not by the wrapper second-guessing it here.
+
+The one thing you carry forward from this step into the delta: **what the installed
+suite currently exposes** (skill names, `SKILL.md` contracts, changelog, the
+`ask-matt` router). Role binding reads those live — see `role-binding.md`.
+
+---
+
+## Step 2 — Overlay the Stone delta ONLY
+
+The delta is the *only* thing the wrapper authors. Everything below is Matt's
+convention layer on top of Pocock's spine — the seam, nothing more.
+
+### 2a. Translation-table conventions (canonical role → board expression)
+
+The wrapper's skills speak **canonical roles**; a repo expresses them however its
+board is configured. The wrapper applies the mapping and **never learns board column
+names**. Divergence between repos is free as long as the mapping stays lossless.
+
+State these invariants **exactly** — they carry forward across suite bumps, do not
+paraphrase them loosely:
+
+| Canonical role (skills speak this) | Board expression |
+|---|---|
+| `needs-triage` | `status: triage` |
+| `needs-info` | an orthogonal facet — **NOT** a lane/column |
+| `ready-for-agent` | `status: ready` + the `afk` flag |
+| `ready-for-human` | `status: ready` (no flag) |
+| `Released` | label-less (the issue's closed state) |
+
+Two invariants that are easy to get wrong:
+
+- **The canonical flag is `afk`, NOT `afk-ready`.** `afk-ready` is one repo's
+  *expression* of the flag, not the canonical name. (This host repo's own tracker
+  happens to express it as `afk-ready` — that is a per-repo expression, and it is
+  fine, because the mapping is **per-repo, not identity**.)
+- **`needs-info` is a facet, not a seventh lane.** It rides orthogonally on top of
+  whatever lane an issue is in; it never becomes a board column.
+
+You do not hand-create these labels. The bundled board helper's `labels` verb
+upserts the canonical `status:*` lifecycle labels plus the orthogonal `afk` and
+`needs-info` facets idempotently:
+
+```bash
+scripts/pocock-board.sh labels
+```
+
+`Released` is intentionally absent from that set — it is the closed state, not a
+label.
+
+### 2b. `docs/agents/pocock-stamp.md` — the durable version stamp
+
+Write the wrapper's one owned durable artifact: a stamp recording the **suite
+version** plus a **live-discovered binding recipe**. A future run reads it to tell
+*current* from *drifted* at a glance.
+
+- The binding recipe is **discovered live** by reading the installed suite — see
+  [`role-binding.md`](./role-binding.md). **NO hardcoded slug table.** A slug table
+  that breaks on a single rename is exactly what the pivot forbids.
+- The stamp is wrapper-owned derived state, not human prose — regenerate it freely on
+  every reconcile. It is the one file in the delta you fully own.
+- Shape and frontmatter: [`pocock-stamp.template.md`](./pocock-stamp.template.md).
+
+### 2c. Rewrite the stale v1.0 wrapping layer
+
+Rewrite stale v1.0 skill references in **the layer Matt authored** so no old-shape
+invocation runs silently under a new name. Scope is the wrapping layer only:
+
+- `CLAUDE.md` / `WORKFLOW.md` (the `## Agent skills` block, workflow prose);
+- command maps and convention docs that name skills or roles.
+
+**Operationalize "clobber nothing":** this is a *targeted reference rewrite*, never a
+whole-file regeneration.
+
+1. For each wrapping-layer file, locate references to skills/roles by their **v1.0
+   name or v1.0 contract shape**.
+2. Replace only those references with the current binding (from the recipe in 2b) —
+   the surrounding human narrative, ordering, and any hand edits stay byte-for-byte.
+3. Anything **Pocock's setup owns** (2a's label set, the `docs/agents/*` spine his
+   setup writes) is out of bounds here — you rewrite Matt's wrapper prose, not
+   Pocock's spine.
+4. A reference that is *already* current is left untouched (this is what makes a
+   re-run a no-op).
+
+If a "stale" reference points at a **forked commit/merge skill** Matt customized,
+do **not** rewrite it — flag it (see `role-binding.md`, forked-skill rule).
+
+### 2d. Board projection + dormant CI (board opt-in / written regardless)
+
+- **If the board was opted in** (see preflight's board question): project the label
+  spine onto a GitHub Projects v2 board using the bundled helper — never freehand the
+  GraphQL. Overwrite the un-deletable built-in Status field in place and capture its
+  field + option ids, then backfill existing issues:
+
+  ```bash
+  scripts/pocock-board.sh status-field --field-id <STATUS_FIELD_ID>
+  scripts/pocock-board.sh backfill --project-id <PROJECT_ID> --field-id <STATUS_FIELD_ID>  # pairs on stdin
+  ```
+
+- **The CI sync workflows are written regardless** of the board answer. They stay
+  **dormant** until *both* the `PROJECT_TOKEN` secret exists **and** they reach the
+  default branch via `dev → main`. Writing them is never a blocker; "auto-sync later"
+  is a note, not a straggler. On a **label-only** or **trackerless-local** adoption
+  the live board projection (`status-field` / `backfill`) is skipped, but the dormant
+  workflow files are still written.
+
+---
+
+## Step 3 — One idempotent delta-reconcile (install == upgrade)
+
+There is **one** path. Install (greenfield) is just the special case where the delta
+is "everything"; upgrade backfills whatever is missing. There are **no** separate
+migrant/greenfield code paths — do not branch on repo age.
+
+**Reconcile the delta:**
+
+- **Backfill what is missing** — any delta artifact (2a labels, 2b stamp, 2c current
+  references, 2d workflows) that is absent, write it.
+- **Clobber NOTHING the human authored.** Operationalized per artifact:
+  - *Pocock's spine* (2a labels, his `docs/agents/*`): never touched — his setup owns
+    it.
+  - *The stamp* (2b): wrapper-owned derived state — regenerate freely.
+  - *Wrapping-layer prose* (2c): targeted reference rewrite only; human narrative and
+    hand edits are preserved (see 2c operationalization).
+  - *Labels* (2a): `scripts/pocock-board.sh labels` upserts canonical config — it
+    edits label definitions only, never touches issues.
+- **Re-running changes nothing.** When the stamp's `suite_version` already matches the
+  installed suite, every binding resolves, no stale v1.0 reference remains, and the
+  canonical labels exist, the reconcile is a genuine no-op. Idempotency is the
+  acceptance bar (issue #64): a second invocation on an already-adopted repo produces
+  zero diff.
+
+**Stop-and-surface still applies mid-reconcile.** If role binding hits an ambiguous or
+vanished bind, or a forked commit/merge skill, the reconcile halts and surfaces per
+`role-binding.md` — it never guesses a bind into durable config, even to "finish" the
+reconcile.
+
+**Workbench.** Read the local workbench before auditing the repo and append what was
+proposed / corrected / surprised after — the durability engine for the next, unseen
+suite version. The workbench *storage* (gitignored, local-only) is scaffolded by
+slice #65; this reconcile is its read-before / append-after consumer.
+
+---
+
+## Verify
+
+Do not assert on internal reasoning. The delta is proven by outcome through Seam 1
+(#66): the spine present (or the corpus subset), the `## Agent skills` block, the
+canonical labels created (or `[]` for a corpus), the stamp written, no lingering v1.0
+references in the wrapping layer, all tracker-touching roles bound — plus the
+behavioral smoke that drives a throwaway issue across lanes and cleans it up.
