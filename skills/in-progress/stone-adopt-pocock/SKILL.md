@@ -54,6 +54,39 @@ bash scripts/pocock-plan.sh --dry-run --json --root .
 Read the plan's `freshness`. **If it is not `greenfield`, stop** — this skeleton
 does not handle migrant or current yet. Surface the classification to the human.
 
+### 1.5 Resolve the contextual slots (detect-then-confirm)
+
+The **fixed spine** (board, statuses, progression, eligibility) never varies. The
+**contextual slots** do, per repo — and the wrapper fills them by *proposing from
+inspection, then having the dev confirm or correct*. This is **not a blank
+interview** (the plan already guessed every slot from the tree) and **not silent
+auto-config** (the dev sees and can override every value before apply writes it).
+
+The plan's `proposed_slots` block carries the proposal, all detected offline:
+
+| Slot | Detected from | Proposed value(s) |
+|---|---|---|
+| `source_of_truth` | `vault/` · `contracts/` · `facts/` dir, else in-repo | `in-repo` / `vault` / `contracts` / `facts` |
+| `lifecycle_overlay` | substrate — tracker-backed vs trackerless-local | `kanban` / `flat` / `identity` |
+| `idea_to_issue_gate` | `docs/adr/` or `docs/briefs/` present | `open` / `spec-first` |
+| `prs_as_request_surface` | default (no signal) | `false` (default no) |
+| `intent` | repo-kind seed | `[structural, voice, capability]` |
+| `area_labels` | **never fabricated** | `[]` — empty and emergent |
+
+Read the proposal aloud to the dev as a single sentence — e.g. *"docs repo,
+source-of-truth = vault, no kanban (flat), spec-first idea gate, PRs not a request
+surface; area labels stay empty."* Then **ask the dev to confirm or correct**. On a
+correction, carry the corrected value forward (the apply consumes the confirmed
+slots, not the raw guess). Two hard rules:
+
+- **`area:` defaults empty/emergent — never fabricated.** Do not invent a content
+  taxonomy; area labels accrete from real work, not from a setup guess.
+- The proposal is a **starting point, not a verdict.** A missing signal (e.g. no
+  `vault/`) means the *default* was proposed, not that the dev has no say.
+
+Precedence when several source-of-truth corpora coexist is deterministic
+(`vault > contracts > facts`); if the guess is wrong, the dev corrects it here.
+
 ### 2. Apply the greenfield wiring
 
 `pocock-apply.sh` consumes the plan and, on a greenfield repo, wires it:

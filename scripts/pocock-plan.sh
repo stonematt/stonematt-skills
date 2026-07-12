@@ -101,12 +101,40 @@ scan_stale_slugs() {
   } | sort -u
 }
 
-# Source-of-truth slot: external when a vault/facts/contracts corpus is present.
+# Source-of-truth slot (R1): where the repo's canonical artifact lives. Names
+# the external corpus rather than collapsing to a bare "external", so the
+# detect-then-confirm proposal is specific enough to act on: in-repo (default)
+# vs an external vault / contracts+ADRs / facts corpus. Precedence when several
+# coexist is deterministic (vault > contracts > facts) — the dev corrects if
+# the guess is wrong; the seam never fabricates.
 detect_source_of_truth() {
-  if [ -d "$ROOT/vault" ] || [ -d "$ROOT/facts" ] || [ -d "$ROOT/contracts" ]; then
-    printf 'external'
+  if   [ -d "$ROOT/vault" ];     then printf 'vault'
+  elif [ -d "$ROOT/contracts" ]; then printf 'contracts'
+  elif [ -d "$ROOT/facts" ];     then printf 'facts'
+  else                                printf 'in-repo'
+  fi
+}
+
+# Lifecycle-overlay slot (R2): kanban / flat / identity — proposed, not
+# hardcoded. Tracker-backed repos get the canonical `status:*` kanban spine;
+# a trackerless-local corpus has no GitHub board to run lanes on, so `flat` is
+# the honest proposal. `identity` (no board projection at all) is the third
+# value a dev may correct to; the seam proposes, the human confirms.
+detect_lifecycle_overlay() { # substrate
+  case "$1" in
+    tracker-backed) printf 'kanban' ;;
+    *)              printf 'flat'   ;;
+  esac
+}
+
+# Idea->issue-gate slot (R3): governance/docs repos forbid `to-tickets` on raw
+# ideas — an ADR/spec must land first. A `docs/adr/` or `docs/briefs/` corpus
+# is the signal that the repo runs spec-first; otherwise the gate is `open`.
+detect_idea_to_issue_gate() {
+  if [ -d "$ROOT/docs/adr" ] || [ -d "$ROOT/docs/briefs" ]; then
+    printf 'spec-first'
   else
-    printf 'in-repo'
+    printf 'open'
   fi
 }
 
@@ -176,7 +204,7 @@ json_str_or_null() { [ -n "$1" ] && printf '"%s"' "$1" || printf 'null'; }
 json_bool() { if "$@"; then printf 'true'; else printf 'false'; fi; }
 
 emit_plan() {
-  local substrate freshness stamp sot
+  local substrate freshness stamp sot overlay gate
   local -a stale=() slots_intent=("structural" "voice" "capability")
   local -a artifacts=(
     "docs/agents/domain.md"
@@ -189,6 +217,8 @@ emit_plan() {
   substrate="$(detect_substrate)"
   stamp="$(stamp_version)"
   sot="$(detect_source_of_truth)"
+  overlay="$(detect_lifecycle_overlay "$substrate")"
+  gate="$(detect_idea_to_issue_gate)"
   while IFS= read -r s; do [ -n "$s" ] && stale+=("$s"); done < <(scan_stale_slugs)
   local have_docs=0; has_agent_docs && have_docs=1
   freshness="$(detect_freshness "$stamp" "${stale[*]:-}" "$have_docs")"
@@ -209,8 +239,8 @@ emit_plan() {
   printf '  },\n'
   printf '  "proposed_slots": {\n'
   printf '    "source_of_truth": "%s",\n' "$sot"
-  printf '    "lifecycle_overlay": "status-kanban",\n'
-  printf '    "idea_to_issue_gate": "open",\n'
+  printf '    "lifecycle_overlay": "%s",\n' "$overlay"
+  printf '    "idea_to_issue_gate": "%s",\n' "$gate"
   printf '    "prs_as_request_surface": false,\n'
   printf '    "area_labels": [],\n'
   printf '    "board_scope": "own",\n'
