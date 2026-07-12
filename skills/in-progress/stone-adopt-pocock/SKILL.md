@@ -1,264 +1,102 @@
 ---
 name: stone-adopt-pocock
-description: Configure a repo to Matt Stone's standing Matt-Pocock skill-suite setup — the Kanban spine, triage roles, and per-repo agent docs — and keep it durable across Pocock version bumps. Manual only, rare, context-quiet. This is the greenfield skeleton (issue #51); migrant upgrade and current patch are later modes. Trigger only when a human explicitly runs /stone-adopt-pocock on a fresh or version-bumped repo.
+description: One skill that adopts (installs OR upgrades — one idempotent path, no modes) Matt Stone's Matt-Pocock skill-suite setup on any repo. It runs Pocock's own `setup-matt-pocock-skills` for the suite spine, then overlays only the thin Stone delta — translation-table conventions, a durable version stamp with a live-discovered role-binding recipe, a stale-v1.0-prose rewrite, and an optional Projects v2 board. Manual, rare, context-quiet. Trigger only when a human explicitly runs it; the model never auto-fires it.
 disableModelInvocation: true
 ---
 
-# Adopt-Pocock wrapper (greenfield skeleton)
+# Adopt-Pocock wrapper
 
-Wire a repo to Matt Stone's standing Pocock-suite config: the `status:*` Kanban
-spine, the canonical triage roles, the per-repo `docs/agents/*` trio, the CLAUDE.md
-`## Agent skills` block, and a version stamp for later drift audits. **It wraps
-the suite; it never forks it.**
+Adopt any repo to Matt Stone's standing Pocock-suite config in one run, leaving
+nothing to finish by hand. **Wrap, never fork:** call Pocock's own
+`setup-matt-pocock-skills` for the suite spine, then author only the thin Stone
+delta on top. You (the model) lead; bash is only hands.
 
 Spec: [`docs/briefs/adopt-pocock-wrapper.md`](../../../docs/briefs/adopt-pocock-wrapper.md).
 
 ## When this runs
 
-- **Manual only.** `disableModelInvocation: true` — the model never auto-fires
-  this. A human runs it on a version bump or when onboarding a repo.
+- **Manual only.** `disableModelInvocation: true` — a human runs it deliberately.
 - **Rare and context-quiet** — it must not bloat everyday sessions.
-- **This skeleton covers the greenfield mode only** (issue #51): a fresh repo with
-  no `docs/agents/` config and no prior stamp. Migrant upgrade and current patch
-  are later tickets; the apply step refuses (exit 3) on any non-greenfield repo
-  rather than clobber existing config.
+- **Install or upgrade is one path.** Detect nothing by directory age; one
+  idempotent delta-reconcile backfills what is missing and clobbers nothing the
+  human authored. Greenfield is just the case where the delta is everything.
 
-## Deliverable identity (resolved)
+## The run — six steps
 
-The brief left one open question: ship as a **new sibling skill** or as new
-`greenfield|migrant|current` **modes on `setup-matt-pocock-skills`**. Resolved:
-**new sibling skill, `stone-adopt-pocock`, in this repo.** Rationale:
+### 1. Preflight (read-only gate)
 
-- Founding decision #1 is **wrap, never fork.** `setup-matt-pocock-skills` is Matt
-  Pocock's skill; adding modes to it would fork the suite we are trying to wrap.
-- A sibling skill in `stonematt-skills` keeps Matt Stone's wrapper durable and
-  versioned independently of Pocock's bumps — exactly the durability the brief wants.
-- The three modes still live in **one skill** (this one), detected not asked; they
-  are internal modes of `stone-adopt-pocock`, not modes bolted onto Pocock's setup.
+Inspect the environment; halt on the first unmet precondition with the exact
+copy-paste fix and stop — Matt fixes it in his own shell and re-invokes. Ask the
+board opt-in question here too (label-only is the portable default).
+Procedure: [`references/preflight.md`](./references/preflight.md).
 
-It lives in `skills/in-progress/` while the migrant and current modes are still
-being built.
+**Preflight never mutates the machine or credentials** — no `gh auth refresh`, no
+writes. You print fixes; Matt runs them.
 
-## Workflow
+### 2. Run `setup-matt-pocock-skills` (trust, never fork)
 
-### 1. Emit the plan (mutates nothing)
+Invoke Pocock's own installer/reconciler for the suite spine. It is idempotent, so
+this one call covers install and upgrade of *his* half. Trust its output — never
+re-read, re-create, or patch what his setup owns (the `docs/agents/*` spine, the
+label set, the installed skills). His half is verified transitively by the step-5
+smoke, not by second-guessing it here.
+Details: [`references/setup-and-delta.md`](./references/setup-and-delta.md) (step 1).
 
-The deterministic plan-emitter inspects the repo and classifies it on two axes —
-substrate (tracker-backed vs trackerless-local) and freshness (greenfield /
-migrant / current) — emitting a JSON plan. It touches nothing.
+### 3. Present the directive (one go/no-go)
 
-```bash
-bash scripts/pocock-plan.sh --dry-run --json --root .
-```
+Audit the repo by **reading** it (not bash-probing), read the local workbench of
+prior adoptions ([`references/workbench.md`](./references/workbench.md),
+read-before-audit), then declare: the goal, per-repo success criteria, detected
+contextual slots, and the planned Stone-delta mutations. This is the **single**
+approval checkpoint. On go, run autonomously to done — re-surface only on a true
+blocker (ambiguous bind, credential wall).
 
-Read the plan's `freshness`. **If it is not `greenfield`, stop** — this skeleton
-does not handle migrant or current yet. Surface the classification to the human.
+### 4. Overlay the Stone delta only
 
-### 1.5 Resolve the contextual slots (detect-then-confirm)
+Author the seam between Pocock's way and Matt's — nothing his setup owns.
+Procedure: [`references/setup-and-delta.md`](./references/setup-and-delta.md)
+(step 2), with role binding in
+[`references/role-binding.md`](./references/role-binding.md) and the stamp shape in
+[`references/pocock-stamp.template.md`](./references/pocock-stamp.template.md). The
+delta is: the translation-table conventions; the durable stamp carrying a
+**live-discovered** binding recipe (read the installed suite — no slug table); the
+targeted rewrite of stale v1.0 references in *Matt's* wrapping layer (never a
+whole-file regen); and, if the board was opted in, the Projects v2 projection via
+`scripts/pocock-board.sh` (`labels` / `status-field` / `backfill`) — never freehand
+GraphQL. All of it runs as **one idempotent delta-reconcile**: backfill missing,
+clobber nothing human-authored, a re-run produces zero diff.
 
-The **fixed spine** (board, statuses, progression, eligibility) never varies. The
-**contextual slots** do, per repo — and the wrapper fills them by *proposing from
-inspection, then having the dev confirm or correct*. This is **not a blank
-interview** (the plan already guessed every slot from the tree) and **not silent
-auto-config** (the dev sees and can override every value before apply writes it).
+### 5. Behavioral smoke (anti-silent-success)
 
-The plan's `proposed_slots` block carries the proposal, all detected offline:
+Prove the wiring *runs*, not just that files exist: create a throwaway issue, move
+it across the `status:*` lanes, close it, confirm the board reflects the
+progression, then clean the issue up. Drive it with
+[`tests/pocock-acceptance-gate.sh`](../../../tests/pocock-acceptance-gate.sh)
+Part B (live: `POCOCK_SMOKE_LIVE=1`).
 
-| Slot | Detected from | Proposed value(s) |
-|---|---|---|
-| `source_of_truth` | `vault/` · `contracts/` · `facts/` dir, else in-repo | `in-repo` / `vault` / `contracts` / `facts` |
-| `lifecycle_overlay` | substrate — tracker-backed vs trackerless-local | `kanban` / `flat` / `identity` |
-| `idea_to_issue_gate` | `docs/adr/` or `docs/briefs/` present | `open` / `spec-first` |
-| `prs_as_request_surface` | default (no signal) | `false` (default no) |
-| `intent` | repo-kind seed | `[structural, voice, capability]` |
-| `area_labels` | **never fabricated** | `[]` — empty and emergent |
+### 6. Verify, report, append the workbench
 
-Read the proposal aloud to the dev as a single sentence — e.g. *"docs repo,
-source-of-truth = vault, no kanban (flat), spec-first idea gate, PRs not a request
-surface; area labels stay empty."* Then **ask the dev to confirm or correct**. On a
-correction, carry the corrected value forward (the apply consumes the confirmed
-slots, not the raw guess). Two hard rules:
-
-- **`area:` defaults empty/emergent — never fabricated.** Do not invent a content
-  taxonomy; area labels accrete from real work, not from a setup guess.
-- The proposal is a **starting point, not a verdict.** A missing signal (e.g. no
-  `vault/`) means the *default* was proposed, not that the dev has no say.
-
-Precedence when several source-of-truth corpora coexist is deterministic
-(`vault > contracts > facts`); if the guess is wrong, the dev corrects it here.
-
-### 2. Apply the greenfield wiring
-
-`pocock-apply.sh` consumes the plan and, on a greenfield repo, wires it:
-
-```bash
-bash scripts/pocock-apply.sh --root .
-```
-
-It performs, idempotently and without clobbering existing files:
-
-1. Writes `docs/agents/{domain,issue-tracker,triage-labels}.md` — the constant
-   spine. `triage-labels.md` carries the **static** canonical -> board translation
-   table (below).
-2. Adds the `## Agent skills` block to `CLAUDE.md` (creates the file if absent).
-3. Writes `docs/agents/pocock-stamp.md` — the suite version + static translation
-   table + the live-discovered role-binding recipe. When an installed suite is
-   available (`POCOCK_SUITE_DIR`, default `~/.agents/skills`), `pocock-bind.sh`
-   (#53) binds the tracker-touching roles from the suite and caches them into the
-   stamp's `bindings:` block; with no suite, `bindings` is left `null`.
-4. Creates the canonical labels via `gh label create` (the `status:*` lifecycle
-   plus the orthogonal `afk` and `needs-info` facets).
-
-#### Substrate: tracker-backed vs trackerless-local corpus
-
-The apply never forces GitHub tracker machinery on a repo that has no tracker. A
-`facts/ + sources/ + refs/` corpus (`source_of_truth: facts-corpus`) **is the
-artifact**, not a tracker:
-
-- **tracker-backed** — the full wiring above: both tracker docs, the `## Agent
-  skills` tracker block, the seven `status:*`/facet labels.
-- **trackerless-local corpus** — the apply writes only `domain.md`, a
-  corpus-flavored `## Agent skills` block, and a stamp recording
-  `substrate: trackerless-local` with `labels: []`. It **skips**
-  `issue-tracker.md`, `triage-labels.md`, label creation, and the board/CI
-  projection — the plan already drops them (`labels_to_create: []`,
-  `lifecycle_overlay: none`, `board_scope: none`), so no tracker is ever forced.
-  The live-discovered role `bindings:` recipe (#53) still applies when a suite is
-  available.
-
-Determinism knobs: `POCOCK_INSTALLED_VERSION` (recorded in the stamp),
-`POCOCK_STAMP_DATE`, `POCOCK_GH` (label-creation command). Pass `--skip-labels`
-to write the file artifacts without touching GitHub.
-
-### 3. Confirm the repo is fully wired
-
-Re-emit the plan; a wired repo no longer reads `greenfield`. On a tracker-backed
-repo the four label + docs + stamp artifacts should all be present; on a
-trackerless-local corpus, the domain doc + stamp + corpus `CLAUDE.md` block (no
-tracker docs, no labels).
-
-### 4. Offer the optional board / CI projection (prompted)
-
-**Label-only is the portable default — the config is valid and complete without
-any board.** After the label spine is wired, **ask** the human whether to also
-project it onto a GitHub Projects v2 board + the sync CI. Default leans yes (a
-glanceable board is usually wanted), but "docs/skills repo, no prod deploy" does
-**not** imply skip — ask, don't assume. On a **member repo of an existing org
-board** (`board_scope=shared`) this prompt is the opt-out seam and is skipped —
-the org plumbing already exists.
-
-```bash
-# board_scope=own: emit the projection (workflows to stdout; add --write to save).
-bash scripts/pocock-board.sh --root .            # review the projection + gotchas
-bash scripts/pocock-board.sh --root . --write    # write the two workflow files
-
-# member repo of an existing org board — the prompt is skipped:
-bash scripts/pocock-board.sh --root . --board-scope shared
-```
-
-The projection handles the hands-on GitHub Projects gotchas (from the #40 audit):
-
-1. **Un-deletable Status field.** A fresh Project's built-in Status single-select
-   cannot be deleted (`deleteProjectV2Field` → "Only custom fields can be
-   deleted"). The script emits a raw `gh api graphql updateProjectV2Field` that
-   overwrites its options in place, and returns the field id + option ids to
-   **capture** for the CI sync.
-2. **`PROJECT_TOKEN` — human secret step. STOP.** Projects v2 mutations need a
-   PAT with `project` write (`GITHUB_TOKEN` cannot write user-owned Projects v2).
-   The script emits a precise `PROJECT_TOKEN` checklist and **stops** — provision
-   the credential, then run the mutation + backfill.
-3. **CI is dormant until the default branch.** `issues`-triggered workflows run
-   from the default branch, so under `feature→dev→main` they stay dormant until
-   the first `dev→main` release lands them on `main`. Backfill existing issues
-   with **manual GraphQL** (`addProjectV2ItemById` + `updateProjectV2ItemFieldValue`),
-   not the (dormant) workflow.
-4. **Audit sweep.** An open issue with a live branch but no `status:*` label is
-   invisible to the board — `pocock-board.sh --audit-sweep` reconciles a lane
-   from branch/PR state before backfill.
-
-## Multi-repo member mode (#58)
-
-When the repo is a **member of a shared org board** (`board_scope=shared`) the
-wrapper does **less, not more** — the org plumbing already exists. The plan
-emitter proposes `board_scope=shared` when the origin remote's owner is one of
-the shared orgs named in `POCOCK_SHARED_ORGS` (a space/colon-separated list); the
-human confirms/overrides with `--board-scope`. `pocock-member.sh` computes the
-member verdict:
-
-```bash
-# detected member (org owner in POCOCK_SHARED_ORGS), or forced with --board-scope:
-POCOCK_SHARED_ORGS=my-org bash scripts/pocock-member.sh --root .
-bash scripts/pocock-member.sh --root . --board-scope shared --json
-```
-
-- **Uniform spine, forced.** A member gets the **same `status:*` vocabulary**
-  every member carries — consistency across the fleet is the point. That
-  uniformity **overrides a surveyed `flat`/`identity` state**: on a member the
-  lifecycle overlay is forced to `kanban` even if the survey (or a human
-  correction) proposed flat. `--surveyed-overlay flat` shows the override
-  (`spine_override: true`).
-- **Board/CI prompt skipped.** The end-of-run board prompt is the opt-out seam
-  and is skipped — the org's board + `project-sync` plumbing already exists
-  per-org (same behavior as `pocock-board.sh --board-scope shared`).
-- **Decoupled, per-member.** Board/project automation stays per-member and is
-  **never templatized** across members; no per-repo Milestones in shared mode
-  (brief R8 — ROADMAP → board Epics, built-in Repository + Parent/Sub-issue
-  fields).
-- **Never scaffolds the org.** Standing up the org's governance + `.github`
-  mechanics repos is a human, one-time act — out of scope for the wrapper.
-
-## Static translation table
-
-The wrapper applies this mapping and never learns board column names. Divergence
-is free as long as the mapping stays lossless.
-
-| Canonical role (skills speak this) | Board expression |
-|---|---|
-| `needs-triage` | `status: triage` |
-| `needs-info` | `needs-info` (orthogonal facet) |
-| `ready-for-agent` | `status: ready` + `afk` |
-| `ready-for-human` | `status: ready` (no `afk`) |
-
-The flag is `afk`, **not** `afk-ready`. `needs-info` is an orthogonal facet, not
-a seventh lane. `Released` is label-less — the issue's closed state.
-
-## Live role-binding (#53)
-
-Distinct from the translation table above (canonical role -> board expression),
-role-binding maps each **tracker-touching abstract role** to the installed skill
-that currently fills it. `pocock-bind.sh` discovers this live from the installed
-suite rather than hardcoding a slug table that a single rename would break:
-
-```bash
-bash scripts/pocock-bind.sh --suite ~/.agents/skills
-```
-
-- **Authority order:** release notes / changelog -> installed `SKILL.md` text ->
-  `ask-matt` (the router that answers "which skill fills this role").
-- **Narrow scope** — only the tracker-touching roles are bound: `on-ramp`,
-  `spec`, `slice-to-tickets`, `implement`, `review`, `setup`, `wayfinder`.
-- **Stop-and-surface** — an ambiguous (split) or empty (vanished) bind exits 4
-  and prints findings; no bind is written. Durable config later sessions trust
-  must never carry a guessed bind.
-- **Forked commit/merge skills** are flagged in the recipe, never auto-rewritten.
-- The recipe (bindings + version delta) is **cached into the stamp** keyed by
-  version. On the current suite it reproduces the static table (a pure expand).
+Check the declared success criteria with
+[`tests/pocock-acceptance-gate.sh`](../../../tests/pocock-acceptance-gate.sh)
+Part A (spine present or corpus subset, `## Agent skills` block, canonical labels
+or `[]`, stamp written, no lingering v1.0 references, all tracker-touching roles
+bound). Report the outcome, then **append this run** to the local workbench
+(sibling + one INDEX line) per
+[`references/workbench.md`](./references/workbench.md) — the durability engine for
+the next, unseen suite version.
 
 ## Guardrails
 
-- **Greenfield only (this skeleton).** Never apply to a migrant or current repo —
-  the apply refuses (exit 3) rather than clobber. Backfilling missing pieces and
-  reconciling a provisional banner belong to the migrant mode.
-- **Never fork the suite.** This skill wraps `setup-matt-pocock-skills`; it never
-  edits or re-implements Pocock's skills.
-- **Never hand-write role bindings.** `pocock-bind.sh` discovers them live from
-  the installed suite; on an ambiguous/empty bind it stops and surfaces for a
-  human rather than guessing.
+- **Wrap, never fork.** Call `setup-matt-pocock-skills`; never edit or re-implement
+  Pocock's spine.
+- **Never hand-write role bindings.** Discover them live from the installed suite.
+  On an ambiguous (split) or vanished (empty) bind → **stop and surface**, never
+  guess into durable config. **Flag** forked commit/merge skills — never
+  auto-rewrite them.
+- **Preflight never mutates.** Read-only readiness gate; halt with the fix, Matt
+  runs it.
 
-## Out of scope (this skeleton)
+## Status
 
-- Migrant upgrade and current patch modes.
-- Live role-binding discovery (#35).
-- Standing up a multi-repo org — the wrapper configures a repo to *join* an org
-  board; standing up the org is a one-time human act. The board projection
-  (`pocock-board.sh`) never scaffolds the org itself.
+In-progress: this skill stays under `skills/in-progress/` until it runs clean on
+3–4 real repos, then promotes out.
