@@ -6,11 +6,7 @@
 # separately once authorized:  bash tests/phase0-smoke.sh
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# pocock-board is parked: it still couples to the now-deleted pocock-plan.sh
-# emitter for board_scope detection. #62 refactors pocock-board.sh down to the
-# single Projects-v2 GraphQL helper and re-enables `pocock-board` here with a
-# refocused, offline test.
-SUITE="config detector dispatch outputs lock plist e2e"
+SUITE="config detector dispatch outputs lock plist e2e pocock-board"
 fail=0
 for t in $SUITE; do
   echo "=================== test-$t ==================="
