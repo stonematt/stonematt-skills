@@ -199,4 +199,11 @@ build_pocock_fixtures() {
   _pocock_mkrepo "$R/board"
   _pocock_remote "$R/board" "git@github.com:stonematt/board.git"
   git -C "$R/board" branch feat/13-branch-only
+
+  # member: a greenfield repo whose origin sits under a shared org
+  # (acme-collective). With POCOCK_SHARED_ORGS=acme-collective the plan proposes
+  # board_scope=shared, so the multi-repo member-mode seam (#58) applies the
+  # uniform spine and skips the board-wiring prompt.
+  _pocock_mkrepo "$R/member"
+  _pocock_remote "$R/member" "git@github.com:acme-collective/member.git"
 }

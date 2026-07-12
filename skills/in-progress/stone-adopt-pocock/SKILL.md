@@ -157,6 +157,37 @@ The projection handles the hands-on GitHub Projects gotchas (from the #40 audit)
    invisible to the board — `pocock-board.sh --audit-sweep` reconciles a lane
    from branch/PR state before backfill.
 
+## Multi-repo member mode (#58)
+
+When the repo is a **member of a shared org board** (`board_scope=shared`) the
+wrapper does **less, not more** — the org plumbing already exists. The plan
+emitter proposes `board_scope=shared` when the origin remote's owner is one of
+the shared orgs named in `POCOCK_SHARED_ORGS` (a space/colon-separated list); the
+human confirms/overrides with `--board-scope`. `pocock-member.sh` computes the
+member verdict:
+
+```bash
+# detected member (org owner in POCOCK_SHARED_ORGS), or forced with --board-scope:
+POCOCK_SHARED_ORGS=my-org bash scripts/pocock-member.sh --root .
+bash scripts/pocock-member.sh --root . --board-scope shared --json
+```
+
+- **Uniform spine, forced.** A member gets the **same `status:*` vocabulary**
+  every member carries — consistency across the fleet is the point. That
+  uniformity **overrides a surveyed `flat`/`identity` state**: on a member the
+  lifecycle overlay is forced to `kanban` even if the survey (or a human
+  correction) proposed flat. `--surveyed-overlay flat` shows the override
+  (`spine_override: true`).
+- **Board/CI prompt skipped.** The end-of-run board prompt is the opt-out seam
+  and is skipped — the org's board + `project-sync` plumbing already exists
+  per-org (same behavior as `pocock-board.sh --board-scope shared`).
+- **Decoupled, per-member.** Board/project automation stays per-member and is
+  **never templatized** across members; no per-repo Milestones in shared mode
+  (brief R8 — ROADMAP → board Epics, built-in Repository + Parent/Sub-issue
+  fields).
+- **Never scaffolds the org.** Standing up the org's governance + `.github`
+  mechanics repos is a human, one-time act — out of scope for the wrapper.
+
 ## Static translation table
 
 The wrapper applies this mapping and never learns board column names. Divergence

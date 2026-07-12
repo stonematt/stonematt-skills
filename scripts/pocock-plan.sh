@@ -138,6 +138,35 @@ detect_idea_to_issue_gate() {
   fi
 }
 
+# Origin remote owner (org/user login), empty when there is no origin. Handles
+# both scp-style (git@host:owner/repo.git) and URL (https://host/owner/repo.git)
+# remotes by mapping ':' to a path separator and taking the second-to-last
+# non-empty segment.
+remote_owner() {
+  local url
+  url="$(git -C "$ROOT" remote get-url origin 2>/dev/null)" || return 0
+  [ -n "$url" ] || return 0
+  url="${url%.git}"; url="${url//:/\/}"
+  printf '%s\n' "$url" | awk -F/ '{ n=NF; while (n>0 && $n=="") n--; if (n>=2) print $(n-1) }'
+}
+
+# Board-scope slot (R6): `own` vs a `shared` org Project. A member of a shared
+# org board is proposed `shared`; the human confirms/overrides downstream
+# (--board-scope on pocock-board / pocock-member). Detection is offline: the
+# origin remote owner matched against POCOCK_SHARED_ORGS (space/colon-separated
+# org logins that own a shared board). No signal => `own` (the safe default, so
+# the proposal never silently mistakes a personal repo for a member).
+detect_board_scope() {
+  local owner orgs o
+  owner="$(remote_owner)"
+  [ -n "$owner" ] || { printf 'own'; return; }
+  orgs="${POCOCK_SHARED_ORGS:-}"; orgs="${orgs//:/ }"
+  for o in $orgs; do
+    [ "$o" = "$owner" ] && { printf 'shared'; return; }
+  done
+  printf 'own'
+}
+
 # ---- wiring signals (consumed by the preflight gate, #54) ------------------
 # The emitter is the single detection authority; the gate never re-scans the
 # tree — it reads these booleans off the plan. Keep all filesystem probing here.
@@ -204,7 +233,7 @@ json_str_or_null() { [ -n "$1" ] && printf '"%s"' "$1" || printf 'null'; }
 json_bool() { if "$@"; then printf 'true'; else printf 'false'; fi; }
 
 emit_plan() {
-  local substrate freshness stamp sot overlay gate
+  local substrate freshness stamp sot overlay gate board_scope
   local -a stale=() slots_intent=("structural" "voice" "capability")
   local -a artifacts=(
     "docs/agents/domain.md"
@@ -219,6 +248,7 @@ emit_plan() {
   sot="$(detect_source_of_truth)"
   overlay="$(detect_lifecycle_overlay "$substrate")"
   gate="$(detect_idea_to_issue_gate)"
+  board_scope="$(detect_board_scope)"
   while IFS= read -r s; do [ -n "$s" ] && stale+=("$s"); done < <(scan_stale_slugs)
   local have_docs=0; has_agent_docs && have_docs=1
   freshness="$(detect_freshness "$stamp" "${stale[*]:-}" "$have_docs")"
@@ -243,7 +273,7 @@ emit_plan() {
   printf '    "idea_to_issue_gate": "%s",\n' "$gate"
   printf '    "prs_as_request_surface": false,\n'
   printf '    "area_labels": [],\n'
-  printf '    "board_scope": "own",\n'
+  printf '    "board_scope": "%s",\n' "$board_scope"
   printf '    "intent": %s\n' "$(json_array '    ' "${slots_intent[@]}")"
   printf '  },\n'
   # Greenfield/migrant re-discover bindings live (#35); nothing is cached yet.
