@@ -44,6 +44,26 @@ Run `gh issue view <number> --comments`. If a Milestone is referenced, also fetc
 - **Issue auto-close is release-gated.** `Closes #N` auto-close fires only on merge to the default branch (`main`), so feature→`dev` PRs do **not** auto-close their issues — issues close in a batch when `dev`→`main` releases. Close manually earlier if needed.
 - Releases are git tags on `main`: `git tag -a vX.Y.Z -m "..."` then `git push --tags`. Tag when persona file shapes, generic skill bodies, or shim conventions change in a way that downstream consumers need to pin.
 
+## Kanban board & status
+
+GitHub Project [stonematt-skills](https://github.com/users/stonematt/projects/7) (#7) is the board view. **Issue `status:*` labels are canonical; the board's Status single-select is a CI-derived projection** — set labels, never the field by hand.
+
+- **Status set (ordered):** `Triage → Ready → WIP → Blocked → Staged → Released`. Labels exist for all but `Released` (project-field only, set on close). `Blocked` is a side state; `Staged` = merged to `dev`, `Released` = closed via the `dev→main` release PR. See [triage-labels.md](./triage-labels.md).
+- **`needs-info`** is an **orthogonal facet**, not a lane — it can co-occur with any status.
+- **Eligibility:** `afk-ready` label (agent pickup) + native assignee (claimed).
+- **Contextual slots:** `intent:{structural,voice,capability}` (selects the review lens); `area:*` is emergent (backward-aggregated, not pre-seeded).
+- **CI sync** (`.github/workflows/`): `project-sync.yml` mirrors the `status:*` label onto the board; `clean-status-on-close.yml` strips `status:*` on close and sets `Released`. Both need the `PROJECT_TOKEN` secret (user PAT, `project` write — `GITHUB_TOKEN` can't write user Projects v2). **`issues`-triggered workflows run from the default branch (`main`) only** — board automation is live only once the workflows reach `main`; until then, sync issues to the board by hand.
+
+## Wayfinding operations
+
+Wayfinder maps/tickets use **GitHub-native** structure (no board dependency):
+
+- **Map** = issue labelled `wayfinder:map` (canonical charting artifact). **Tickets** = child issues labelled `wayfinder:{research,grilling,prototype,task}` + executor facet `wayfinder:{afk,hitl}`.
+- **Nesting (parent→child)** = native sub-issues via GraphQL `addSubIssue(input:{issueId, subIssueId})` with header `GraphQL-Features: sub_issues` (needs node IDs).
+- **Blocking** = native REST `POST /repos/{owner}/{repo}/issues/{N}/dependencies/blocked_by -F issue_id=<blocker DATABASE id>` (the `.id`, not the issue number). Renders the frontier visually in the GH UI.
+- **Frontier** = open + unassigned + no open blockers. **Claim** = assign to yourself (`gh issue edit N --add-assignee @me`).
+- **The map sits on the kanban board; child tickets do not.** A map is long-running human effort, so it carries a normal `status:*` and appears on board #7: `triage` (filed) → `wip` (charting / resolving tickets — its usual state) → closed = `Released` (destination reached). Maps never enter `ready` or `staged` and carry no `afk-ready`. Child tickets keep their own axis (map + dependency edges + frontier query) and stay off the board.
+
 ## Release notes
 
 When tagging, the tag annotation OR a paired GitHub Release should summarize:
