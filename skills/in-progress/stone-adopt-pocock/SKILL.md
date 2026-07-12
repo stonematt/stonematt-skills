@@ -62,28 +62,40 @@ delta is: the translation-table conventions; the durable stamp carrying a
 **live-discovered** binding recipe (read the installed suite — no slug table); the
 targeted rewrite of stale v1.0 references in *Matt's* wrapping layer (never a
 whole-file regen); and, if the board was opted in, the Projects v2 projection via
-`scripts/pocock-board.sh` (`labels` / `status-field` / `backfill`) — never freehand
-GraphQL. All of it runs as **one idempotent delta-reconcile**: backfill missing,
-clobber nothing human-authored, a re-run produces zero diff.
+the bundled helper at `<this skill dir>/scripts/pocock-board.sh` (`labels` /
+`status-field` / `backfill`) — never freehand GraphQL. The helper ships **inside
+this skill dir**; invoke it by its absolute path within the installed skill, never
+a cwd-relative `scripts/...` (cwd is the target repo, not this checkout). All of it
+runs as **one idempotent delta-reconcile**: backfill missing, clobber nothing
+human-authored, a re-run produces zero diff.
 
 ### 5. Behavioral smoke (anti-silent-success)
 
-Prove the wiring *runs*, not just that files exist: create a throwaway issue, move
-it across the `status:*` lanes, close it, confirm the board reflects the
-progression, then clean the issue up. Drive it with
-[`tests/pocock-acceptance-gate.sh`](../../../tests/pocock-acceptance-gate.sh)
-Part B (live: `POCOCK_SMOKE_LIVE=1`).
+Prove the wiring *runs*, not just that files exist — you (the model) drive it with
+`gh` on the target repo. Create a throwaway issue, move it across the `status:*`
+lanes, close it, confirming after each move that the board/labels reflect the
+progression, then **clean it up** (delete or close so no litter). Guarantee the
+cleanup even on error: guard the lifecycle so a mid-smoke failure still removes the
+throwaway. This is model-led live judgment, not a script call.
+
+> The offline CI counterpart is
+> [`tests/pocock-acceptance-gate.sh`](../../../tests/pocock-acceptance-gate.sh)
+> Part B (the self-verify seam) — a CI check, **not** a runtime dependency of this
+> skill.
 
 ### 6. Verify, report, append the workbench
 
-Check the declared success criteria with
-[`tests/pocock-acceptance-gate.sh`](../../../tests/pocock-acceptance-gate.sh)
-Part A (spine present or corpus subset, `## Agent skills` block, canonical labels
-or `[]`, stamp written, no lingering v1.0 references, all tracker-touching roles
-bound). Report the outcome, then **append this run** to the local workbench
-(sibling + one INDEX line) per
+Check the declared success criteria by **reading the adopted repo**: spine present
+(or corpus subset), the `## Agent skills` block, canonical labels (or `[]`), the
+stamp written, no lingering v1.0 references in the wrapping layer, all
+tracker-touching roles bound, `unresolved` empty. Report the outcome, then
+**append this run** to the local workbench (sibling + one INDEX line) per
 [`references/workbench.md`](./references/workbench.md) — the durability engine for
 the next, unseen suite version.
+
+> The automated CI counterpart is
+> [`tests/pocock-acceptance-gate.sh`](../../../tests/pocock-acceptance-gate.sh)
+> Part A — a CI check, **not** a runtime dependency of this skill.
 
 ## Guardrails
 

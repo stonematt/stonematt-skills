@@ -40,7 +40,7 @@
 #
 #   LIVE (POCOCK_SMOKE_LIVE=1) — the real gate the SKILL runs at adoption time on
 #   a TARGET repo. Part A asserts the real adopted repo; Part B drives a real
-#   throwaway issue on a real tracker (real `gh` + scripts/pocock-board.sh). This
+#   throwaway issue on a real tracker (real `gh` + the bundled board helper). This
 #   is INHERENTLY live (network + authorization) and is DELIBERATELY excluded
 #   from run-all. Required env:
 #       POCOCK_SMOKE_LIVE=1
@@ -184,7 +184,7 @@ smoke_behavioral() { # <work_dir>
 
   # Ensure the canonical labels exist on the target (also exercises the board
   # helper's `labels` verb — "the board actually runs").
-  POCOCK_GH="$GH" bash "$REPO_ROOT/scripts/pocock-board.sh" labels >/dev/null 2>&1 || true
+  POCOCK_GH="$GH" bash "$REPO_ROOT/skills/in-progress/stone-adopt-pocock/scripts/pocock-board.sh" labels >/dev/null 2>&1 || true
 
   (
     # --- lifecycle subshell: trap-backed guaranteed cleanup -----------------
