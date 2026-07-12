@@ -206,4 +206,17 @@ build_pocock_fixtures() {
   # uniform spine and skips the board-wiring prompt.
   _pocock_mkrepo "$R/member"
   _pocock_remote "$R/member" "git@github.com:acme-collective/member.git"
+
+  # trackerless-local corpus (#57): NO origin remote; a facts/ + sources/ + refs/
+  # corpus is the artifact (not a GitHub tracker). Greenfield freshness: no
+  # docs/agents, no stamp, no stale slugs. The plan must classify it trackerless,
+  # recognize the corpus (source_of_truth=facts-corpus), and force no tracker.
+  _pocock_mkrepo "$R/trackerless"
+  mkdir -p "$R/trackerless/facts" "$R/trackerless/sources" "$R/trackerless/refs"
+  printf 'A distilled claim.\n'    > "$R/trackerless/facts/claim-1.md"
+  printf 'Primary material.\n'     > "$R/trackerless/sources/source-1.md"
+  printf 'Supporting reference.\n' > "$R/trackerless/refs/ref-1.md"
+  git -C "$R/trackerless" add facts sources refs
+  GIT_AUTHOR_DATE=2026-07-01T12:00:00 GIT_COMMITTER_DATE=2026-07-01T12:00:00 \
+    git -C "$R/trackerless" commit -q -m corpus
 }

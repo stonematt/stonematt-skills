@@ -109,14 +109,33 @@ It performs, idempotently and without clobbering existing files:
 4. Creates the canonical labels via `gh label create` (the `status:*` lifecycle
    plus the orthogonal `afk` and `needs-info` facets).
 
+#### Substrate: tracker-backed vs trackerless-local corpus
+
+The apply never forces GitHub tracker machinery on a repo that has no tracker. A
+`facts/ + sources/ + refs/` corpus (`source_of_truth: facts-corpus`) **is the
+artifact**, not a tracker:
+
+- **tracker-backed** — the full wiring above: both tracker docs, the `## Agent
+  skills` tracker block, the seven `status:*`/facet labels.
+- **trackerless-local corpus** — the apply writes only `domain.md`, a
+  corpus-flavored `## Agent skills` block, and a stamp recording
+  `substrate: trackerless-local` with `labels: []`. It **skips**
+  `issue-tracker.md`, `triage-labels.md`, label creation, and the board/CI
+  projection — the plan already drops them (`labels_to_create: []`,
+  `lifecycle_overlay: none`, `board_scope: none`), so no tracker is ever forced.
+  The live-discovered role `bindings:` recipe (#53) still applies when a suite is
+  available.
+
 Determinism knobs: `POCOCK_INSTALLED_VERSION` (recorded in the stamp),
 `POCOCK_STAMP_DATE`, `POCOCK_GH` (label-creation command). Pass `--skip-labels`
 to write the file artifacts without touching GitHub.
 
 ### 3. Confirm the repo is fully wired
 
-Re-emit the plan; a wired repo no longer reads `greenfield`. The four label +
-docs + stamp artifacts should all be present.
+Re-emit the plan; a wired repo no longer reads `greenfield`. On a tracker-backed
+repo the four label + docs + stamp artifacts should all be present; on a
+trackerless-local corpus, the domain doc + stamp + corpus `CLAUDE.md` block (no
+tracker docs, no labels).
 
 ### 4. Offer the optional board / CI projection (prompted)
 
