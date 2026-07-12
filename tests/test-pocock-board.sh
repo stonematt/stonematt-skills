@@ -8,7 +8,9 @@
 #   labels        idempotent gh label create of the canonical vocabulary
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-BOARD="$SCRIPTS_DIR/pocock-board.sh"
+# The board helper now rides INSIDE the skill dir (bundled so the skill is
+# self-contained on any target repo — #77), not in the repo-root scripts/ dir.
+BOARD="$(cd "$TESTS_DIR/../skills/in-progress/stone-adopt-pocock/scripts" && pwd)/pocock-board.sh"
 SANDBOX="$(mktemp -d)"; trap 'rm -rf "$SANDBOX"' EXIT
 
 chmod +x "$TESTS_DIR/gh-board-shim" "$TESTS_DIR/gh-label-shim"

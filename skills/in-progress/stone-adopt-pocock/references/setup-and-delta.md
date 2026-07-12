@@ -77,10 +77,13 @@ Two invariants that are easy to get wrong:
 
 You do not hand-create these labels. The bundled board helper's `labels` verb
 upserts the canonical `status:*` lifecycle labels plus the orthogonal `afk` and
-`needs-info` facets idempotently:
+`needs-info` facets idempotently. The helper ships **inside this skill dir** —
+invoke it by its absolute path within the installed skill
+(`<this skill dir>/scripts/pocock-board.sh`), never a cwd-relative `scripts/...`
+(cwd is the target repo, not this checkout):
 
 ```bash
-scripts/pocock-board.sh labels
+<this skill dir>/scripts/pocock-board.sh labels
 ```
 
 `Released` is intentionally absent from that set — it is the closed state, not a
@@ -130,9 +133,12 @@ do **not** rewrite it — flag it (see `role-binding.md`, forked-skill rule).
   GraphQL. Overwrite the un-deletable built-in Status field in place and capture its
   field + option ids, then backfill existing issues:
 
+  Invoke the bundled helper by its absolute path within the installed skill
+  (`<this skill dir>/scripts/pocock-board.sh`), never a cwd-relative `scripts/...`:
+
   ```bash
-  scripts/pocock-board.sh status-field --field-id <STATUS_FIELD_ID>
-  scripts/pocock-board.sh backfill --project-id <PROJECT_ID> --field-id <STATUS_FIELD_ID>  # pairs on stdin
+  <this skill dir>/scripts/pocock-board.sh status-field --field-id <STATUS_FIELD_ID>
+  <this skill dir>/scripts/pocock-board.sh backfill --project-id <PROJECT_ID> --field-id <STATUS_FIELD_ID>  # pairs on stdin
   ```
 
 - **The CI sync workflows are written regardless** of the board answer. They stay
@@ -160,7 +166,8 @@ migrant/greenfield code paths — do not branch on repo age.
   - *The stamp* (2b): wrapper-owned derived state — regenerate freely.
   - *Wrapping-layer prose* (2c): targeted reference rewrite only; human narrative and
     hand edits are preserved (see 2c operationalization).
-  - *Labels* (2a): `scripts/pocock-board.sh labels` upserts canonical config — it
+  - *Labels* (2a): the bundled `<this skill dir>/scripts/pocock-board.sh labels`
+    upserts canonical config — it
     edits label definitions only, never touches issues.
 - **Re-running changes nothing.** When the stamp's `suite_version` already matches the
   installed suite, every binding resolves, no stale v1.0 reference remains, and the
