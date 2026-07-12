@@ -157,6 +157,25 @@ build_pocock_fixtures() {
   _pocock_stamp "$R/stale" "1.1.0"
   printf '# CLAUDE.md\n\nRun `/to-prd` then `/to-issues`.\n' > "$R/stale/CLAUDE.md"
 
+  # review-path (regression): a `src/review/` directory + a `code-review` mention
+  # must NOT trip the `/review` stale-slug scan — a path segment is not the v1.0
+  # `/review` slash-command. No docs/agents, no stamp, no real slug => greenfield.
+  _pocock_mkrepo "$R/review-path"
+  _pocock_remote "$R/review-path" "git@github.com:stonematt/review-path.git"
+  mkdir -p "$R/review-path/src/review"
+  printf '# CLAUDE.md\n\nPipeline stage lives in `src/review/` (see src/review/vault.py). Use `/code-review` for PRs.\n' \
+    > "$R/review-path/CLAUDE.md"
+
+  # review-cmd (positive control): a genuine `/review` slash-command invocation
+  # still forces migrant via the slug-scan (review -> code-review rename). Guards
+  # the path-false-positive fix from over-correcting into a false negative.
+  _pocock_mkrepo "$R/review-cmd"
+  _pocock_remote "$R/review-cmd" "git@github.com:stonematt/review-cmd.git"
+  _pocock_agent_docs "$R/review-cmd"
+  _pocock_stamp "$R/review-cmd" "1.1.0"
+  printf '# CLAUDE.md\n\nAfter edits, run `/review` to check the diff.\n' \
+    > "$R/review-cmd/CLAUDE.md"
+
   # missing-docs: reconciled tracker + bound stamp, but triage/domain absent.
   _pocock_mkrepo "$R/missing-docs"
   _pocock_remote "$R/missing-docs" "git@github.com:stonematt/missing-docs.git"

@@ -106,7 +106,13 @@ scan_stale_slugs() {
   [ "${#files[@]}" -eq 0 ] && return 0
   {
     grep -hoE '\b(to-prd|to-issues|decision-mapping)\b' "${files[@]}" 2>/dev/null
-    grep -hoE '/review\b' "${files[@]}" 2>/dev/null | sed 's#^/##'
+    # `/review` counts ONLY as a slash-command token, never as a path segment
+    # (e.g. `src/review/`) or a word (`code-review`, `reviews`). The `/` must be
+    # preceded by a non-path boundary and `review` followed by a non-path/-word
+    # char. POSIX ERE only — no lookaround, so BSD (macOS) grep works too.
+    if grep -qE '(^|[^[:alnum:]._/-])/review([^[:alnum:]/_-]|$)' "${files[@]}" 2>/dev/null; then
+      echo review
+    fi
   } | sort -u
 }
 
