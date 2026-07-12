@@ -226,6 +226,80 @@ workbench of precedent — not from a stale bash table.
 - **Location:** stays `skills/in-progress/stone-adopt-pocock/` until it runs clean on
   3–4 real repos, then promotes out of in-progress.
 
+## Feedback loop
+
+The Implementation Decisions above specify the workbench as *storage*; this section
+specifies the *mechanism* that turns it into the v2-durability engine (user stories
+#15, #17, #18). Without a defined loop, "consults the workbench" and "reasons from
+precedent" are asserted outcomes with no machinery behind them. Five decisions define
+the machinery (grilled in [#60](https://github.com/stonematt/stonematt-skills/issues/60)).
+
+- **Capture — four events, tagged by kind.** An adoption run writes to the workbench on
+  any of four events: (1) `override` — the human edits the directive at the go/no-go
+  checkpoint; (2) `surface-resolution` — a mid-run stop-and-surface (ambiguous/vanished
+  bind, forked commit/merge skill) is resolved by the human; (3) `smoke-failure` — the
+  behavioral smoke catches broken wiring after checkpoint approval (highest-value
+  signal: the proposal *passed* review and was still wrong); (4) `clean` — a run with
+  zero corrections. The three correction kinds each write a **full sibling**
+  (`workbench/<date>-<slug>.md`, frontmatter + prose: what was proposed, what the human
+  corrected and why, what surprised the model). A `clean` run writes **only an INDEX
+  line** (date, `repo_kind`, `suite_version`, `corrections: 0`) — a clean adoption is
+  itself precedent that raises confidence, but does not earn a full sibling.
+
+- **Feed-forward — INDEX as retrieval filter, keyed on repo-kind, suite-version as
+  weight.** The read-before-audit step is not "load every sibling and reason" (unbounded
+  — breaks past ~N runs and would bloat a downstream user's install). It is:
+  (1) read `INDEX.md` (cheap, one line per run); (2) filter rows to **this repo's kind**;
+  (3) pull the full sibling only for the *correction* entries that match; (4) reason over
+  that bounded set. INDEX does double duty — manifest *and* retrieval index. Two
+  fallbacks: when the current repo-kind has **zero matching rows** (a new or
+  first-seen kind), fall back to a **full read of all correction siblings** to bootstrap
+  useful precedent by cross-kind transfer; when the workbench is **entirely empty** (a
+  fresh downstream install), feed-forward is a correct no-op and the model reasons cold.
+
+- **Precedence + conflict.** Within the retrieved set: **frequency is the primary
+  signal, recency the tiebreak** — three repos correcting `X→Y` establish the pattern
+  over one recent `X→Z`; but a lone recent correction that *reverses* an older single
+  precedent (the suite changed the right answer) overrides stale frequency. A **true tie**
+  (`A: X→Y` vs `B: X→Z`, one each, no majority) is routed into the **existing
+  stop-and-surface gate** — the same mechanic the spec already uses for ambiguous binds;
+  the human's pick logs as a new `surface-resolution` entry that tips frequency next
+  time, so conflict is self-healing. **Precedent is advisory, never binding** — even a
+  unanimous precedent is context for the model's live reasoning, not a lookup answer
+  (that would rebuild the forbidden slug table in markdown). The model may override
+  precedent when the live repo/suite reading contradicts it, and must say so — which
+  itself logs as a new correction.
+
+- **Short loop vs long loop.** The **short loop** (correction → workbench → next run's
+  proposal) is fully automatic and fully local; everything above is the short loop. The
+  **long loop** — promoting a stable pattern *out* of the local workbench into committed
+  skill prose so every downstream install inherits it cold — is **never automatic**. The
+  skill only **nominates**: at end-of-run report, when a precedent has held across **≥3
+  distinct repo-kinds**, unreversed, and is not private-repo-specific, the skill flags it
+  for promotion (*"pattern P has held across 3 repo-kinds; consider promoting to committed
+  prose"*). The human executes promotion as a separate deliberate act (`/write-a-skill`
+  edit into `SKILL.md` or a conventions doc). The threshold is **cross-kind** stability,
+  not raw frequency: a pattern that only ever fires on one repo-kind belongs in that
+  kind's local precedent, not global skill prose. Nominated entries carry a
+  `nominated: true` marker so they are not re-nominated every run.
+
+- **Bounding.** Sibling files are **never auto-pruned** — they are the audit trail, cheap
+  on disk, and never read unless the retrieval filter matches them, so raw count does not
+  bloat any single run. INDEX is read whole every run, so INDEX is the growth surface:
+  when it crosses a size threshold, the skill **offers** (at report time, not silently) to
+  **fold clean-run rows into a counter** — e.g. 40 clean `python-lib` v1.2 rows collapse
+  to one summary row (`python-lib v1.2: 40 clean, 0 corrections`); correction rows always
+  stay individual because they carry retrieval value. A **suite-version bump ages
+  precedent, it does not invalidate it**: `suite_version` is a **soft staleness weight,
+  not a hard filter gate**. Same-kind + same-version precedent ranks strongest; same-kind
+  + prior-version precedent is still read but treated as "may be stale — verify against
+  the live installed suite" (the same lens the version stamp applies to repo config). A
+  bump deletes and prunes nothing; it demotes prior-version precedent to
+  advisory-with-suspicion, the first v2 runs re-confirm or correct the carried-over
+  patterns, and new v2 precedent accretes on top. This is what makes the workbench
+  survive the unseen v2 (user story #18) rather than orphaning every prior lesson at the
+  bump.
+
 ## Testing Decisions
 
 Good tests here assert **external behavior and outcomes**, never the model's internal
