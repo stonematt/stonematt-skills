@@ -68,6 +68,15 @@ detect_substrate() {
   if has_origin "$ROOT"; then printf 'tracker-backed'; else printf 'trackerless-local'; fi
 }
 
+# A trackerless repo whose artifact is a facts/ + sources/ + refs/ corpus. All
+# three dirs present => the corpus is the source of truth; there is no GitHub
+# tracker, so the wrapper forces no tracker machinery (no status labels, no
+# issue-tracker/triage-labels docs, no board/CI overlay). A bare facts/ dir alone
+# is NOT a corpus — it stays the plain `facts` source-of-truth signal.
+has_corpus() {
+  [ -d "$ROOT/facts" ] && [ -d "$ROOT/sources" ] && [ -d "$ROOT/refs" ]
+}
+
 # Version stamped by the last adopt run (empty when none — greenfield).
 stamp_version() {
   local f="$ROOT/docs/agents/pocock-stamp.md"
@@ -104,11 +113,13 @@ scan_stale_slugs() {
 # Source-of-truth slot (R1): where the repo's canonical artifact lives. Names
 # the external corpus rather than collapsing to a bare "external", so the
 # detect-then-confirm proposal is specific enough to act on: in-repo (default)
-# vs an external vault / contracts+ADRs / facts corpus. Precedence when several
-# coexist is deterministic (vault > contracts > facts) — the dev corrects if
-# the guess is wrong; the seam never fabricates.
+# vs a full facts/ + sources/ + refs/ corpus (`facts-corpus` — the corpus IS the
+# artifact) vs an external vault / contracts+ADRs / bare facts dir. Precedence
+# when several coexist is deterministic (facts-corpus > vault > contracts > facts)
+# — the dev corrects if the guess is wrong; the seam never fabricates.
 detect_source_of_truth() {
-  if   [ -d "$ROOT/vault" ];     then printf 'vault'
+  if   has_corpus;               then printf 'facts-corpus'
+  elif [ -d "$ROOT/vault" ];     then printf 'vault'
   elif [ -d "$ROOT/contracts" ]; then printf 'contracts'
   elif [ -d "$ROOT/facts" ];     then printf 'facts'
   else                                printf 'in-repo'
@@ -235,13 +246,7 @@ json_bool() { if "$@"; then printf 'true'; else printf 'false'; fi; }
 emit_plan() {
   local substrate freshness stamp sot overlay gate board_scope
   local -a stale=() slots_intent=("structural" "voice" "capability")
-  local -a artifacts=(
-    "docs/agents/domain.md"
-    "docs/agents/issue-tracker.md"
-    "docs/agents/triage-labels.md"
-    "docs/agents/pocock-stamp.md"
-    "CLAUDE.md#agent-skills"
-  )
+  local -a artifacts=() labels=()
 
   substrate="$(detect_substrate)"
   stamp="$(stamp_version)"
@@ -252,6 +257,31 @@ emit_plan() {
   while IFS= read -r s; do [ -n "$s" ] && stale+=("$s"); done < <(scan_stale_slugs)
   local have_docs=0; has_agent_docs && have_docs=1
   freshness="$(detect_freshness "$stamp" "${stale[*]:-}" "$have_docs")"
+
+  # Substrate-conditional plan SHAPE. A facts/ + sources/ + refs/ corpus is the
+  # artifact, NOT a GitHub tracker: force NO tracker machinery — drop the two
+  # tracker docs from artifacts_to_write, empty labels_to_create, and propose no
+  # lifecycle/board overlay (there is no board to run lanes on). Everything else
+  # (the JSON keys and their order) is identical across substrates — only the
+  # VALUES differ — so the tracker-backed golden stays byte-identical.
+  if has_corpus; then
+    overlay="none"; board_scope="none"
+    artifacts=(
+      "docs/agents/domain.md"
+      "docs/agents/pocock-stamp.md"
+      "CLAUDE.md#agent-skills"
+    )
+    labels=()
+  else
+    artifacts=(
+      "docs/agents/domain.md"
+      "docs/agents/issue-tracker.md"
+      "docs/agents/triage-labels.md"
+      "docs/agents/pocock-stamp.md"
+      "CLAUDE.md#agent-skills"
+    )
+    labels=("${CANON_LABELS[@]}")
+  fi
 
   printf '{\n'
   printf '  "substrate": "%s",\n' "$substrate"
@@ -279,7 +309,7 @@ emit_plan() {
   # Greenfield/migrant re-discover bindings live (#35); nothing is cached yet.
   printf '  "cached_bindings": null,\n'
   printf '  "artifacts_to_write": %s,\n' "$(json_array '  ' "${artifacts[@]}")"
-  printf '  "labels_to_create": %s\n' "$(json_array '  ' "${CANON_LABELS[@]}")"
+  printf '  "labels_to_create": %s\n' "$(json_array '  ' "${labels[@]}")"
   printf '}\n'
 }
 
