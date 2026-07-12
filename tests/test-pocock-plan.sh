@@ -49,6 +49,17 @@ for key in substrate freshness stamp_version stale_slugs wiring proposed_slots \
   assert_contains "$GOT" "\"$key\":" "plan carries \"$key\""
 done
 
+# ---- regression: `/review` slug scan must not trip on `*/review/` paths ------
+# A `src/review/` dir (or `code-review` prose) is not the v1.0 `/review` command.
+RP="$(bash "$SCRIPTS_DIR/pocock-plan.sh" --dry-run --json --root "$SANDBOX/review-path" 2>/dev/null)"
+assert_contains "$RP" '"stale_slugs": []'         "src/review/ path is NOT a /review slug (regression)"
+assert_contains "$RP" '"freshness": "greenfield"' "config-less repo with only a review/ path => greenfield, not migrant"
+
+# Positive control: a genuine `/review` command still flags, forcing migrant.
+RCMD="$(bash "$SCRIPTS_DIR/pocock-plan.sh" --dry-run --json --root "$SANDBOX/review-cmd" 2>/dev/null)"
+assert_contains "$RCMD" '"review"'                "genuine /review command still flags the review slug"
+assert_contains "$RCMD" '"freshness": "migrant"'  "a /review command forces migrant"
+
 # Seam mutates nothing: no working-tree changes and no new files.
 AFTER="$(git -C "$REPO" status --porcelain)"
 assert_eq "$BEFORE" "$AFTER" "dry-run leaves the repo untouched"
