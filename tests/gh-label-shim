@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake `gh` for the pocock-board `labels` verb tests. Point POCOCK_GH at this script.
+# Records every `gh label create <name> ...` to $GH_LABEL_LOG (one name per line)
+# and exits 0. Any other gh subcommand is a no-op success.
+set -u
+
+if [ "${1:-}" = "label" ] && [ "${2:-}" = "create" ] && [ -n "${3:-}" ]; then
+  [ -n "${GH_LABEL_LOG:-}" ] && printf '%s\n' "$3" >> "$GH_LABEL_LOG"
+fi
+exit 0
