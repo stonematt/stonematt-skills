@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Deterministic stand-in for `claude`, used ONLY to self-verify the held-out
+# pocock e2e smoke harness (tests/pocock-e2e-smoke.sh) without spending tokens.
+#
+# It emulates the agent judgment layer of /stone-adopt-pocock by driving the same
+# deterministic seam scripts the real skill drives — pocock-apply on a greenfield
+# repo, pocock-migrant on a version-bump migrant — reading the mode from the
+# prompt. cwd is the fixture repo; `scripts/` is symlinked in by the smoke.
+#
+# Enable with:  POCOCK_SMOKE_CLAUDE="tests/pocock-smoke-claude-shim"
+# A real, authorized run leaves this unset and invokes the real `claude`.
+set -uo pipefail
+
+args="$*"
+case "$args" in
+  *migrant*) exec bash scripts/pocock-migrant.sh --root . ;;
+  *)         exec bash scripts/pocock-apply.sh --root . ;;
+esac
