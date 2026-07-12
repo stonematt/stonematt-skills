@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Deterministic fake `gh` for the Pocock behavioral smoke (Seam 1, Part B / #66)
+# OFFLINE self-verify. It emulates the issue-lifecycle verbs the smoke drives so
+# the harness can prove the LOGIC — create a throwaway issue, move it across the
+# status:* lanes, close it, and (guaranteed) delete it — WITHOUT touching a real
+# GitHub tracker.
+#
+#   Supersedes tests/pocock-smoke-claude-shim: that stand-in exec'd the deleted
+#   deterministic apply/migrant seam scripts. The smoke is now LLM-led +
+#   board-driven, so the offline stand-in fakes `gh`, not `claude`.
+#
+# Enable with:  POCOCK_SMOKE_GH="tests/pocock-smoke-gh-shim"
+# A real, authorized live smoke leaves this unset and drives the real `gh`.
+#
+# Per-issue state lives under $POCOCK_SMOKE_STATE so the harness can observe lane
+# transitions and confirm cleanup actually removed the throwaway:
+#   issue-<n>.state   OPEN | CLOSED
+#   issue-<n>.labels  one label name per line
+#
+# Supported: `issue create|edit|view|close|delete` and `label create` (no-op).
+set -u
+
+S="${POCOCK_SMOKE_STATE:?POCOCK_SMOKE_STATE must be set for the smoke shim}"
+mkdir -p "$S"
+
+sub="${1:-}"; verb="${2:-}"
+
+# First bare all-digits token after the verb is the issue number.
+_num() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      ''|*[!0-9]*) : ;;
+      *) echo "$a"; return 0 ;;
+    esac
+  done
+}
+
+case "$sub $verb" in
+  "issue create")
+    shift 2
+    label=""
+    while [ $# -gt 0 ]; do
+      case "$1" in --label) label="${2:-}"; shift ;; esac
+      shift
+    done
+    n=1000
+    [ -f "$S/.next" ] && n="$(cat "$S/.next")"
+    n=$((n + 1)); printf '%s\n' "$n" > "$S/.next"
+    printf 'OPEN\n' > "$S/issue-$n.state"
+    : > "$S/issue-$n.labels"
+    [ -n "$label" ] && printf '%s\n' "$label" > "$S/issue-$n.labels"
+    printf 'https://github.com/smoke/repo/issues/%s\n' "$n"
+    ;;
+
+  "issue edit")
+    shift 2
+    n="$(_num "$@")"
+    add=""; rm=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --add-label)    add="${2:-}"; shift ;;
+        --remove-label) rm="${2:-}";  shift ;;
+      esac
+      shift
+    done
+    lf="$S/issue-$n.labels"
+    [ -f "$lf" ] || { echo "gh-shim: no such issue $n" >&2; exit 1; }
+    if [ -n "$rm" ]; then
+      grep -vxF "$rm" "$lf" > "$lf.tmp" 2>/dev/null || :
+      mv "$lf.tmp" "$lf"
+    fi
+    if [ -n "$add" ]; then
+      grep -qxF "$add" "$lf" 2>/dev/null || printf '%s\n' "$add" >> "$lf"
+    fi
+    ;;
+
+  "issue view")
+    shift 2
+    n="$(_num "$@")"
+    want="labels"
+    case " $* " in *" --json state "*|*" --json state,"*|*",state "*|*",state,"*) want="state" ;; esac
+    if [ "$want" = state ]; then
+      cat "$S/issue-$n.state" 2>/dev/null || { echo "gh-shim: no such issue $n" >&2; exit 1; }
+    else
+      cat "$S/issue-$n.labels" 2>/dev/null || { echo "gh-shim: no such issue $n" >&2; exit 1; }
+    fi
+    ;;
+
+  "issue close")
+    shift 2
+    n="$(_num "$@")"
+    [ -f "$S/issue-$n.state" ] || { echo "gh-shim: no such issue $n" >&2; exit 1; }
+    printf 'CLOSED\n' > "$S/issue-$n.state"
+    ;;
+
+  "issue delete")
+    shift 2
+    n="$(_num "$@")"
+    rm -f "$S/issue-$n.state" "$S/issue-$n.labels"
+    ;;
+
+  "label create")
+    # canonical-label upsert — no-op success (offline).
+    : ;;
+
+  *) : ;;   # any other gh call is a no-op success
+esac
+exit 0

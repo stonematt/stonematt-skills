@@ -315,9 +315,11 @@ deleted, not ported). Two seams, highest-possible, fewest-possible:
   behavioral smoke:** create a throwaway issue, move it across lanes, close it, and
   confirm the board reflects the progression — then clean the issue up. This is the
   anti-silent-success gate (brief line: *"the map built successfully" is not proof of
-  correct wiring*). It exercises the LLM-led half by outcome. Prior art: the existing
-  `tests/pocock-e2e-smoke.sh` gestures at this shape; the held-out e2e smoke (#59) is
-  the seed to grow from.
+  correct wiring*). It exercises the LLM-led half by outcome. Built as
+  `tests/pocock-acceptance-gate.sh` (#66) — grown from and superseding the held-out
+  e2e smoke seed (#59): Part A asserts the criteria against the adopted repo, Part B
+  drives the throwaway-issue smoke. Offline-safe by default (self-verifies against
+  fixtures + a fake-`gh` shim); the live smoke is gated behind `POCOCK_SMOKE_LIVE=1`.
 - **Seam 2 — board GraphQL helper (unit, offline).** The one surviving script:
   deterministic input → correct GraphQL/mutation output (Status-field overwrite, field
   + option id capture, backfill payloads). Fixture-tested, no network. Prior art: the
