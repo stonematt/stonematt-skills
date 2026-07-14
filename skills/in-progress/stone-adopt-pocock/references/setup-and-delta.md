@@ -126,6 +126,34 @@ whole-file regeneration.
 If a "stale" reference points at a **forked commit/merge skill** Matt customized,
 do **not** rewrite it — flag it (see `role-binding.md`, forked-skill rule).
 
+### 2e. Transient de-GSD nudge (fires only on GSD residue, else no-op)
+
+Some repos were GSD-bootstrapped and carry residue that clashes with the canonical
+topology. This is a **transient hint, not durable machinery** — no classifier table, no
+stamp field, no regex battery. If the repo smells GSD, surface it, propose the canonical
+form, and confirm with the human. Once adoption has run everywhere the residue is gone and
+this no-ops forever. Trust future model reasoning for the judgment.
+
+**Two smells to hint (issue #84):**
+
+1. **Branch-convention law** — a `phase-N-<slug>` (phase/workstream) branch *law* in
+   `CLAUDE.md` / `WORKFLOW.md`. This is wrapping-layer prose → **rewrite** toward the
+   canonical (extends 2c): from the `nitimini` reference, **no branch-name template** —
+   topology only (feature branch off `dev` → `main`/`master`, short descriptive slug).
+2. **Ticket names** — live issue titles carrying GSD workstream IDs like `W<n>-<m> · …`.
+   Canonical: ticket id = `#N`; blocking = native sub-issue / dependency edges. **Do NOT
+   auto-rename live issues** — surface the list for a human ok.
+
+**Guardrails (remind, don't table):**
+
+- Phase *language* spans **live convention** (rewrite) and **real history** (leave — "Phase
+  3 generated these assets" is a true record). Never rewrite history.
+- Dead GSD docs (`execution-plan.md`) → mark **superseded**, don't delete.
+- Forked commit/merge skills already absorb the concrete breakage GSD caused (PRs merging
+  with no `Closes #N` because the branch carried a phase number, not an issue — fixed in
+  `stone-commit`'s multi-`Closes` and `stone-merge`'s staged flip). **Flag** those forked
+  skills, never rewrite them (see `role-binding.md`, forked-skill rule).
+
 ### 2d. Board projection + dormant CI (board opt-in / written regardless)
 
 - **If the board was opted in** (see preflight's board question): project the label
@@ -166,6 +194,8 @@ migrant/greenfield code paths — do not branch on repo age.
 
 - **Backfill what is missing** — any delta artifact (2a labels, 2b stamp, 2c current
   references, 2d workflows) that is absent, write it.
+- **The de-GSD nudge (2e) is transient, not backfilled.** It fires only when GSD residue
+  is present and no-ops otherwise — it is not a durable artifact a re-run re-asserts.
 - **Clobber NOTHING the human authored.** Operationalized per artifact:
   - *Pocock's spine* (2a labels, his `docs/agents/*`): never touched — his setup owns
     it.
