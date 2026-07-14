@@ -65,9 +65,12 @@ whole-file regen); and, if the board was opted in, the Projects v2 projection vi
 the bundled helper at `<this skill dir>/scripts/pocock-board.sh` (`labels` /
 `status-field` / `backfill`) — never freehand GraphQL. The helper ships **inside
 this skill dir**; invoke it by its absolute path within the installed skill, never
-a cwd-relative `scripts/...` (cwd is the target repo, not this checkout). All of it
-runs as **one idempotent delta-reconcile**: backfill missing, clobber nothing
-human-authored, a re-run produces zero diff.
+a cwd-relative `scripts/...` (cwd is the target repo, not this checkout). Plus a
+**transient de-GSD nudge**: if the repo smells GSD-bootstrapped (a `phase-N` branch
+law in the wrapping layer, `W<n>-<m>` issue titles), surface it, propose the canonical
+topology-only form, and confirm — never rewrite history or auto-rename live issues; it
+no-ops once the residue is gone. All of it runs as **one idempotent delta-reconcile**:
+backfill missing, clobber nothing human-authored, a re-run produces zero diff.
 
 ### 5. Behavioral smoke (anti-silent-success)
 
