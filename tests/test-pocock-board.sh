@@ -63,6 +63,22 @@ assert_contains "$BLOG" "item=ITEM_NEW"    "backfill => threads the captured ite
 ADDS="$(grep -c "addProjectV2ItemById" "$GQL2")"
 assert_eq 2 "$ADDS" "backfill => exactly one add per non-blank input line"
 
+# ---- regression: ALL-NUMERIC option ids must bind as String, not Int --------
+# `gh api -F` type-infers, so an all-digit option id (GitHub hands them out —
+# lithos-site drew Triage=14416827) went over the wire as Int against a String!
+# variable and the mutation was rejected. Every binding here must use `-f`.
+GQL3="$SANDBOX/numeric.gql.log"; : > "$GQL3"
+printf '%s\n' 'ISSUE_N 14416827' | \
+  POCOCK_GH="$TESTS_DIR/gh-board-shim" GH_GQL_LOG="$GQL3" \
+  bash "$BOARD" backfill --project-id PROJ_1 --field-id F_STATUS >/dev/null 2>&1
+assert_eq 0 "$?" "backfill (numeric option id) exits 0"
+
+NLOG="$(cat "$GQL3")"
+assert_contains "$NLOG" "-f option=14416827" "backfill => binds an all-numeric option id with -f (String)"
+assert_not_contains "$NLOG" "-F option="     "backfill => never binds an option id with -F (type-inferred Int)"
+assert_not_contains "$NLOG" "-F "            "backfill => no -F bindings at all (every var is ID!/String!)"
+assert_not_contains "$SLOG" "-F "            "status-field => no -F bindings at all (every var is ID!/String!)"
+
 # ---- labels: idempotent canonical vocabulary --------------------------------
 LOG="$SANDBOX/labels.log"; : > "$LOG"
 LOUT="$(POCOCK_GH="$TESTS_DIR/gh-label-shim" GH_LABEL_LOG="$LOG" \

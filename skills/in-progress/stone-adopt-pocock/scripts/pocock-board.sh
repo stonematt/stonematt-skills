@@ -41,6 +41,13 @@
 #                                blank lines and `#` comments are ignored
 #   labels                       no flags
 #
+# GraphQL variable binding: ALWAYS `-f`, NEVER `-F`.
+#   Every variable here is `ID!` or `String!`. `gh api -F` type-INFERS its value,
+#   so an all-digit option id (GitHub hands out plenty: `14416827`) goes over the
+#   wire as an Int and the mutation is rejected against a String! variable. `-f`
+#   always sends a string. Seen live on lithos-site 2026-07-20, where Triage and
+#   Staged drew numeric ids and failed while the alphanumeric lanes passed.
+#
 # Determinism knobs (tests):
 #   POCOCK_GH   the gh command (default `gh`) — every mutation + label edit
 #
@@ -50,7 +57,7 @@ set -uo pipefail
 
 GH="${POCOCK_GH:-gh}"
 
-usage() { sed -n '2,52p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,53p' "${BASH_SOURCE[0]}"; }
 
 # Parse a scalar out of a `gh api graphql` JSON response by dotted path.
 # python3 is already a suite dependency.
@@ -104,7 +111,7 @@ mutation($field: ID!) {
       }
     }
   }
-}' -F field="$field_id")" || {
+}' -f field="$field_id")" || {
     echo "status-field: updateProjectV2Field mutation failed" >&2
     exit 1
   }
@@ -150,7 +157,7 @@ mutation($project: ID!, $content: ID!) {
   addProjectV2ItemById(input: { projectId: $project, contentId: $content }) {
     item { id }
   }
-}' -F project="$project_id" -F content="$content_id")" || {
+}' -f project="$project_id" -f content="$content_id")" || {
       echo "backfill: addProjectV2ItemById failed for $content_id" >&2
       exit 1
     }
@@ -168,7 +175,7 @@ mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
   }) {
     projectV2Item { id }
   }
-}' -F project="$project_id" -F item="$item_id" -F field="$field_id" -F option="$option_id" >/dev/null || {
+}' -f project="$project_id" -f item="$item_id" -f field="$field_id" -f option="$option_id" >/dev/null || {
       echo "backfill: updateProjectV2ItemFieldValue failed for $content_id" >&2
       exit 1
     }
