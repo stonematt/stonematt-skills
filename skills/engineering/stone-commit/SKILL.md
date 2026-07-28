@@ -75,12 +75,14 @@ If the user says "pr", "pull request", "pr to dev", etc.:
    ```
    Clean rebase → continue. On conflict, resolve only shape-obvious ones (import-list, set-add) per the rules `stone-merge` Section 2d uses; for any logic or semantic conflict, stop and report — don't guess. Skip this step when working solo on a fresh branch off an unchanged base.
 1. Run `git log --oneline <base>..HEAD` to gather all branch commits
-2. **Detect linked issue.** Try in order:
-   - Branch name regex `^[a-z]+/(\d+)[-/_]` or `^issue[-/_](\d+)` → extract `#N`
-   - `git log <base>..HEAD --grep '#[0-9]\+'` for issue refs in commit messages
-   - Brief mentioned in commits (e.g., `docs/briefs/<slug>.md`) → `gh issue list --search "<slug>" --state open` to find linked issue
-   - If none detected, ask user once: "Linked to an issue? (number or 'no')"
-3. Draft title and body summarizing the full branch, not just the last commit. If an issue was identified, **prepend** `Closes #N` as the first line of the body (above `## Summary`) — GitHub auto-closes the issue when the PR merges to default branch.
+2. **Detect linked issue(s).** A single branch may ship several tickets — `/to-tickets` fans one spec into many sub-issues, and a batch branch can close all of them. Collect **all** matches, union, dedupe; the canonical branch convention puts **no** issue token in the branch name, so lead with session + commit signals, not the branch:
+   - **Tickets in play this session** — issue numbers the user/dispatcher named as this branch's work ("implement #31 and #32"). Authoritative.
+   - `git log <base>..HEAD --grep '#[0-9]\+'` — issue refs and `Closes #N` / `Refs #N` trailers in commit messages (per-ticket commits and `/tdd` leave these).
+   - Branch name regex `^[a-z]+/(\d+)[-/_]` or `^issue[-/_](\d+)` → `#N` — legacy `feat/<n>-slug` branches only; usually misses under the canonical convention, which is expected, not an error.
+   - Brief mentioned in commits (`docs/briefs/<slug>.md`) → `gh issue list --search "<slug>" --state open`.
+   - **Filter before use:** keep only issues that are **open** (`gh issue view <N> --json state`), and **drop any parent/spec issue that has open sub-issues** — `/to-tickets` parents must not auto-close (see its SKILL.md). Children only.
+   - If the set is empty **and** the branch looks like tracked work, ask once: "No ticket refs found — this PR will close nothing. Ticket number(s)? (list or 'no')"
+3. Draft title and body summarizing the full branch, not just the last commit. For **each** linked ticket, **prepend** a `Closes #N` line (one per ticket) above `## Summary`. On PRs to `dev` the keyword is inert (GitHub only auto-closes on merge to the default branch) — but `/stone-merge` reads these lines to flip each ticket to `status: staged`, and the release PR to `main` uses them to close. Emit them on `dev` PRs regardless.
 4. **Refresh the knowledge graph so it rides the PR (graphify projects only).** A generated graph should land *inside* the PR — it becomes permanent at merge, never via a direct commit to `dev`/`master`. The block is a no-op outside graphify projects and on docs-only PRs (AST update finds no code delta), so it is safe to keep unconditionally:
 ```bash
 if [ -f graphify-out/graph.json ] && command -v graphify >/dev/null 2>&1; then
@@ -96,7 +98,8 @@ fi
 5. Create PR using heredoc piped to `gh pr create`:
 ```bash
 gh pr create --base <target-branch> --title "<title>" --body-file - <<'EOF'
-Closes #N
+Closes #31
+Closes #32
 
 ## Summary
 - <bullet>
@@ -106,7 +109,7 @@ Closes #N
 - [ ] <checklist item>
 EOF
 ```
-Omit the `Closes #N` line if no issue is linked.
+One `Closes #N` line per linked ticket (the example ships two). Omit the whole `Closes` block if no issue is linked.
 
 **Important:** Never use `--body "$(cat <<'EOF' ... )"` or other command substitution patterns — always use `--body-file -` with heredoc piped to stdin. The `$()` pattern causes shell quoting issues with markdown tables and special characters.
 
