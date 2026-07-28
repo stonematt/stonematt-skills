@@ -14,7 +14,7 @@ GitHub Issues + Milestones. PRDs/briefs live in `docs/briefs/`, not as issues. `
 
 ### Triage labels
 
-Nitimini-style `status: *` lifecycle vocabulary; `afk-ready` is an orthogonal flag. See [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md).
+Nitimini-style `status: *` lifecycle vocabulary; `afk` is an orthogonal flag (`afk-ready` is a legacy alias — migrate it). See [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md).
 
 ### Domain docs
 

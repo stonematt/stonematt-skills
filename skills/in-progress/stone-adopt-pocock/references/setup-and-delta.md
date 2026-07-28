@@ -68,10 +68,12 @@ paraphrase them loosely:
 
 Two invariants that are easy to get wrong:
 
-- **The canonical flag is `afk`, NOT `afk-ready`.** `afk-ready` is one repo's
-  *expression* of the flag, not the canonical name. (This host repo's own tracker
-  happens to express it as `afk-ready` — that is a per-repo expression, and it is
-  fine, because the mapping is **per-repo, not identity**.)
+- **The canonical flag is `afk`, NOT `afk-ready`.** `afk-ready` is a legacy alias
+  some repos arrive carrying, not the canonical name. **Standing fleet rule: migrate
+  it to `afk`** — rename the label in place (preserves issue associations + burn-up
+  history) and rewrite the tokens; do **not** preserve it as a per-repo expression.
+  (The host repo `nitimini`, which seeded this standard, migrated to bare `afk` for
+  exactly this reason: `afk-ready` was judged misleading during the build.)
 - **`needs-info` is a facet, not a seventh lane.** It rides orthogonally on top of
   whatever lane an issue is in; it never becomes a board column.
 
