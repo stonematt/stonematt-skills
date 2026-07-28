@@ -8,11 +8,13 @@ The engineering skills speak in terms of five canonical triage roles. This file 
 |---|---|---|
 | `needs-triage` | `status: triage` | New issue, needs scoping. All issues open here. |
 | `needs-info` | `status: needs-info` | Waiting on the reporter for clarification. |
-| `ready-for-agent` | `status: ready` + `afk-ready` flag | Spec'd, scope tight enough that an AFK agent (Sonnet, no human pings, very low uncertainty) can pick it up. |
-| `ready-for-human` | `status: ready` (no `afk-ready`) | Spec'd but needs human implementation — too much uncertainty for AFK. |
+| `ready-for-agent` | `status: ready` + `afk` flag | Spec'd, scope tight enough that an AFK agent (Sonnet, no human pings, very low uncertainty) can pick it up. |
+| `ready-for-human` | `status: ready` (no `afk`) | Spec'd but needs human implementation — too much uncertainty for AFK. |
 | `wontfix` | close with `--reason "not planned"` | Declined. No label; the closed state is the signal. |
 
-When a skill says "apply the AFK-ready label," apply BOTH `status: ready` AND `afk-ready`. The flag is orthogonal to status, per nitimini.
+When a skill says "apply the AFK-ready label," apply BOTH `status: ready` AND `afk`. The flag is orthogonal to status, per nitimini.
+
+**The canonical flag name is `afk`.** `afk-ready` is a legacy alias some repos arrive carrying; the standing fleet rule is to migrate it — rename the label in place (`gh label edit afk-ready --name afk`), which preserves issue associations and burn-up history. Do not preserve it as a per-repo expression. The name `afk-ready` was judged misleading during the nitimini build, since readiness is already carried by `status: ready` and the flag only names the executor.
 
 ## Full lifecycle label set
 
@@ -25,7 +27,7 @@ Beyond the five triage roles, the issue state machine uses more labels. See [`is
 | status | `status: ready` | Spec'd, awaiting pickup |
 | status | `status: wip` | Branch open, work started |
 | status | `status: blocked` | Waiting on dependency or decision |
-| flag | `afk-ready` | Brief tight enough for autonomous-agent pickup. Orthogonal to `status:*`. |
+| flag | `afk` | Brief tight enough for autonomous-agent pickup. Orthogonal to `status:*`. |
 | flag | `kind:bse` | Bug or small enhancement; opportunistic / throw-in work |
 | flag | `priority: high` | Escalate scheduling |
 | intent | `intent:structural` | Refactor with no user-visible change. Snapshot diff must be empty. |
@@ -38,7 +40,7 @@ Note: `status: staged` from the upstream nitimini set is omitted here. The singl
 
 ```
 (new) → status: triage
-status: triage → status: ready (scoped, AC written, deps clear) — add afk-ready if tight enough
+status: triage → status: ready (scoped, AC written, deps clear) — add afk if tight enough
 status: triage → (closed, not planned) — wontfix
 status: ready → status: wip (branch opens off main)
 status: wip ↔ status: blocked
@@ -50,7 +52,7 @@ status: wip → (closed) — PR merged to main
 
 The repo does not yet have these labels created. Initial scaffolding step will:
 
-1. Create labels: `status: triage`, `status: needs-info`, `status: ready`, `status: wip`, `status: blocked`, `afk-ready`, `kind:bse`, `priority: high`, `intent:structural`, `adr`.
+1. Create labels: `status: triage`, `status: needs-info`, `status: ready`, `status: wip`, `status: blocked`, `afk`, `kind:bse`, `priority: high`, `intent:structural`, `adr`.
 2. Defer all `area:*` labels until the first issue needs one.
 
 This setup runs as a separate scaffolding step (probably first `/triage` invocation or a one-off `gh label create` script), not on every skill invocation.
