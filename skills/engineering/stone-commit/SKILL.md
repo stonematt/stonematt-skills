@@ -83,9 +83,10 @@ If the user says "pr", "pull request", "pr to dev", etc.:
    - **Filter before use:** keep only issues that are **open** (`gh issue view <N> --json state`), and **drop any parent/spec issue that has open sub-issues** — `/to-tickets` parents must not auto-close (see its SKILL.md). Children only.
    - If the set is empty **and** the branch looks like tracked work, ask once: "No ticket refs found — this PR will close nothing. Ticket number(s)? (list or 'no')"
 3. Draft title and body summarizing the full branch, not just the last commit. For **each** linked ticket, **prepend** a `Closes #N` line (one per ticket) above `## Summary`. On PRs to `dev` the keyword is inert (GitHub only auto-closes on merge to the default branch) — but `/stone-merge` reads these lines to flip each ticket to `status: staged`, and the release PR to `main` uses them to close. Emit them on `dev` PRs regardless.
-4. **Refresh the knowledge graph so it rides the PR (graphify projects only).** A generated graph should land *inside* the PR — it becomes permanent at merge, never via a direct commit to `dev`/`master`. The block is a no-op outside graphify projects and on docs-only PRs (AST update finds no code delta), so it is safe to keep unconditionally:
+4. **Refresh the knowledge graph so it rides the PR (repos that _track_ the graph only).** Where a generated graph is committed, it should land *inside* the PR — it becomes permanent at merge, never via a direct commit to `dev`/`master`. **Gate on tracked-ness, not file existence:** `graphify-out/` is present locally in every graphify project, but most repos gitignore it, and `git add` on an ignored path is a hard error. The block is a silent no-op wherever the graph is untracked or graphify isn't installed:
 ```bash
-if [ -f graphify-out/graph.json ] && command -v graphify >/dev/null 2>&1; then
+if git ls-files --error-unmatch graphify-out/graph.json >/dev/null 2>&1 \
+   && command -v graphify >/dev/null 2>&1; then
   env -u ANTHROPIC_API_KEY graphify update .          # AST-only: free, no API/Max, preserves community names
   git add graphify-out/graph.json graphify-out/GRAPH_REPORT.md
   if ! git diff --cached --quiet; then
@@ -94,7 +95,9 @@ if [ -f graphify-out/graph.json ] && command -v graphify >/dev/null 2>&1; then
   fi
 fi
 ```
-   `env -u ANTHROPIC_API_KEY` keeps any `claude` CLI fallback on the Pro/Max plan rather than metered API. Semantic edges (doc↔ADR↔CONTEXT) are *not* refreshed here — that stays an occasional local `graphify . --backend claude-cli` ($0 on Max). Requires a one-time `graph.json` union merge-driver per clone so parallel PRs don't conflict on the graph — tracked `.gitattributes` entry `graphify-out/graph.json merge=graphify-graph` plus local `git config merge.graphify-graph.driver "graphify merge-driver %O %A %B"` (do NOT use `graphify hook install` — it also adds an unwanted per-commit rebuild).
+   `env -u ANTHROPIC_API_KEY` keeps any `claude` CLI fallback on the Pro/Max plan rather than metered API. Semantic edges (doc↔ADR↔CONTEXT) are *not* refreshed here — that stays an occasional local `graphify . --backend claude-cli` ($0 on Max).
+
+   **Default to _not_ tracking the graph**, especially in public repos: committing it obliges every clone to a one-time `git config merge.graphify-graph.driver "graphify merge-driver %O %A %B"`, and an outside contributor without graphify installed gets conflict markers inside a multi-hundred-KB JSON. Ignore `graphify-out/` and let each machine rebuild on demand. Only track it when the semantic pass is expensive enough that collaborators shouldn't re-pay for it — and then also commit the `.gitattributes` line `graphify-out/graph.json merge=graphify-graph` and document the per-clone `git config` in the README (do NOT use `graphify hook install` — it also adds an unwanted per-commit rebuild).
 5. Create PR using heredoc piped to `gh pr create`:
 ```bash
 gh pr create --base <target-branch> --title "<title>" --body-file - <<'EOF'
