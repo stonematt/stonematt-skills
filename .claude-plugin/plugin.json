@@ -1,6 +1,6 @@
 {
   "name": "stonematt-skills",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Matt Stone's cross-surface stone-* skill pack — commit, merge, settings promotion, AI sniff test, client report, and dev journaling.",
   "author": {
     "name": "Matt Stone",

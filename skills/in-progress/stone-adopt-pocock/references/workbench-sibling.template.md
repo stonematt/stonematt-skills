@@ -30,7 +30,7 @@ correction.
 ## Corrected + why
 
 <Placeholder> What the human changed, and the reason. The "why" is load-bearing — it is
-the correction signal a future run (and #60's loop) learns from. Example: "model bound
+the correction signal a future run learns from. Example: "model bound
 `review` to `commit-and-merge`; corrected to `ask-matt`-routed review because this repo
 splits review from merge — the model assumed they were one role."
 
