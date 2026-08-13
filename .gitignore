@@ -1,7 +1,11 @@
 .DS_Store
 node_modules/
 .kg-data/
-graphify-out/
+# Knowledge graph: track graph.json + GRAPH_REPORT.md (they ride PRs per
+# /stone-commit); everything else under graphify-out/ is local cache/render.
+graphify-out/*
+!graphify-out/graph.json
+!graphify-out/GRAPH_REPORT.md
 .journal/
 *.log
 .claude/settings.local.json
