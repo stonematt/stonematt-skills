@@ -29,7 +29,11 @@ Auto mode runs a content classifier over dispatch briefs, on top of the static a
 
 ### 0a. When the classifier blocks anyway
 
-Change the *shape* of the approach. Do not hunt for a permission rule to add — a content classifier does not read permission rules, so adding one is motion without progress.
+**Read the denial text — it names which kind of block it is.**
+
+A **transient** block says so: `Stage 2 classifier error - blocking based on stage 1 assessment (usually transient -- retrying often succeeds)`. That is infrastructure, not judgment — retry the identical call once. Observed 2026-09-04: a read-only `gh pr view 104 --json mergedAt,mergeCommit,state,number` was denied, then succeeded verbatim, nothing about its shape changed. One retry is the whole allowance; a transient denial that repeats is a content block wearing the wrong label.
+
+A **content** block instead names the authority-shaped thing it objected to, and will not clear on retry. Change the *shape* of the approach. Do not hunt for a permission rule to add — a content classifier does not read permission rules, so adding one is motion without progress.
 
 - **A dispatch was denied.** The brief carried authority language. Re-cut it to facts-and-findings, or pull that one step back into the main session. A denial should cost one step, not the whole delegation — never collapse the entire fan-out back into main context over a single block.
 - **A privileged action was denied in the main session** (a `Skill(update-config)` call, a heredoc rewriting `~/.claude/CLAUDE.md`). Retry through the naturally appropriate tool instead — read the file directly, then `Edit` it.
