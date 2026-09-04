@@ -23,7 +23,7 @@
 # Usage:
 #   log-run.sh --pr 99 --base dev --outcome merged [--field value ...]
 #
-# Recognized fields (all optional except --pr and --outcome):
+# Recognized fields (all optional except --pr, --outcome and --classifier):
 #   --pr N              PR number
 #   --base BRANCH       base branch merged into
 #   --outcome S         merged | stopped | blocked
@@ -98,11 +98,13 @@ def main():
     row["ts"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
     # Fail-open protects the write, not a caller that forgot a field — warn so
-    # a partial row is never discovered only at analysis time. Check truthiness,
-    # not just key presence: a valueless trailing flag stores True (line 87),
-    # and an unset shell variable can interpolate to "" — both must still warn.
+    # a partial row is never discovered only at analysis time. A real value is
+    # always a non-empty string, so anything else is missing: an absent key, an
+    # unset shell variable interpolating to "", or the True a valueless trailing
+    # flag stores (line 87) — which is truthy, and so slips a bare truthiness test.
     for field in ("pr", "outcome", "classifier"):
-        if not row.get(field):
+        val = row.get(field)
+        if not isinstance(val, str) or not val.strip():
             print(f"stone-merge log: missing --{field}", file=sys.stderr)
 
     # Stable key order so the file stays readable by eye, unknown keys appended.
