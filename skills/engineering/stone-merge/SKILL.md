@@ -92,12 +92,18 @@ gh pr checks <number> --json name,state --jq '.[] | select(.name|test("(?i)code.
 
 **3. Project policy, remembered.** Repos differ on this and the difference is stable, so learn it once per repo instead of asking every merge. Look for a recorded policy in the project's auto-memory (a `project_*.md` naming this repo's review expectation). Two values:
 
-- `review: required` → run the review yourself. Dispatch a `code-review` subagent scoped to this PR's diff. Apply findings that are mechanical and unambiguous, commit them to the branch, and re-watch checks. Escalate anything that needs a judgment call — a design disagreement, a finding that implies a scope change — with the finding quoted. Then merge.
 - `review: optional` → skip and merge. Note it in the report.
+- `review: <reviewer>` → run that reviewer, then merge. The policy names *which* one, because "code review" resolves to several different things and picking by vibe gives a different review each run:
+  - `pocock` — `mattpocock-skills:code-review`. Two axes in parallel: Standards (repo conventions plus a Fowler smell baseline) and Spec (does the diff do what the originating issue asked). Reports the axes separately and applies no fixes. Best where scope creep and spec drift matter.
+  - `builtin` — the `code-review` skill. Correctness bugs plus reuse and simplification, at an effort level. Takes `--fix` to apply findings to the working tree. Best where the risk is a bug rather than a divergence from spec.
+
+  **Pre-supply the inputs or it stalls.** Both reviewers ask the user for missing context, and a background dispatch has nobody to ask. Hand the reviewer the fixed point (`origin/<base-branch>`, so the diff is against the merge-base) and the spec source (the issues Section 5 extracts from `closingIssuesReferences`). If no issue is linked, say so in the brief — `pocock` skips its Spec axis and reports that, rather than blocking.
+
+  Apply findings that are mechanical and unambiguous, commit them to the branch, and re-watch checks. Escalate the judgment calls — a design disagreement, a finding implying a scope change, anything `pocock` labelled a judgement call rather than a hard violation — quoting the finding. Then merge.
 
 **4. No policy recorded? Ask once, then write it down.** First code-change merge in an unfamiliar repo:
 
-> "No code-review CI check here. Does this project expect review before merge? (required — I'll spawn a review agent each time / optional — merge without it). I'll remember it for this repo."
+> "No code-review CI check here. Does this project expect review before merge? (`pocock` — two-axis standards + spec / `builtin` — correctness and simplification, can auto-fix / `optional` — merge without review). I'll remember it for this repo."
 
 Record the answer as a project memory so rung 3 resolves it from here on. If the user declines to set a policy, treat it as `optional` for this run and ask again next time rather than guessing a default.
 
@@ -292,7 +298,7 @@ When merging multiple PRs sequentially, expect later PRs to go `CONFLICTING` onc
 Section 0 dispatches the whole run to a sonnet subagent by default. When you ARE that subagent, the user isn't watching your tool calls and often isn't waiting on them — the dispatch may be running in the background while they work on something else. Tighten the loop accordingly:
 
 - **Finish the run.** Sections 1–5 are yours: readiness, the merge into `dev`, branch cleanup, labels. Carry them all the way through and report once. Escalating rote work back to the parent defeats the dispatch as surely as never dispatching.
-- **You may dispatch your own subagent** for a `review: required` repo (Section 2.0 rung 3). Fan-out is recursive; a review agent under you is expected, not overreach.
+- **You may dispatch your own subagent** when the repo's policy names a reviewer (Section 2.0 rung 3). Fan-out is recursive; a review agent under you is expected, not overreach.
 - **Escalate the release merge.** Open the release PR, watch its checks, report it ready by number, and stop there (Section 6).
 - The launching prompt should include PR number(s) and repo path. If it doesn't, ask the dispatcher (don't guess).
 - You *may* rebase and `--force-with-lease` a feature branch to clear a conflict (Section 2d) — it's reversible and the branch is yours. Never force-push a protected branch.
@@ -305,7 +311,7 @@ Section 0 dispatches the whole run to a sonnet subagent by default. When you ARE
 ## Safety
 
 - Never merge a PR with failing checks (after one re-run attempt for clearly unrelated flake)
-- Resolve the Section 2.0 review gate on its own ladder before merging code. Docs-only skips it, a CI check decides it, a `review: required` repo gets a review agent. Merge over unaddressed findings only when the user waived them
+- Resolve the Section 2.0 review gate on its own ladder before merging code. Docs-only skips it, a CI check decides it, a repo whose policy names a reviewer gets that reviewer. Merge over unaddressed findings only when the user waived them
 - Promote to prod only on an explicit keyword in the user's own invocation, and never offer promotion they didn't ask for
 - Never write authorization language into a subagent prompt (Section 0). State facts the parent will act on; irreversible steps stay with the parent
 - When the auto-mode classifier blocks an action, change the shape of the approach or hand it to the user (Section 0a). Never route around a denial with a different tool to accomplish the same denied action
