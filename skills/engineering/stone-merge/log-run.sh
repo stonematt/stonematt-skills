@@ -70,9 +70,17 @@ while i < len(args):
     a = args[i]
     if a.startswith("--"):
         key = a[2:].replace("-", "_")
-        val = args[i + 1] if i + 1 < len(args) and not args[i + 1].startswith("--") else True
+        # Every recognized flag takes a value (see usage above) — including
+        # ones whose value itself starts with "--" (e.g. verbatim classifier
+        # denial text quoting a flag like --dangerously-skip-permissions).
+        # Only treat a flag as valueless when it's the very last argument.
+        if i + 1 < len(args):
+            val = args[i + 1]
+            i += 2
+        else:
+            val = True
+            i += 1
         row[key] = val
-        i += 2 if val is not True else 1
     else:
         i += 1
 
