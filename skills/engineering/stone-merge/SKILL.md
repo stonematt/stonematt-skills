@@ -299,11 +299,11 @@ Use that value wherever the steps below say `<release>`.
 
    Don't strip from issues whose PRs haven't actually shipped — those are correctly staged.
 
-6. Log the promotion as its own row. The log is append-only, so a promotion is a second run rather than an amendment to the row Section 5b already wrote for the `dev` merge — the two join on `repo` and `ts`.
+6. Log the promotion as its own row. The log is append-only, so a promotion is a second run rather than an amendment to the row Section 5b already wrote for the `dev` merge. The two rows don't share a strict join key — `ts` is set fresh at write time so it always differs, and `pr` differs by design (feature PR vs release PR) — correlate them by `repo` and proximity in time, or by `note: promotion` next to the nearest prior `merged` row for the same repo.
 
    ```bash
    ~/.claude/skills/stone-merge/log-run.sh --pr <release-pr> --base <release> \
-     --outcome merged --sha <merge-sha> --checks pass --note promotion
+     --outcome merged --sha <merge-sha> --checks pass --classifier none --note promotion
    ```
 
    Section 5b's field rules apply unchanged, `--classifier` included.

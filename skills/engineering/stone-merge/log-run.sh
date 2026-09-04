@@ -98,9 +98,11 @@ def main():
     row["ts"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
     # Fail-open protects the write, not a caller that forgot a field — warn so
-    # a partial row is never discovered only at analysis time.
-    for field in ("pr", "outcome"):
-        if field not in row:
+    # a partial row is never discovered only at analysis time. Check truthiness,
+    # not just key presence: a valueless trailing flag stores True (line 87),
+    # and an unset shell variable can interpolate to "" — both must still warn.
+    for field in ("pr", "outcome", "classifier"):
+        if not row.get(field):
             print(f"stone-merge log: missing --{field}", file=sys.stderr)
 
     # Stable key order so the file stays readable by eye, unknown keys appended.
