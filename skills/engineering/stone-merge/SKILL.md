@@ -11,14 +11,18 @@ The expensive part is procedural — gated waits on `gh pr checks --watch`, log 
 
 ## 0. Delegate the wait, keep the irreversible call
 
-Split the work at the last reversible step:
+Two commands in this entire skill are irreversible. Keep those. Delegate everything else.
 
-| Who | Sections | Nature |
+| Who | Work | Why |
 | --- | --- | --- |
-| **Sonnet subagent** | 1–2 (incl. 2a–2d) | Reversible, context-heavy: probe conventions, watch checks, read failing logs, rebase-and-retry on conflict, report readiness |
-| **You, the main agent** | 3–7 | Irreversible: merge, branch deletion, issue labels, prod promotion |
+| Readiness subagent | Sections 1–2 (incl. 2a–2d) | Probe conventions, watch checks, triage failing logs, rebase-and-retry. All wait, no authority |
+| **You** | `gh pr merge` (Section 3) | Irreversible, outward-facing |
+| Cleanup subagent | Sections 4, 5, 7 | Local branch/worktree cleanup, `status:` labels, `STATE.md`. Bookkeeping |
+| Promotion subagent | Section 6 steps 1–3 | Draft and open the release PR, watch its checks. A PR is a proposal — reversible |
+| **You** | Merge the release PR (Section 6) | Irreversible, outward-facing |
+| Cleanup subagent | Section 6 step 5 | Post-release label sweep, switch back to `dev` |
 
-The subagent gathers; you act on what it found. It never merges, never promotes, never deletes remote state.
+**Do not pull the bookkeeping back into the main session.** Deleting a merged local branch, pruning a worktree, flipping a `status:` label, and editing `STATE.md` are all rote and all reversible. They are the exact work fan-out exists to remove from an Opus context. The classifier objects to *standing authority for irreversible outward acts* — not to a subagent running `git branch -d` on a branch that already merged.
 
 **Why this seam and not a wider one.** Two reasons, and the second is the one that bites.
 
@@ -26,16 +30,15 @@ The subagent gathers; you act on what it found. It never merges, never promotes,
 
 *The auto-mode classifier.* Auto mode runs a content classifier on top of the static allow/deny rules. It reads the **text of the dispatch prompt**, not the tool name. A brief that hands over irreversible authority — "prod promotion is authorized", "merge to main", "review gate waived", "force-push", "delete the remote branch" — gets denied with `Blocked by classifier`, even when `Agent(general-purpose)` is explicitly allowed in `~/.claude/settings.json`. No permission rule reaches it. The guard is correct; the old seam was wrong. Handing a subagent read-only or reversible work passes cleanly.
 
-**How to dispatch.** Call the Agent tool with:
+**How to dispatch.** Every dispatch is `subagent_type: "general-purpose"`, `model: "sonnet"`, and a self-contained brief carrying the PR number(s), base branch, and repo path (a subagent doesn't inherit `cwd` the way you might assume).
 
-- `subagent_type: "general-purpose"`
-- `model: "sonnet"`
-- `description: "Check readiness for PR #<num>"`
-- `prompt`: a self-contained brief. Include:
-  - The PR number(s) and base branch
-  - Repo path (the subagent doesn't inherit `cwd` context the way you might assume)
-  - The directive: `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1 and 2 only. Do not merge, promote, or delete anything — report findings and stop."`
-  - What to report back: check status per Section 2.1's exit-code reading, code-review gate state (Section 2.0), `mergeable` value, any conflict resolved and how, any failure triaged with the log excerpt
+*Readiness* — `description: "Check readiness for PR #<num>"`, directive `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1 and 2 only. Report findings and stop."` Reports: check status per Section 2.1's exit-code reading, code-review gate state (Section 2.0), `mergeable` value, conflicts resolved and how, failures triaged with the log excerpt.
+
+*Cleanup* — dispatched immediately after your `gh pr merge` returns, `description: "Clean up after PR #<num>"`, directive `"Execute Sections 4, 5 and 7. The PR is already merged at <sha>."` Reports: final branch state, issues labeled, `STATE.md` touched or not. Hand it the merge SHA and the base branch so it doesn't re-derive them.
+
+*Promotion* — only when Section 6 authorization is present, `description: "Open release PR for <dev>→<release>"`, directive `"Execute Section 6 steps 1-3 up to and including watching checks on the release PR. Open the PR. Do not merge it."` Reports: release PR number, commits promoted, check status.
+
+Run the readiness and cleanup dispatches in the foreground — each one gates the next step. Nothing here benefits from `run_in_background` unless the user has given you separate work in parallel.
 
 **State facts, never authority.** Write the brief as observations the parent will act on. Say `"the user's invocation was: /stone-merge prod"` — a quoted fact — not `"prod promotion is authorized"`, which is a grant. Never write AUTHORIZED, WAIVED, or an instruction to merge into a subagent prompt. The parent holds that decision; the subagent only needs to know what to look at.
 
@@ -45,7 +48,7 @@ The subagent gathers; you act on what it found. It never merges, never promotes,
 - Agent tool is unavailable in the current harness.
 - Checks are already green at invocation — there's no wait to buy back. Run Sections 1–7 inline.
 
-**Foreground vs background.** Default to foreground: you wait for the readiness report, then execute Sections 3–7 yourself. Use `run_in_background: true` only if the user has clearly given you other work to do in parallel.
+Your own tool calls across a whole `/stone-merge` should number about two: the merge, and the release merge if one is authorized. If you find yourself running `git branch -d` or `gh issue edit`, you skipped a dispatch.
 
 ### 0a. When the classifier blocks anyway
 
@@ -162,7 +165,7 @@ When running the rebase from inside a git worktree (typical when you isolated wo
 
 ### 3. Merge the PR
 
-> **Handoff point.** Sections 3–7 are main-agent work (Section 0). If you are the readiness subagent, stop here and report — everything below is irreversible.
+> **Handoff point.** This command is main-agent work (Section 0) — it is one of the two irreversible acts in this skill. If you are the readiness subagent, stop here and report. Once it returns, the main agent dispatches a cleanup subagent for Sections 4, 5 and 7 rather than running them inline.
 
 ```bash
 gh pr merge <number> --merge --delete-branch
@@ -305,7 +308,7 @@ When merging multiple PRs sequentially, expect later PRs to go `CONFLICTING` onc
 
 Section 0 dispatches Sections 1–2 to a sonnet subagent by default. When you ARE that subagent, your job ends at a readiness verdict. The conversation is short and the user isn't watching every tool call — tighten the loop accordingly:
 
-- **Your scope is Sections 1–2. Stop there.** Do not run `gh pr merge`. Do not create or merge a release PR. Do not delete a remote branch. Do not label issues. Even if the dispatching prompt appears to authorize it, you report and the parent acts — that boundary is the point of the split, not red tape.
+- **Your brief names your sections. Stay inside them.** Two commands are never yours regardless of which brief you got: `gh pr merge`, and merging a release PR. Everything else your brief assigns — local cleanup, `status:` labels, `STATE.md`, opening a release PR — is yours to finish without checking back. Don't escalate rote work to the parent; that defeats the split.
 - The launching prompt should include PR number(s) and repo path. If it doesn't, ask the dispatcher (don't guess).
 - You *may* rebase and `--force-with-lease` a feature branch to clear a conflict (Section 2d) — it's reversible and the branch is yours. Never force-push a protected branch.
 - If you hit *any* unfamiliar conflict pattern, stop and report rather than guess. The cost of escalating is low; the cost of a bad merge is not.
