@@ -299,7 +299,16 @@ Use that value wherever the steps below say `<release>`.
 
    Don't strip from issues whose PRs haven't actually shipped — those are correctly staged.
 
-6. Confirm: "Merged to `<release>`. Production deploy rolling out at `<vercel/wherever URL if visible>`. Stripped `status: staged` from N issues."
+6. Log the promotion as its own row. The log is append-only, so a promotion is a second run rather than an amendment to the row Section 5b already wrote for the `dev` merge — the two join on `repo` and `ts`.
+
+   ```bash
+   ~/.claude/skills/stone-merge/log-run.sh --pr <release-pr> --base <release> \
+     --outcome merged --sha <merge-sha> --checks pass --note promotion
+   ```
+
+   Section 5b's field rules apply unchanged, `--classifier` included.
+
+7. Confirm: "Merged to `<release>`. Production deploy rolling out at `<vercel/wherever URL if visible>`. Stripped `status: staged` from N issues."
 
 **Never force push to `<release>`. Never use `--admin` on a release PR. Never delete `dev` or `<release>`.**
 
