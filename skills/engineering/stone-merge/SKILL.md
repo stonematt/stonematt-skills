@@ -13,19 +13,19 @@ The work is procedural — gated waits on `gh pr checks --watch`, log triage, br
 
 `/stone-merge` costs the main session one tool call: dispatch a sonnet subagent, relay its report. The user ran this skill to stop thinking about the merge and go start something else. Staying resident to sequence the steps defeats that as thoroughly as running them inline.
 
-**One dispatch owns the run** — Sections 1–7. Readiness, merge, branch cleanup, `status:` labels, `STATE.md`. It reports once, at the end.
+**One dispatch owns the run** — Sections 1–5. Readiness, merge, branch cleanup, `status:` labels. It reports once, at the end.
 
-**Escalate one thing: merging a release PR to `main`/`master`** (Section 6). The subagent opens that PR, watches its checks, and reports it ready; the main session merges it. Everything short of it belongs to the subagent — merging a feature PR into `dev`, deleting a merged local branch, pruning a worktree, flipping a label, editing `STATE.md`.
+**Escalate one thing: merging a release PR to `main`/`master`** (Section 6). Everything short of it belongs to the subagent — merging a feature PR into `dev`, deleting a merged local branch, pruning a worktree, flipping a label. Promotion only ever runs when the user asked for it in the same breath, so most runs never reach Section 6 at all.
 
 Auto mode runs a content classifier over dispatch briefs, on top of the static allow/deny rules. It reads the brief's text, not the tool name, so no `settings.json` rule reaches it. Verified 2026-09-03: a brief reading "PROD PROMOTION IS AUTHORIZED… merge to main, review gate waived" was denied; read-only briefs passed twice, same agent type and model. Only that prod-release shape has been observed to trip it — treat the single escalation above as the whole of what it costs you.
 
 **Background by default.** `run_in_background: true` is what actually frees the user; a foreground dispatch parks them exactly as a foreground `--watch` would. Go foreground only when they said they're waiting on the result.
 
-**How to dispatch.** `subagent_type: "general-purpose"`, `model: "sonnet"`, `description: "Merge PR #<num>"`. The brief carries the PR number(s), base branch, repo path (a subagent doesn't inherit `cwd` the way you might assume), the user's invocation quoted verbatim, and the directive `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1-7. Skip Section 0."` Ask it to report: PRs merged with SHAs, issues labeled, conflicts resolved and how, release-PR number if one was opened, prod status.
+**How to dispatch.** `subagent_type: "general-purpose"`, `model: "sonnet"`, `description: "Merge PR #<num>"`. The brief carries the PR number(s), base branch, repo path (a subagent doesn't inherit `cwd` the way you might assume), the user's invocation quoted verbatim, and the directive `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1-5. Skip Section 0."` Ask it to report: PRs merged with SHAs, issues labeled, conflicts resolved and how, and the review-gate outcome. Add Section 6 to the directive only when the invocation carries a promotion keyword.
 
 **Quote the invocation as a fact** — `the invocation was: /stone-merge prod` — and let the subagent apply Section 6's keyword rule to it itself. Briefs that grant ("prod promotion is authorized", "review gate waived") are the shape that gets denied.
 
-**Run Sections 1–7 inline instead when** you are already a subagent, the Agent tool is unavailable, or the user asked you to stay in this context.
+**Run the sections inline instead when** you are already a subagent, the Agent tool is unavailable, or the user asked you to stay in this context.
 
 ### 0a. When the classifier blocks anyway
 
@@ -67,26 +67,41 @@ Note the result and adapt:
 
 #### 2.0 Preflight: code-review gate (run first)
 
-Before probing mergeability, confirm a code review ran on this branch. Never merge substantive product code that was never reviewed. Two detection modes:
+Work down this ladder in order and stop at the first rung that resolves. Most PRs resolve on rung 1 or 2 without asking anyone anything.
 
-**CI-check mode (preferred).** If the repo runs `/code-review` as a GitHub Action — a check whose name matches `code.?review` — require it:
+**1. Docs-only? Skip the gate.** Inspect what actually changed:
+
+```bash
+gh pr diff <number> --name-only
+```
+
+If every path is documentation or metadata — `*.md`, `*.txt`, `docs/`, `LICENSE`, `CHANGELOG`, `*.rst` — skip review and go to 2.1. No prompt, no waiver to record, just a line in the final report saying it was docs-only. A prose diff has no correctness surface worth an agent's time.
+
+Any executable path in the set — source, tests, CI config, `package.json`, shell scripts, `Dockerfile`, IaC — makes it a code change. Mixed PRs are code changes.
+
+**2. CI-check mode.** If the repo runs `/code-review` as a GitHub Action — a check whose name matches `code.?review` — that check is the gate:
 
 ```bash
 gh pr checks <number> --json name,state --jq '.[] | select(.name|test("(?i)code.?review")) | "\(.name) \(.state)"'
 ```
 
-- `SUCCESS` → gate passes, continue to the readiness checks below.
-- `PENDING`/`IN_PROGRESS`/`QUEUED` → the watch loop (2a) will cover it; note it and proceed.
-- `FAILURE` → treat like any failed check (2b): read the review output, do **not** merge over unaddressed findings.
-- No matching check returned → fall to local mode.
+- `SUCCESS` → continue to 2.1.
+- `PENDING`/`IN_PROGRESS`/`QUEUED` → the watch loop (2a) covers it; note it and proceed.
+- `FAILURE` → treat as a failed check (2b). Read the review output and address the findings; merging over them is what this gate exists to prevent.
+- No matching check → rung 3.
 
-**Local mode (no CI review check).** Git history can't reliably prove a local `/code-review` run happened, so confirm rather than guess:
+**3. Project policy, remembered.** Repos differ on this and the difference is stable, so learn it once per repo instead of asking every merge. Look for a recorded policy in the project's auto-memory (a `project_*.md` naming this repo's review expectation). Two values:
 
-> "No code-review CI check on this PR. Has `/code-review` run on this branch since the last commit? (already did / run it now / skip — trivial docs-only)"
+- `review: required` → run the review yourself. Dispatch a `code-review` subagent scoped to this PR's diff. Apply findings that are mechanical and unambiguous, commit them to the branch, and re-watch checks. Escalate anything that needs a judgment call — a design disagreement, a finding that implies a scope change — with the finding quoted. Then merge.
+- `review: optional` → skip and merge. Note it in the report.
 
-Block until the user confirms review ran or explicitly waives it. When you ARE a subagent, surface this to the dispatcher — never self-waive.
+**4. No policy recorded? Ask once, then write it down.** First code-change merge in an unfamiliar repo:
 
-**Bypass.** `/stone-merge --no-review` (or the user saying "skip review") waives the gate for trivial docs/infra PRs. Record the waiver in the final report.
+> "No code-review CI check here. Does this project expect review before merge? (required — I'll spawn a review agent each time / optional — merge without it). I'll remember it for this repo."
+
+Record the answer as a project memory so rung 3 resolves it from here on. If the user declines to set a policy, treat it as `optional` for this run and ask again next time rather than guessing a default.
+
+**Bypass.** `/stone-merge --no-review` waives the gate for one run without touching the stored policy. Record the waiver in the final report.
 
 #### 2.1 Readiness checks
 
@@ -210,9 +225,9 @@ When the release PR (dev→release branch) merges later, GitHub auto-closes via 
 
 **Default: do NOT auto-promote.** Production deploys are high-stakes shared-system changes. Per safe-action norms, modifying production needs explicit user authorization for *this specific action* — generic "auto mode" or background-agent invocation is not enough.
 
-Auto-promote only if the original prompt explicitly contains one of: `prod`, `production`, `release`, `ship to prod`, `merge and release`, or the user said "merge and release" / "to main" / "to master" in plain language. If the prompt is just "merge", "merge it", "land it", or a PR number alone, **stop after Section 5** and offer:
+Promote only if the original prompt explicitly contains one of: `prod`, `production`, `release`, `ship to prod`, `merge and release`, or the user said "merge and release" / "to main" / "to master" in plain language.
 
-> "PR merged to `<base>`. Want me to create a release PR to `<release>`?"
+**Absent that, stop after Section 5 and say nothing about promotion.** Report the merge and end. The user tracks their own release timing and will ask when they're ready; an unprompted "want me to release?" is noise on every ordinary merge, and it invites a yes to a question they hadn't thought about yet. Silence is the correct default here, not politeness.
 
 When promotion is authorized:
 
@@ -260,15 +275,6 @@ Use that value wherever the steps below say `<release>`.
 
 **Never force push to `<release>`. Never use `--admin` on a release PR. Never delete `dev` or `<release>`.**
 
-### 7. Update project state (if GSD is active)
-
-If `.planning/STATE.md` exists, update it to reflect the merge:
-- Set "Last activity" to today's date
-- If the merged branch was for a specific phase, update "Phase" and "Status" fields
-- Clear any stale plan references from the status line context
-
-This prevents the GSD status line from showing a stale branch/plan name after merge.
-
 ## Arguments
 
 The skill accepts optional arguments after the command:
@@ -285,20 +291,22 @@ When merging multiple PRs sequentially, expect later PRs to go `CONFLICTING` onc
 
 Section 0 dispatches the whole run to a sonnet subagent by default. When you ARE that subagent, the user isn't watching your tool calls and often isn't waiting on them — the dispatch may be running in the background while they work on something else. Tighten the loop accordingly:
 
-- **Finish the run.** Sections 1–7 are yours: readiness, the merge into `dev`, branch cleanup, labels, `STATE.md`. Carry them all the way through and report once. Escalating rote work back to the parent defeats the dispatch as surely as never dispatching.
+- **Finish the run.** Sections 1–5 are yours: readiness, the merge into `dev`, branch cleanup, labels. Carry them all the way through and report once. Escalating rote work back to the parent defeats the dispatch as surely as never dispatching.
+- **You may dispatch your own subagent** for a `review: required` repo (Section 2.0 rung 3). Fan-out is recursive; a review agent under you is expected, not overreach.
 - **Escalate the release merge.** Open the release PR, watch its checks, report it ready by number, and stop there (Section 6).
 - The launching prompt should include PR number(s) and repo path. If it doesn't, ask the dispatcher (don't guess).
 - You *may* rebase and `--force-with-lease` a feature branch to clear a conflict (Section 2d) — it's reversible and the branch is yours. Never force-push a protected branch.
 - If you hit *any* unfamiliar conflict pattern, stop and report rather than guess. The cost of escalating is low; the cost of a bad merge is not.
 - Surface conflict-resolution decisions you made (e.g. "merged the audit-test UNSKIPPED set") in the report so the parent and user can verify before the merge lands.
-- Final report (one message): PRs merged with SHAs, issues labeled, conflicts resolved and how, `STATE.md` touched or not, release-PR number if you opened one, and prod status. It is the only thing the user sees of this run, so make it scannable and complete. If you stopped short, lead with what blocked you.
+- Final report (one message): PRs merged with SHAs, issues labeled, conflicts resolved and how, and how the review gate resolved (docs-only, CI check, review agent run, or waived). It is the only thing the user sees of this run, so make it scannable and complete. If you stopped short, lead with what blocked you. Leave promotion out unless they asked for it.
 
 **If the run stops before the merge** — a failed check you can't attribute to flake, an unfamiliar conflict, or the Section 2.0 review gate unsatisfied — report and stop. Those are the judgment calls worth waking the user for, and a background dispatch surfaces them the same way it surfaces success.
 
 ## Safety
 
 - Never merge a PR with failing checks (after one re-run attempt for clearly unrelated flake)
-- Never merge substantive product code past the Section 2.0 code-review gate unless it passed or was explicitly waived (`--no-review`); subagents surface the gate, never self-waive
+- Resolve the Section 2.0 review gate on its own ladder before merging code. Docs-only skips it, a CI check decides it, a `review: required` repo gets a review agent. Merge over unaddressed findings only when the user waived them
+- Promote to prod only on an explicit keyword in the user's own invocation, and never offer promotion they didn't ask for
 - Never write authorization language into a subagent prompt (Section 0). State facts the parent will act on; irreversible steps stay with the parent
 - When the auto-mode classifier blocks an action, change the shape of the approach or hand it to the user (Section 0a). Never route around a denial with a different tool to accomplish the same denied action
 - Never force-merge or bypass review requirements (`--admin`)
