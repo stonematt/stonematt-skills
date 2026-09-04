@@ -13,7 +13,7 @@ The work is procedural — gated waits on `gh pr checks --watch`, log triage, br
 
 `/stone-merge` costs the main session one tool call: dispatch a sonnet subagent, relay its report. The user ran this skill to stop thinking about the merge and go start something else. Staying resident to sequence the steps defeats that as thoroughly as running them inline.
 
-**One dispatch owns the run** — Sections 1–5. Readiness, merge, branch cleanup, `status:` labels. It reports once, at the end.
+**One dispatch owns the run** — Sections 1–5b. Readiness, merge, branch cleanup, `status:` labels, run log. It reports once, at the end.
 
 **Escalate one thing: merging a release PR to `main`/`master`** (Section 6). Everything short of it belongs to the subagent — merging a feature PR into `dev`, deleting a merged local branch, pruning a worktree, flipping a label. Promotion only ever runs when the user asked for it in the same breath, so most runs never reach Section 6 at all.
 
@@ -21,7 +21,7 @@ Auto mode runs a content classifier over dispatch briefs, on top of the static a
 
 **Background by default.** `run_in_background: true` is what actually frees the user; a foreground dispatch parks them exactly as a foreground `--watch` would. Go foreground only when they said they're waiting on the result.
 
-**How to dispatch.** `subagent_type: "general-purpose"`, `model: "sonnet"`, `description: "Merge PR #<num>"`. The brief carries the PR number(s), base branch, repo path (a subagent doesn't inherit `cwd` the way you might assume), the user's invocation quoted verbatim, and the directive `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1-5. Skip Section 0."` Ask it to report: PRs merged with SHAs, issues labeled, conflicts resolved and how, and the review-gate outcome. Add Section 6 to the directive only when the invocation carries a promotion keyword.
+**How to dispatch.** `subagent_type: "general-purpose"`, `model: "sonnet"`, `description: "Merge PR #<num>"`. The brief carries the PR number(s), base branch, repo path (a subagent doesn't inherit `cwd` the way you might assume), the user's invocation quoted verbatim, and the directive `"Load the merge skill at ~/.claude/skills/stone-merge/SKILL.md and execute Sections 1-5b. Skip Section 0."` Ask it to report: PRs merged with SHAs, issues labeled, conflicts resolved and how, the review-gate outcome, and whether anything came back blocked by the classifier (quoted verbatim if so). Add Section 6 to the directive only when the invocation carries a promotion keyword.
 
 **Quote the invocation as a fact** — `the invocation was: /stone-merge prod` — and let the subagent apply Section 6's keyword rule to it itself. Briefs that grant ("prod promotion is authorized", "review gate waived") are the shape that gets denied.
 
@@ -227,6 +227,24 @@ Steps:
 
 When the release PR (dev→release branch) merges later, GitHub auto-closes via closing keywords and the `clean-status-on-close.yml` workflow strips the label. **But this only works if the release PR body uses `Closes #N` / `Fixes #N` / `Resolves #N` for every staged issue.** Section 6 step 5 has a defensive sweep for the case where keywords are missing or the workflow isn't installed.
 
+### 5b. Log the run (every path, including a stop)
+
+Append one row before you write the final report:
+
+```bash
+~/.claude/skills/stone-merge/log-run.sh --pr <N> --base <branch> --outcome merged \
+  --sha <merge-sha> --gate docs-only --checks pass --conflicts none \
+  --labels "#12 #13" --classifier none
+```
+
+The script is symlinked alongside this skill, so the same binary and the same log serve every repo. Rows land in `${XDG_STATE_HOME:-$HOME/.local/state}/stone-merge/runs.jsonl`. It is fail-open by design — a logging failure exits 0 and never costs a merge that already happened, so don't retry it or report its failure as a run failure.
+
+`--outcome` is `merged`, `stopped`, or `blocked`. `--gate` records which rung of Section 2.0 resolved: `docs-only`, `ci-check`, `reviewer:<name>`, `policy-optional`, `asked`, or `waived`. Pass `--classifier` the **verbatim** denial text whenever the auto-mode classifier blocks anything, and `none` when it blocks nothing — an explicit `none` is what makes the absence of blocks countable later.
+
+**A run that stopped is the more valuable row.** Log the failed check, the unfamiliar conflict, the review gate you couldn't satisfy, with `--outcome stopped` and a `--note` saying what blocked it. Those are the observations that decide whether the invariants need to move into hooks, and they are exactly the ones that evaporate from a background transcript nobody reads again.
+
+Report honestly. You are writing your own report card, and a row that papers over a block is worse than a missing row.
+
 ### 6. Production promotion (gated)
 
 **Default: do NOT auto-promote.** Production deploys are high-stakes shared-system changes. Per safe-action norms, modifying production needs explicit user authorization for *this specific action* — generic "auto mode" or background-agent invocation is not enough.
@@ -297,16 +315,16 @@ When merging multiple PRs sequentially, expect later PRs to go `CONFLICTING` onc
 
 Section 0 dispatches the whole run to a sonnet subagent by default. When you ARE that subagent, the user isn't watching your tool calls and often isn't waiting on them — the dispatch may be running in the background while they work on something else. Tighten the loop accordingly:
 
-- **Finish the run.** Sections 1–5 are yours: readiness, the merge into `dev`, branch cleanup, labels. Carry them all the way through and report once. Escalating rote work back to the parent defeats the dispatch as surely as never dispatching.
+- **Finish the run.** Sections 1–5b are yours: readiness, the merge into `dev`, branch cleanup, labels, run log. Carry them all the way through and report once. Escalating rote work back to the parent defeats the dispatch as surely as never dispatching.
 - **You may dispatch your own subagent** when the repo's policy names a reviewer (Section 2.0 rung 3). Fan-out is recursive; a review agent under you is expected, not overreach.
 - **Escalate the release merge.** Open the release PR, watch its checks, report it ready by number, and stop there (Section 6).
 - The launching prompt should include PR number(s) and repo path. If it doesn't, ask the dispatcher (don't guess).
 - You *may* rebase and `--force-with-lease` a feature branch to clear a conflict (Section 2d) — it's reversible and the branch is yours. Never force-push a protected branch.
 - If you hit *any* unfamiliar conflict pattern, stop and report rather than guess. The cost of escalating is low; the cost of a bad merge is not.
 - Surface conflict-resolution decisions you made (e.g. "merged the audit-test UNSKIPPED set") in the report so the parent and user can verify before the merge lands.
-- Final report (one message): PRs merged with SHAs, issues labeled, conflicts resolved and how, and how the review gate resolved (docs-only, CI check, review agent run, or waived). It is the only thing the user sees of this run, so make it scannable and complete. If you stopped short, lead with what blocked you. Leave promotion out unless they asked for it.
+- Final report (one message): PRs merged with SHAs, issues labeled, conflicts resolved and how, how the review gate resolved (docs-only, CI check, review agent run, or waived), and whether anything came back blocked by the classifier (quoted verbatim if so — the dispatch brief in Section 0 asks for this explicitly). It is the only thing the user sees of this run, so make it scannable and complete. If you stopped short, lead with what blocked you. Leave promotion out unless they asked for it.
 
-**If the run stops before the merge** — a failed check you can't attribute to flake, an unfamiliar conflict, or the Section 2.0 review gate unsatisfied — report and stop. Those are the judgment calls worth waking the user for, and a background dispatch surfaces them the same way it surfaces success.
+**If the run stops before the merge** — a failed check you can't attribute to flake, an unfamiliar conflict, or the Section 2.0 review gate unsatisfied — log it per Section 5b with `--outcome stopped`, then report and stop. Those are the judgment calls worth waking the user for, and a background dispatch surfaces them the same way it surfaces success.
 
 ## Safety
 
