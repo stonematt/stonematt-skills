@@ -183,8 +183,18 @@ This is the critical step that prevents stale-branch mistakes. After merge:
 
 ```bash
 git checkout <base-branch>
-git pull
+git pull --prune
 git branch -d <merged-branch-name>
+git fetch --prune
+git branch -a          # verify: no `remotes/origin/<merged-branch>` remains
+```
+
+**`--prune` is not optional.** `gh pr merge --delete-branch` deletes the branch on the remote, but a plain `git pull` leaves the local `remotes/origin/<branch>` tracking ref behind. `git branch -a` then still lists the branch, which reads as cleanup that never happened — and the next session, seeing it, may "re-clean" or assume the merge didn't land. Prune, then verify with `git branch -a`. Do not report cleanup complete on the strength of `git branch` (local only); the stale ref only shows under `-a` or `-r`.
+
+Offer once, per user, as the durable fix — don't set it silently:
+
+```bash
+git config --global fetch.prune true
 ```
 
 #### 4a. `--delete-branch` failed at merge time
@@ -194,7 +204,7 @@ git branch -d <merged-branch-name>
 1. Find the worktree pinning the branch: `git worktree list` — look for the branch name in brackets.
 2. Remove the worktree: `git worktree remove -f -f <path>` (double `-f` overrides locks set by background agents).
 3. Delete the local branch: `git branch -D <branch>` (use `-D` since `-d` may complain about merge-tracking; the PR merge already confirmed the code landed).
-4. Run `git worktree prune` to clean up any stale entries, then `git pull` on the base branch.
+4. Run `git worktree prune` to clean up any stale entries, then `git pull --prune` on the base branch and `git fetch --prune`. Verify with `git branch -a` as in the main path — this recovery route is the one most likely to leave a stale `origin/<branch>` behind.
 
 If the worktree is in a corrupted state (e.g. `cd` errors with "Unable to read current working directory"), `cd` to the main repo path first, then run prune + branch delete.
 
@@ -213,7 +223,7 @@ If `git checkout <base-branch>` fails with `'<base>' is already used by worktree
 
 #### 4c. Final state
 
-Confirm the cleanup: "On `<base-branch>`, up to date. Deleted local `<merged-branch>`."
+Confirm the cleanup: "On `<base-branch>`, up to date. Deleted local `<merged-branch>`, pruned `origin/<merged-branch>`." Say "pruned" only after `git branch -a` has actually come back clean.
 
 If you launched the merge from inside a feature-branch worktree, the very first thing to verify after merge is that the main worktree is back on the base branch — sometimes parallel agent activity can leave it on the wrong ref.
 
