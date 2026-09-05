@@ -49,6 +49,8 @@ A **content** block instead names the authority-shaped thing it objected to, and
 
 Report the block plainly and move on. Never route around it with a different binary to accomplish the same denied action.
 
+**`claude -p` is that different binary.** A fresh `claude -p` runs as its own main session, so the merge it makes would be allowed — which is precisely why shelling out to one from a blocked subagent is the banned shape and not a clever workaround. It also pays for a cold context that has to be re-briefed on the PR, the base, the gates and the conflicts you are already holding. The parent is one message away and already knows all of it.
+
 ## Workflow
 
 ### 1. Identify the PR and probe repo conventions
