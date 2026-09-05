@@ -60,6 +60,14 @@ Slugs: `<slug>` (#<n>), `<slug>` (#<n>). Work with absolute paths inside that wo
 
 **f. Next.** Remove the worktree, delete the branch local *and* remote, `git fetch origin --prune`, and branch the next item fresh off `origin/<base>` so it builds on what you just merged.
 
+## Delegate the noise, at `sonnet`
+
+Grep sweeps, log trawls, reading across a dozen files to find the other caller — hand those to a subagent and keep the finding, not the file dumps. Your context has to outlast the whole queue, and what fills it is rarely the thinking.
+
+**Pass `model: sonnet` explicitly on every one you spawn.** A subagent you launch without a `model` does not inherit yours — it resolves to the top-level session's model, which is the most expensive one in the run. Omitting the field is not a neutral default; it is the costly one, silently.
+
+Keep for yourself: the design call, the diff, the review verdict, the merge.
+
 ## Fix it, don't file it
 
 The rough edges **your own change** leaves behind are yours to fix before you merge: a branch your refactor made unreachable, a primitive you duplicated because a sibling had one, a default that lets a caller get the pre-fix behaviour, a second caller left on the old shape. Fix them in the same branch.

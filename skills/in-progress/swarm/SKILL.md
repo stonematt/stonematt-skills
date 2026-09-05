@@ -47,11 +47,15 @@ Name the destructive scripts the lanes are to leave unrun, and say what each one
 
 ## 4. Launch
 
-One `Agent` per lane, `subagent_type: general-purpose`, `model: opus`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md).
+One `Agent` per lane, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md).
+
+**Pick each lane's `model` from its queue, not from habit.** A lane runs `opus` when its tickets turn on a design fork, a refactor that crosses modules, or a review that has to argue with its own acceptance criteria. A lane runs `sonnet` when the work is mechanical — a doc fix, a rename the ticket already spells out, a test that only needs writing down. The model is a per-lane call because the queues differ; one setting for the whole swarm is the habit, not the judgment.
+
+Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces at step 5 as work to redo, and redoing it costs more than the model ever saved. When a queue is mixed, or you cannot tell, take `opus`.
 
 Hold the objective in the task list — goal, scope, baseline, stop condition, one task per lane. An unattended run outlives its context window, and the task list is what survives a compaction.
 
-**Done when** every lane is running and the user has the table: which issues, which files, which order.
+**Done when** every lane is running and the user has the table: which issues, which files, which order, which model.
 
 ## 5. Verify independently
 
