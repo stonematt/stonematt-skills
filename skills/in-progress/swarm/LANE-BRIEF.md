@@ -58,6 +58,8 @@ Slugs: `<slug>` (#<n>), `<slug>` (#<n>). Work with absolute paths inside that wo
 
 **e. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what.
 
+**The `gh pr merge` call itself is not yours.** The auto-mode classifier denies it from a subagent and allows it from the main session — same command, same repo (`mcp-obsidian-cli`, 2026-09-05). You are a subagent. Take the merge verb as far as readiness, then message the orchestrator with the PR number, the gate and review outcomes, and the verbatim command; it merges and replies with the SHA, and you resume at **f**. Don't attempt the merge to find out, and don't retry or reword after a denial — the wording was never what was read. And don't shell out to `claude -p`: a fresh one is its own main session and would be allowed, which is what makes it the banned route around a denial rather than a fix.
+
 **f. Next.** Remove the worktree, delete the branch local *and* remote, `git fetch origin --prune`, and branch the next item fresh off `origin/<base>` so it builds on what you just merged.
 
 ## Delegate the noise, at `sonnet`

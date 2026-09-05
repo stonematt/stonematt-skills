@@ -55,6 +55,8 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 Hold the objective in the task list — goal, scope, baseline, stop condition, one task per lane. An unattended run outlives its context window, and the task list is what survives a compaction.
 
+**You run every `gh pr merge`.** Lanes reach readiness and hand you the command (`LANE-BRIEF.md` step e); you merge and reply with the SHA so the lane resumes its cleanup. This is not a policy call about what lanes may land — it is that the classifier denies a subagent's merge call and allows yours, so a lane that tries it stalls the run. Staying awake for that is the orchestrator's job anyway; verifying (Section 5) already assumed it.
+
 **Done when** every lane is running and the user has the table: which issues, which files, which order, which model.
 
 ## 5. Verify independently
