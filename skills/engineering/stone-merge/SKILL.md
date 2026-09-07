@@ -170,10 +170,17 @@ When running the rebase from inside a git worktree (typical when you isolated wo
 Merging a feature PR into `dev` is yours to run, subagent included. Only a release PR to `main`/`master` escalates (Section 0).
 
 ```bash
-gh pr merge <number> --merge --delete-branch
+gh pr merge <number> --merge --delete-branch \
+  --subject "Merge <branch>: <pr title> (#<number>)"
 ```
 
 Use `--merge` (not `--squash` or `--rebase`) which creates a merge commit with `--no-ff` behavior, preserving the full branch history. The `--delete-branch` flag removes the remote branch.
+
+**Always pass `--subject`.** Without it `gh` writes GitHub's default, `Merge pull request #N from <owner>/<branch>`, which drops the PR title from the log. The house format is `Merge {branch}: {pr title} (#{number})` — greppable via `^Merge` *and* self-describing, so `git log --oneline` reads as a changelog rather than a list of PR numbers.
+
+**Check the repo's own history first** and match what you find: `git log --merges --oneline -5`. A repo that squash-merges, or uses a different subject shape, wins over the format above — copy its convention rather than imposing this one.
+
+**Get it right at merge time; it is not cleanly fixable afterward on a shared branch.** Correcting a landed subject means `git commit --amend` plus a force-push to the integration branch, which can clobber a collaborator who already pulled. Observed 2026-09-06 on `thebrightlink/compass` #139: the subject landed wrong and leaving it was the right call. If you miss it, flag it and move on — never force-push a shared branch to tidy a commit message.
 
 If repo policy forbids merge commits (Section 1 probe surfaced this), use `--squash` instead. Never use `--admin` to bypass.
 
