@@ -13,11 +13,11 @@ Drop a note into the vault inbox as **one `obsidian create` call**. No template 
 # 1. Get a literal timestamp (never inline $(date) in the arg)
 date "+%Y-%m-%dT%H:%M"     # → 2026-06-10T09:14
 
-# 2. One call. Substitute the literal timestamp, slug, and body.
-obsidian vault="tyee" create silent path="0.inbox/<descriptive-slug>.md" content="---\nCreated: 2026-06-10T09:14\nstatus: inbox\ntags:\n  - capture\n---\n\n<body with first-mention [[wikilinks]]>\n"
+# 2. One call. Substitute the vault, literal timestamp, slug, and body.
+obsidian vault=<vault> create silent path="0.inbox/<descriptive-slug>.md" content="---\nCreated: 2026-06-10T09:14\nstatus: inbox\ntags:\n  - capture\n---\n\n<body with first-mention [[wikilinks]]>\n"
 ```
 
-Output: `Created: 0.inbox/<descriptive-slug>.md`. Done — confirm the path back to the user.
+Output: `Created: 0.inbox/<descriptive-slug>.md`. Done — confirm the vault and path back to the user.
 
 ## Rules
 
@@ -25,7 +25,7 @@ Output: `Created: 0.inbox/<descriptive-slug>.md`. Done — confirm the path back
 - **Slug**: kebab-case, descriptive. No parens in filenames (`Name - Context`, not `Name (Context)`).
 - **`\n` renders as real newlines** in `content=`. Plain prose, apostrophes, and `code spans` pass clean — no escaping needed.
 - **Timestamp literal**: run `date` first, interpolate the value. Never embed `$(date)` in the arg.
-- **Default vault `tyee`** (primary PKM). Set `vault=` for another (e.g. `scarp`).
+- **`<vault>`**: exactly the vault the user names, whichever it is ("save this to X" → `vault=X`). None named → infer from the conversation (usually `tyee`), or ask. Always the first argument.
 - **Skip the `Skill obsidian:obsidian-cli` load** — this command is pre-verified; you are not discovering verbs, so it cannot silently fail.
 
 ## First-mention wikilinks
