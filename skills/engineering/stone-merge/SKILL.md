@@ -13,7 +13,7 @@ The user ran this skill so they can stop thinking about the merge. **Unless some
 
 **First, which side are you on?** If a brief dispatched you to run this skill — it names a PR, a repo path, and quotes a user's invocation — you are the **agent**: skip the rest of Section 0 and start at the Workflow, in your own shell. Section 0 is for the session the user is typing in.
 
-`/stone-merge` costs the main session **two tool calls at most**: this skill load, and one `Agent` dispatch. Nothing else. The shape is deliberate and measured: no readiness-only dispatch so you can merge here, no merge of your own. No readiness check of your own, no `gh pr merge` of your own, no follow-up `gh pr view` to confirm what the agent reported. The agent owns Sections 1–6 end to end, including the merge command.
+`/stone-merge` costs the main session **two tool calls** in the normal case: this skill load, and one `Agent` dispatch. The only additions are the two hand-backs Section 7 names — a rung-4 answer and a denied release merge. The shape is deliberate and measured: no readiness-only dispatch so you can merge here, no merge of your own. No readiness check of your own, no `gh pr merge` of your own, no follow-up `gh pr view` to confirm what the agent reported. The agent owns Sections 1–6 end to end, including the merge command.
 
 **Dispatch.** One call:
 
@@ -270,10 +270,10 @@ When the invocation carries the keyword:
    ```bash
    gh pr merge <release-pr> --merge --subject "Merge dev: <title> (#<release-pr>)"
    ```
-   If this merge is denied by the classifier, Section 0a applies with one difference: report the exact command **to the dispatching session**, which runs that single merge itself. Say so plainly in the report: "release merge denied in the agent; the command is: …". Do the sweep (step 6) and the log row anyway if the dispatching session confirms the merge; otherwise leave them for it.
+   If this merge is denied by the classifier, Section 0a applies with one difference: stop before step 5 and report the exact command **to the dispatching session**, which runs that single merge itself. Say so plainly in the report: "release merge denied in the agent; the command is: …". The dispatching session then resumes you with `SendMessage` carrying the merge SHA; on that message, run steps 5–8, with `--merged-from main` in step 7. If no resume arrives, steps 5–8 stay undone — your report already says so.
 5. `git checkout dev && git pull` — work continues on `dev`.
 6. **Staged-label sweep.** `gh issue list --repo <owner/repo> --state all --label "status: staged" --json number --jq '.[].number'`; for each, if its PR is now in `<release>` (`gh pr list --search "<N> in:body is:merged base:<release>"`), `gh issue edit <N> --remove-label "status: staged"`. Leave issues whose PRs have not shipped.
-7. Log the promotion as its own row: `--pr <release-pr> --base <release> --outcome merged --sha <sha> --checks pass --classifier none --merged-from subagent --note promotion`.
+7. Log the promotion as its own row: `--pr <release-pr> --base <release> --outcome merged --sha <sha> --checks pass --classifier none --merged-from subagent --note promotion` (`--merged-from main` when the dispatching session ran the merge after a denial).
 8. Report: "Merged to `<release>` (`<sha>`). Stripped `status: staged` from N issues."
 
 **Never force-push `<release>` or `dev`. Never `--admin` a release PR. Never delete `dev` or `<release>`.**
@@ -288,7 +288,7 @@ One message. It is the only thing the user sees of this run, so it must stand al
 
 The dispatching session relays this. Only two items in it call for further action there: a Section 2.0 rung-4 question, and a denied release merge (Section 6 step 4). Everything else is finished.
 
-**When the agent reports a denied release merge**, the main session runs exactly that one command itself — the user asked for the release in their own words, and the release PR is already green — then relays the result with the agent's denial quoted. No extra checks first, and no question back to the user: one `gh pr merge` call, then the report.
+**When the agent reports a denied release merge**, the main session runs exactly that one command itself — the user asked for the release in their own words, and the release PR is already green — then resumes the same agent with `SendMessage` carrying the merge SHA, so it runs the cleanup, sweep, and log row (Section 6 steps 5–8). No extra checks first, and no question back to the user: one `gh pr merge` call, one `SendMessage`, then relay the agent's final report with its denial quoted.
 
 **When the user answers the rung-4 question**, the main session spends at most three calls: write `project_review_policy.md` (body `review: <value>`) into the memory directory named in 2.0 rung 3, append its one index line to `MEMORY.md` there with a single shell `printf >>`, and dispatch a **fresh** agent with the same brief plus the line `Recorded review policy: review: <value>`. Do not resume the earlier agent and do not run the merge yourself.
 
