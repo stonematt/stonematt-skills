@@ -35,6 +35,7 @@
 #   --conflicts S       none, or a short description of what was resolved
 #   --labels S          issues labeled, or "none"
 #   --classifier S      verbatim denial text, or "none"
+#   --merged-from S     where gh pr merge ran: main | subagent | script | auto
 #   --duration N        seconds
 #   --note S            anything the run should carry forward
 #
@@ -109,7 +110,7 @@ def main():
 
     # Stable key order so the file stays readable by eye, unknown keys appended.
     order = ["ts", "repo", "pr", "base", "outcome", "sha", "gate", "checks",
-             "conflicts", "labels", "classifier", "duration", "note"]
+             "conflicts", "labels", "classifier", "merged_from", "duration", "note"]
     ordered = {k: row[k] for k in order if k in row}
     ordered.update({k: v for k, v in row.items() if k not in ordered})
 
