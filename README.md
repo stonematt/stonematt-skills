@@ -79,7 +79,7 @@ current uploader. Build one per skill:
 
 **engineering/** — [stone-commit](./skills/engineering/stone-commit/SKILL.md), [stone-merge](./skills/engineering/stone-merge/SKILL.md), [stone-promote-settings](./skills/engineering/stone-promote-settings/SKILL.md)
 
-**productivity/** — [stone-ai-sniff-test](./skills/productivity/stone-ai-sniff-test/SKILL.md), [stone-client-report](./skills/productivity/stone-client-report/SKILL.md)
+**productivity/** — [obsidian-quick-capture](./skills/productivity/obsidian-quick-capture/SKILL.md), [stone-ai-sniff-test](./skills/productivity/stone-ai-sniff-test/SKILL.md), [stone-client-report](./skills/productivity/stone-client-report/SKILL.md)
 
 **personal/** — [stone-journal](./skills/personal/stone-journal/SKILL.md), [stone-journal-status](./skills/personal/stone-journal-status/SKILL.md)
 
