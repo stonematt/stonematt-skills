@@ -13,7 +13,7 @@ The user ran this skill so they can stop thinking about the merge. **Unless some
 
 **First, which side are you on?** If a brief dispatched you to run this skill — it names a PR, a repo path, and quotes a user's invocation — you are the **agent**: skip the rest of Section 0 and start at the Workflow, in your own shell. Section 0 is for the session the user is typing in.
 
-`/stone-merge` costs the main session **two tool calls at most**: this skill load, and one `Agent` dispatch. Nothing else. The shape is deliberate and measured (ADR-0004): no readiness-only dispatch so you can merge here, no merge of your own. No readiness check of your own, no `gh pr merge` of your own, no follow-up `gh pr view` to confirm what the agent reported. The agent owns Sections 1–6 end to end, including the merge command.
+`/stone-merge` costs the main session **two tool calls at most**: this skill load, and one `Agent` dispatch. Nothing else. The shape is deliberate and measured: no readiness-only dispatch so you can merge here, no merge of your own. No readiness check of your own, no `gh pr merge` of your own, no follow-up `gh pr view` to confirm what the agent reported. The agent owns Sections 1–6 end to end, including the merge command.
 
 **Dispatch.** One call:
 
