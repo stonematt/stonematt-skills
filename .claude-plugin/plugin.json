@@ -14,6 +14,7 @@
     "./skills/engineering/stone-commit",
     "./skills/engineering/stone-merge",
     "./skills/engineering/stone-promote-settings",
+    "./skills/productivity/obsidian-quick-capture",
     "./skills/productivity/stone-ai-sniff-test",
     "./skills/productivity/stone-client-report",
     "./skills/personal/stone-journal",
