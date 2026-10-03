@@ -23,7 +23,11 @@ Leave the filled copy at `.claude/swarm-profile.md` in the repo. The next swarm 
 
 **Blast radius** — probes planted at `<the temp root, the home config dir, any live data dir>`, gate set run at `<commit>`: `<which markers died, which survived>`. A lane's own new tests hold that line: `<what a new test pins, and to what>`.
 
-**Leave unrun** `<script path>` — `<what it touches, and whose files those are>`.
+**Leave unrun** `<script path>` — `<what it touches, and whose files those are>`. The owner's own servers belong here.
+
+**Lane server** `<the command that serves one worktree on its own port and database; how env arrives without copying a secrets file; how it stops — or: none, the repo has no server for each checkout>`
+
+**Visual critique** `<the skill a UI lane runs against its own server, and the desktop and phone widths>`
 
 **Verbs** — implement `<implement>` · review `<code-review>` · commit `<stone-commit>` · merge `<stone-merge>`
 
