@@ -34,7 +34,19 @@ Its four **verbs** — implement, review, commit, merge — name skills, and a s
 
 ## Per-item loop
 
-**a. Worktree.** A sibling of the repo root, so it lands in a pre-allowed directory — `.claude/worktrees/` is not one, and a permission prompt on an unattended run stalls the lane until someone answers it.
+**a. Worktree.** Pick the variant the orchestrator launched you for.
+
+<When the lane was launched with `isolation: "worktree"`:>
+You are already isolated. Branch in place, and do the same between items:
+
+```
+git fetch origin --prune
+git checkout -b fix/<slug> origin/<base>
+<the profile's dependency sync>
+```
+
+<Otherwise:>
+A sibling of the repo root, so it lands in a pre-allowed directory — `.claude/worktrees/` is not one, and a permission prompt on an unattended run stalls the lane until someone answers it.
 
 ```
 cd <repo root>
@@ -48,23 +60,29 @@ Branch straight off `origin/<base>` and leave the shared working tree alone — 
 
 Slugs: `<slug>` (#<n>), `<slug>` (#<n>). Work with absolute paths inside that worktree from then on.
 
-**b. Implement.** Read the profile's docs before designing, then work the ticket per its **implement** verb. Commit at each landmark with its **commit** verb, which groups a working tree into logical commits — a branch of three tells the reviewer what happened, where one lump at the end hides it. Where the implement skill reaches its own review-and-commit tail, hand off to steps c–e below; this lane's gates, review and merge policy are stricter, and they are what land the work.
+Run every git and gh call as one plain command — no variables, loops, pipes or heredocs on the same line — and pass PR and issue bodies with `--body-file`. A worktree guard refuses the compound forms, and each refusal costs a repair loop.
+
+**b. Implement.** Read the profile's docs before designing, then work the ticket per its **implement** verb. Commit at each landmark with its **commit** verb, which groups a working tree into logical commits — a branch of three tells the reviewer what happened, where one lump at the end hides it. Where the implement skill reaches its own review-and-commit tail, hand off to steps c–f below; this lane's gates, critique, review and merge policy are stricter, and they are what land the work.
 
 **c. Gates.** The profile's gates, in its order, matching or beating its baseline numbers. All green before you open anything.
 
+Run every gate in the **foreground**, with a reporter that streams, and read its exit code. A pipe hands back the last command's exit code, so `| tail` turns a red gate green. A turn parked on a silent background job trips the stream watchdog and stalls the lane.
+
 **Leave unrun whatever the profile leaves unrun** — it says what each one touches, and those are somebody's real files. Every test you write holds the profile's blast-radius line.
 
-**d. Review.** The profile's **review** verb, both axes — standards and spec — and **fix everything it finds, in this branch**. Its findings leave as commits, not as notes. What your own review surfaces is the most valuable thing this loop produces; act on it.
+**d. Look.** <For a ticket that changes UI; otherwise skip to e.> Serve this branch on your **own server**, with the profile's command, and run the profile's visual critique skill against it at desktop and phone width. <Browser: take turns with the session's shared browser tool, or use your own headless one — say which.> Fix what holds up inside your fence and ticket, re-run the gates, then stop the server before review. The critique summary goes in your hand-back. Where the ticket asks for screenshots, save them outside the repo and list their paths; `gh` cannot attach images, so attaching them is the owner's known step.
 
-**e. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what.
+**e. Review.** The profile's **review** verb, both axes — standards and spec. Every reviewer subagent you brief is **read-only**: it reads the diff and the files at your branch head, and it never checks out, commits, stashes or writes a file — the worktree, its HEAD and its commits stay yours. Fix every finding that sits inside your fence and your ticket, in this branch; its findings leave as commits, not as notes. A finding outside either is a held finding for your report.
 
-**The `gh pr merge` call itself is not yours.** The auto-mode classifier denies it from a subagent and allows it from the main session — same command, same repo (`mcp-obsidian-cli`, 2026-09-05). You are a subagent. Take the merge verb as far as readiness, then message the orchestrator with the PR number, the gate and review outcomes, and the verbatim command; it merges and replies with the SHA, and you resume at **f**. Don't attempt the merge to find out, and don't retry or reword after a denial — the wording was never what was read. And don't shell out to `claude -p`: a fresh one is its own main session and would be allowed, which is what makes it the banned route around a denial rather than a fix.
+**f. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what. Watch CI with `gh pr checks --watch` in the foreground; it can exit early on a network reset, so re-run it until every check reports pass or fail. An early exit is not a result. If any commit lands after review — a CI fix — review that delta before you hand back, and say so.
 
-**f. Next.** Remove the worktree, delete the branch local *and* remote, `git fetch origin --prune`, and branch the next item fresh off `origin/<base>` so it builds on what you just merged.
+Take it as far as readiness, then end your turn with the PR number, the gate, critique and review outcomes, the head SHA pasted from `git rev-parse HEAD` output in this turn (never recalled), and the verbatim `gh pr merge` command. The orchestrator runs the merge and resumes you with the SHA; you pick up at **g**. If any command is denied, end your turn with that command verbatim and let the orchestrator decide.
+
+**g. Next.** In a sibling worktree: remove it, delete the branch local *and* remote, `git fetch origin --prune`, and branch the next item fresh off `origin/<base>`. Isolated: delete the branch remote, `git fetch origin --prune`, and `git checkout -b` the next item off `origin/<base>`. Either way the next item builds on what you just merged.
 
 ## Delegate the noise, at `sonnet`
 
-Grep sweeps, log trawls, reading across a dozen files to find the other caller — hand those to a subagent and keep the finding, not the file dumps. Your context has to outlast the whole queue, and what fills it is rarely the thinking.
+Grep sweeps, log trawls, reading across a dozen files to find the other caller — hand those to a subagent and keep the finding, not the file dumps. Your context has to outlast the whole queue, and what fills it is rarely the thinking. Delegate a read that is large and independent of your next edit; do a one-file lookup yourself. Verification is the review verb's job and the orchestrator's — the review verb is the only reviewer you launch.
 
 **Pass `model: sonnet` explicitly on every one you spawn.** A subagent you launch without a `model` does not inherit yours — it resolves to the top-level session's model, which is the most expensive one in the run. Omitting the field is not a neutral default; it is the costly one, silently.
 
@@ -84,10 +102,27 @@ Stop and report when:
 - A ticket's acceptance criteria turn out to be unsatisfiable as written.
 - A gate goes red for a reason you did not introduce.
 
-Stop *loudly* — a lane that goes quiet reads as a lane that died, and the orchestrator will come looking. Keep tool calls moving rather than working in long silent stretches.
+Stop by ending your turn with the report below, the stop reason first. The orchestrator reads only what your final turn says.
 
 ## Report
 
-Per item: branch, PR number, merge commit, gate numbers, and the design call you made with its reason.
+End with this block, one entry per item, then your prose:
+
+```yaml
+lane: <X>
+items:
+  - issue: <n>
+    branch: fix/<slug>
+    pr: <n>
+    head_sha: <pasted from git rev-parse HEAD>
+    merge_sha: <sha or pending>
+    critique: <one line, or n/a when no UI changed>
+    gates: <numbers, e.g. "tests 612 passed; types ok">
+    review_findings: {fixed: <n>, held: <n>}
+    design_call: <one line, with its reason>
+incidents:   # anything that cost a repair loop or a human: denial, permission prompt, lock retry, fence pressure
+  - <kind>: <one line, verbatim command where there was one>
+stop_reason: <queue done | fence | unsatisfiable | red gate>
+```
 
 Then, separately, every **held finding** — what you found already broken and deliberately left alone, because it sat outside your fence or outside the ticket. A sibling bug, a test that proves less than it claims, a doc your change made incomplete. Name each with its file and line, and say which. That list is the handoff, not an afterthought — and it should not contain anything you could have fixed yourself.
