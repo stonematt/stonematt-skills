@@ -210,7 +210,8 @@ let prIssue={},byId={};
 function mergeTool(issue,t=T){for(const tl of S.main?.tools||[]){if(!tl.merge||tl.t>t)continue;if(tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]===issue))return tl}return null}
 const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n]===issue);return n?Number(n):null};
 const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
-const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).sort((a,b)=>a.start-b.start);
+// Finished lanes sink below active ones so long swarms keep active lanes on screen; each group stays in start order.
+const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).map(a=>[a,laneAt(a).done?1:0]).sort((a,b)=>a[1]-b[1]||a[0].start-b[0].start).map(([a])=>a);
 const msgsTo=(a,t=T)=>(S.main?.tools||[]).filter(tl=>tl.name==='SendMessage'&&tl.t<=t&&(tl.to===a.name||tl.to===a.id));
 const handbacks=(a,t=T)=>a.tools.filter(tl=>isHandback(tl)&&tl.t<=t);
 const label=a=>a===S.main?'orchestrator':a.isLane?'Lane '+short(a.desc):role(a.desc)+(a.parent&&byId[a.parent]?.isLane?' · '+short(byId[a.parent].desc):'');
