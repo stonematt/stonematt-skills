@@ -29,7 +29,7 @@ No collisions at all is one lane with no fence.
 
 Watch for a collision you can only dissolve by pre-deciding a ticket's design fork. Sometimes the ticket's acceptance criteria already force that answer and you are merely reading it early. Check which before you constrain a lane, and say so.
 
-**Done when** every queued issue sits in exactly one lane, no file appears in two lanes running *at the same time*, and each lane is a task in the task list — its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. An unattended run outlives its context window, and the task list is what survives a compaction.
+**Done when** every queued issue sits in exactly one lane, no file appears in two lanes running *at the same time*, and each lane is a task in the task list — its objective, its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. An unattended run outlives its context window, and the task list is what survives a compaction.
 
 ## 3. Pin the profile
 
@@ -53,7 +53,9 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 One `Agent` per lane, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md). Mark each lane's task in progress as it launches.
 
-**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n> <objective>` — its queue in order, then two to four words saying what the lane changes (`Lane H: #528 create club form`) — and give it `name: lane-<x>`; resume it by that name. Name the change, not the order: `after G` belongs on the lane's task, where its blocker already sits. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
+**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n> <objective>`, its queue in order, and give it `name: lane-<x>`; resume it by that name. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
+
+**Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 create club form`, not `Lane H: #528`. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs on the lane's task, where its blocker already sits. Write the objective once in step 2, on the lane's task, and copy it into the description at launch.
 
 **Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the lane's last merge and mark its task complete.
 
@@ -71,7 +73,7 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 **Keep the run log from the first launch.** The skill improves only from what a run records. Create `~/.claude/skill-workbench/swarm/runs/<YYYY-MM-DD>-<repo>.md` and append one line the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
 
-**Done when** every lane is running, the run log exists, and the user has the table: which issues, which files, which order, which model.
+**Done when** every lane is running, the run log exists, and the user has the table: which objective, which issues, which files, which order, which model.
 
 ## 5. Verify independently
 
