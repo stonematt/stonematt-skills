@@ -1,0 +1,557 @@
+<!doctype html>
+<!-- Swarm console: ?view=board | graph | timeline, &session=<id>, &lane=<id> zooms, &t=<ms> pins a moment.
+     Look: telemetry console (a heartbeat per agent) crossed with ATC strip bays. Hue means status, nothing else.
+     Served by swarm-console.mjs. Lanes are depth-1 agents whose description starts with "Lane". -->
+<html><head><meta charset="utf-8"><title>Swarm console</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root{
+  --bg:#FAFAF7;--surface:#F0EFEA;--raised:#FFFFFF;--fg:#1A1A1A;--muted:#55554F;--faint:#8A8A84;--line:#DEDCD5;
+  --live:#138A36;--quiet:#A86B00;--stall:#C62828;--hand:#1565C0;--done:#8E8E8E;
+  --sans:"IBM Plex Sans Condensed",ui-sans-serif,system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0D1117;--surface:#161B22;--raised:#1C2330;--fg:#D5DCE3;--muted:#9AA4AE;--faint:#6B7580;--line:#2A313A;
+  --live:#3FB950;--quiet:#D29922;--stall:#F85149;--hand:#58A6FF;--done:#5A636D;color-scheme:dark}}
+:root[data-theme=dark]{--bg:#0D1117;--surface:#161B22;--raised:#1C2330;--fg:#D5DCE3;--muted:#9AA4AE;--faint:#6B7580;--line:#2A313A;
+  --live:#3FB950;--quiet:#D29922;--stall:#F85149;--hand:#58A6FF;--done:#5A636D;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 var(--sans);display:flex;flex-direction:column;scrollbar-color:var(--line) transparent}
+::selection{background:var(--fg);color:var(--bg)}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px;border-radius:2px}
+a{color:inherit;text-decoration-color:var(--faint);text-underline-offset:3px}a:hover{text-decoration-color:var(--fg)}
+.mono,.id,.age,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button,select{font:inherit;color:inherit;background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:3px 9px;cursor:pointer}
+button:hover,select:hover{border-color:var(--faint)}button:disabled{opacity:.45;cursor:default}
+input[type=range]{accent-color:var(--fg)}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px}
+
+/* header */
+header{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line)}
+header>*{min-width:0}#session{max-width:100%}header h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.01em}
+.tabs{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.tabs button{border:0;border-radius:0;background:transparent;padding:3px 10px;color:var(--muted)}
+.tabs button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+.tabs kbd{font:11px var(--mono);opacity:.6;margin-left:4px}
+.play{display:flex;gap:8px;align-items:center;flex:1;min-width:280px}
+#scrub{flex:1;min-width:120px}#clock{font-size:12px;color:var(--muted);min-width:178px}
+#live[aria-pressed=true]{border-color:var(--live);color:var(--live)}
+#live .d{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--faint);margin-right:5px;vertical-align:1px}
+#live[aria-pressed=true] .d{background:var(--live)}
+#conn{font-size:12px;color:var(--stall)}
+#summary{font-size:12px;color:var(--muted)}
+@media(max-width:700px){.play{flex-basis:100%;min-width:0}#clock{min-width:0}}
+
+/* layout */
+#body{flex:1;display:grid;min-height:0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+#band{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1fr);border-bottom:1px solid var(--line);height:250px}
+#band>section{padding:10px 14px;overflow:auto;border-right:1px solid var(--line);min-width:0}#band>section:last-child{border-right:0}
+body:not(.v-board) #band{display:none}body:not(.v-board) #body{grid-template-rows:minmax(0,1fr)}
+#view{overflow:auto;min-height:0;position:relative}
+@media(max-width:900px){#band{grid-template-columns:minmax(0,1fr);height:auto}#band>section{border-right:0;border-bottom:1px solid var(--line);max-height:240px}#mini{height:200px}}
+h2{font:600 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;display:flex;gap:8px;align-items:baseline}
+h2 .num{font-weight:500;color:var(--fg)}h2 .sp{flex:1}
+
+/* needs-you bay */
+.notice{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.notice:last-of-type{border-bottom:0}
+.notice .k{grid-row:span 2;align-self:start;margin-top:2px}
+.notice .w{font-weight:600}.notice .age{font-size:12px;color:var(--muted)}
+.notice .x{grid-column:2/4;font-size:12px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.notice .links{grid-column:2/4;font-size:12px;display:flex;gap:12px}
+.kind{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.k-merge,.k-waiting{color:var(--hand)}.k-escalation,.k-stall{color:var(--stall)}
+.calm{color:var(--muted);font-size:13px;padding:6px 0}
+.hbl{font-size:12px;display:grid;grid-template-columns:44px 72px minmax(0,1fr);gap:8px;padding:3px 0;color:var(--muted);cursor:pointer}
+.hbl b{color:var(--fg);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hbl span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* goal */
+.goal-subj{font-weight:600;font-size:15px;margin-bottom:8px}
+.goal dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 10px;margin:0;font-size:13px}
+.goal dt{font:500 11px var(--mono);text-transform:uppercase;color:var(--muted);padding-top:2px}.goal dd{margin:0}
+.task{font-size:13px;margin:2px 0;color:var(--muted)}.task.done{text-decoration:line-through;color:var(--faint)}
+
+/* board: strip bays */
+.kb{display:grid;grid-template-columns:250px repeat(6,minmax(118px,1fr));min-width:960px}
+.kb .h{position:sticky;top:0;z-index:2;background:var(--bg);font:600 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:9px 8px 7px;border-bottom:1px solid var(--line)}
+.row{display:contents}
+.lanecell{display:grid;grid-template-columns:30px minmax(0,1fr);gap:0 10px;align-items:center;padding:8px 10px 8px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.row.sel .lanecell{background:var(--surface);box-shadow:inset 3px 0 0 var(--fg)}
+.blk{width:30px;height:30px;border-radius:4px;display:grid;place-items:center;font:600 15px var(--sans);color:var(--bg);background:var(--done)}
+.st-live{background:var(--live)}.st-quiet{background:var(--quiet)}.st-stall{background:var(--stall)}.st-hand{background:var(--hand)}.st-done{background:var(--done)}
+.row.attn .blk{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--hand)}.row.attn-red .blk{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--stall)}
+.row.cord .blk{animation:cord 1s steps(2,jump-none) infinite}@keyframes cord{50%{opacity:.35}}
+.ln{font-weight:600;display:flex;gap:6px;align-items:baseline;white-space:nowrap}
+.mdl{font:500 10px var(--mono);border:1px solid var(--faint);color:var(--muted);border-radius:3px;padding:0 3px}
+.meta{font-size:12px;color:var(--muted)}
+.hb-svg{display:block;width:100%;height:20px;margin:2px 0}
+.cell{border-bottom:1px solid var(--line);border-left:1px solid var(--line);padding:7px;min-height:72px;display:flex;flex-direction:column;gap:5px;background:var(--bg)}
+.cell.on{background:var(--surface)}
+.strip{display:block;background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:5px 7px;box-shadow:0 1px 2px rgb(0 0 0/.06);cursor:zoom-in}
+.strip:hover{border-color:var(--faint)}
+.strip .top{display:flex;gap:6px;align-items:baseline}.strip .id{font-weight:500}.strip .age{font-size:12px;color:var(--muted);margin-left:auto}
+.strip .act{font:12px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.strip .ft{display:flex;gap:6px;align-items:center;margin-top:4px;min-height:14px}
+.pip{width:7px;height:7px;border-radius:50%;background:var(--done)}.pip.live{background:var(--live)}.pip.quiet{background:var(--quiet)}.pip.stall{background:var(--stall)}.pip.hand{background:var(--hand)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font:12px var(--mono);padding:1px 6px;border-radius:3px;border:1px dashed var(--faint);color:var(--muted);text-decoration:none}
+.chip.m{border:1px solid var(--fg);background:var(--fg);color:var(--bg)}
+.donecell{grid-column:span 4;border-bottom:1px solid var(--line);border-left:1px solid var(--line);display:flex;align-items:center;padding:0 12px;color:var(--faint);font-size:13px}
+.orch{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding:7px 16px;border-bottom:1px solid var(--line);font-size:13px}
+.orch .act{font:12px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60ch}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);padding:10px 16px 16px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* timeline */
+.crumb{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;padding:8px 16px;border-bottom:1px solid var(--line)}
+.trow{display:grid;grid-template-columns:250px minmax(0,1fr);align-items:center;min-height:28px;border-bottom:1px solid var(--line);padding:0 16px}
+.trow[data-lane]{cursor:zoom-in}
+.trow .lab{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:10px;font-size:13px}.trow.kid .lab{padding-left:16px;color:var(--muted)}
+.trow .sub{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.sq{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:7px;vertical-align:0}
+.track{position:relative;height:24px}
+.bar{position:absolute;top:10px;height:4px;border-radius:2px;background:var(--line)}
+.tick{position:absolute;top:5px;width:1.5px;height:14px;background:var(--faint)}.tick.hb{background:var(--hand);width:2px}
+.gap{position:absolute;top:11px;height:2px;background:repeating-linear-gradient(90deg,var(--stall) 0 4px,transparent 4px 7px)}
+.seg{position:absolute;top:18px;height:5px}.imark{position:absolute;top:-1px;font:10px var(--mono);color:var(--muted);border-left:1px solid var(--faint);padding-left:3px;height:24px;white-space:nowrap}
+.dia{position:absolute;top:6px;width:9px;height:9px;transform:translateX(-4.5px) rotate(45deg);background:var(--fg)}
+.msg{position:absolute;top:7px;width:8px;height:8px;border-radius:50%;transform:translateX(-4px);border:1.5px solid var(--fg);background:var(--bg)}
+.cursor{position:absolute;top:0;bottom:0;width:1.5px;background:var(--fg)}
+.axis .track span{position:absolute;top:5px;transform:translateX(-50%);font:11px var(--mono);color:var(--muted);white-space:nowrap}
+.axis .track i{position:absolute;bottom:0;width:1px;height:5px;background:var(--faint)}
+
+/* graph */
+svg.graph{width:100%;height:100%;display:block}
+svg.graph text{font:11px var(--sans);fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;pointer-events:none}
+svg.graph text.in{fill:var(--bg);stroke:none;font-weight:600;font-size:13px}svg.graph text.role{fill:var(--muted);font-size:10px}
+svg.graph line.vis{pointer-events:none}svg.graph line.hit{stroke:transparent;stroke-width:12px;cursor:help}
+svg.graph g.e:hover line.vis{stroke:var(--fg)!important;stroke-opacity:1!important}
+.glegend{position:absolute;left:16px;top:10px;font-size:12px;color:var(--muted);line-height:1.6;max-width:640px}
+#mini{padding:0!important;position:relative}#mini h2{position:absolute;left:14px;top:10px;z-index:1}
+
+/* tooltip + help */
+#tip{position:fixed;pointer-events:none;z-index:20;max-width:400px;background:var(--raised);border:1px solid var(--line);border-radius:6px;box-shadow:0 2px 6px rgb(0 0 0/.12);padding:8px 10px;font-size:12px;display:none}
+#tip b{display:block;margin-bottom:3px;font-size:13px}#tip .k{color:var(--muted);display:inline-block;min-width:70px}
+#help{position:fixed;right:16px;top:56px;z-index:21;background:var(--raised);border:1px solid var(--line);border-radius:6px;box-shadow:0 2px 6px rgb(0 0 0/.12);padding:12px 16px;display:none;font-size:13px}
+#help.open{display:block}#help dl{display:grid;grid-template-columns:auto auto;gap:4px 14px;margin:0}#help dt{font:12px var(--mono);text-align:right}#help dd{margin:0;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body class="v-board">
+<header>
+  <h1>Swarm console</h1>
+  <select id="session" aria-label="Session"></select>
+  <div class="tabs" role="group" aria-label="View"><button data-v="board">Board<kbd>1</kbd></button><button data-v="graph">Graph<kbd>2</kbd></button><button data-v="timeline">Timeline<kbd>3</kbd></button></div>
+  <div class="play">
+    <button id="play" aria-label="Play or pause replay"></button>
+    <select id="speed" aria-label="Replay speed"><option value="1">1×</option><option value="60">60×</option><option value="300">300×</option><option value="600">600×</option><option value="1800">1800×</option></select>
+    <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Time">
+    <span id="clock" class="mono"></span>
+  </div>
+  <button id="live" aria-pressed="false" title="Follow the live session (L)"><span class="d"></span>Live</button>
+  <span id="conn" role="status"></span>
+  <span id="summary"></span>
+  <button id="helpbtn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+</header>
+<div id="body">
+  <div id="band"><section id="bay" aria-label="Needs you"></section><section id="goal" class="goal" aria-label="Goal"></section><section id="mini" aria-label="Swarm graph"></section></div>
+  <main id="view"></main>
+</div>
+<div id="tip" role="tooltip"></div>
+<div id="help" role="dialog" aria-label="Keyboard shortcuts"><h2>Keys</h2><dl>
+  <dt>1 2 3</dt><dd>Board, graph, timeline</dd><dt>j / k</dt><dd>Next / previous lane</dd><dt>Enter</dt><dd>Zoom into the selected lane</dd>
+  <dt>Esc</dt><dd>Back out of a zoom</dd><dt>n</dt><dd>Jump to the next notice</dd><dt>g</dt><dd>Open the lane's current issue on GitHub</dd>
+  <dt>p</dt><dd>Open its pull request</dd><dt>Space</dt><dd>Play / pause replay</dd><dt>, .</dt><dd>Step 1 min back / forward (Shift: 10 min)</dd>
+  <dt>l</dt><dd>Follow live</dd><dt>?</dt><dd>This list</dd></dl></div>
+<script>
+// ---------- constants ----------
+const VIEWS=['board','graph','timeline'];
+const STAGES=[['queued','Queued'],['setup','Setup'],['build','Build'],['review','Review'],['pr','PR / CI'],['merged','Merged']];
+const STAGE_OF={build:'build',gates:'build',look:'review',review:'review',pr:'pr'}; // server stage → board stage; hand-backs keep the stage
+const SHADE={setup:12,build:34,review:56,pr:80}; // % of ink in the stage strip; position and shade, not hue, carry stage
+const QUIET=2*60e3, STALL=10*60e3, HB_WINDOW=60*60e3, HB_BINS=30;
+const ICON={gh:'<svg class="i" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>',
+  pr:'<svg class="i" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></svg>',
+  zoom:'<svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>',
+  play:'<svg class="i" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>',pause:'<svg class="i" viewBox="0 0 24 24"><path d="M7 4v16M17 4v16"/></svg>'};
+
+// ---------- state ----------
+const qs=new URLSearchParams(location.search);
+let view=VIEWS.includes(qs.get('view'))?qs.get('view'):'board', focusLane=qs.get('lane'), selLane=focusLane;
+let S=null, T=0, playing=false, following=false, speed=Number(qs.get('speed')||600), lastOk=0, connErr=false;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plain=s=>String(s??'').replace(/\*\*|__|`|^#+\s*/gm,'');
+const ago=ms=>ms<60e3?Math.max(0,Math.round(ms/1e3))+'s':ms<3600e3?Math.round(ms/60e3)+'m':(ms/3600e3).toFixed(1)+'h';
+const hhmm=t=>new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+const short=d=>d.replace(/^Lane\s+/i,'').replace(/:.*/,'').trim();
+const firstLine=s=>plain(String(s||'').split('\n').find(l=>l.trim())||'');
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function setParam(k,v){if(v==null)qs.delete(k);else qs.set(k,v);history.replaceState(null,'','?'+qs)}
+function role(d){return /spec/i.test(d)?'spec':/standard/i.test(d)?'standards':/design|critique/i.test(d)?'design':/delta|re-?review/i.test(d)?'re-review':/detector|impeccable/i.test(d)?'detector':/baseline|gate/i.test(d)?'gates':/map|explore|sweep|dump/i.test(d)?'scout':/cleanup/i.test(d)?'cleanup':/review/i.test(d)?'review':d.split(/\s+/)[0].toLowerCase()}
+const mdl=m=>({opus:'O',sonnet:'S',haiku:'H'}[m]||'?');
+const ghIssue=n=>S.repo&&typeof n==='number'?'https://github.com/'+S.repo+'/issues/'+n:null;
+const ghPr=n=>{if(!n)return null;const p=S.prs.find(p=>p.number==n);return p?.url||(S.repo?'https://github.com/'+S.repo+'/pull/'+n:null)};
+
+// ---------- derived state at time T ----------
+function upto(arr,t){let lo=0,hi=arr.length;while(lo<hi){const m=(lo+hi)>>1;if(arr[m].t<=t)lo=m+1;else hi=m}return lo}
+function at(a,t=T){
+  if(!a||a.start==null||a.start>t)return null;
+  const n=upto(a.tools,t), last=a.tools[n-1], lastT=Math.max(last?.t??0,a.start);
+  let st;
+  if(last?.name==='SubagentHandback')st='hand';
+  else if(a.endT&&a.endT<=t&&(!last||a.endT>=last.t))st='done';
+  else{const idle=t-lastT;st=idle<QUIET?'live':idle<STALL?'quiet':'stall'}
+  return {n,last,lastT,st};
+}
+let prIssue={},byId={};
+function mergeTool(issue,t=T){for(const tl of S.main?.tools||[]){if(!tl.merge||tl.t>t)continue;if(tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]===issue))return tl}return null}
+const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n]===issue);return n?Number(n):null};
+const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
+const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).sort((a,b)=>a.start-b.start);
+const msgsTo=(a,t=T)=>(S.main?.tools||[]).filter(tl=>tl.name==='SendMessage'&&tl.t<=t&&(tl.to===a.name||tl.to===a.id));
+const handbacks=(a,t=T)=>a.tools.filter(tl=>tl.name==='SubagentHandback'&&tl.t<=t);
+const label=a=>a===S.main?'orchestrator':a.isLane?'Lane '+short(a.desc):role(a.desc)+(a.parent&&byId[a.parent]?.isLane?' · '+short(byId[a.parent].desc):'');
+function laneAt(lane){
+  const a=at(lane); if(!a)return null;
+  const tools=lane.tools.slice(0,a.n), queue=lane.queue;
+  const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t]).filter(([,m])=>m!=null));
+  const allMerged=queue.length>0&&merged.size===queue.length;
+  let cur=null;
+  for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>queue.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
+  if(cur==null&&!allMerged&&a.st!=='done')cur=queue.find(i=>!merged.has(i))??(queue.length?null:'—');
+  const done=allMerged||(a.st==='done'&&cur==null);
+  let stage='setup',stageT=lane.start;
+  if(cur!=null&&!done){
+    let from=tools.findIndex(x=>x.refs.includes(cur)); if(from<0)from=0; stageT=tools[from]?.t??lane.start;
+    for(let i=from;i<tools.length;i++){const s=STAGE_OF[tools[i].stage];if(s&&s!==stage){stage=s;stageT=tools[i].t}}
+    if(stage!=='review'&&stage!=='pr'&&kidsOf(lane).some(k=>{const x=at(k);return x&&(x.st==='live'||x.st==='quiet')}))stage='review';
+  }
+  return {a,cur,stage,stageT,merged,queue,done};
+}
+// Needs-you notices sit across stages. A notice clears when the orchestrator resumes the lane, merges, or the lane moves again.
+const RX_ESC=/escalat|\bblocked\b|\bheld\b|needs? (an? )?(owner|human|decision|re-?spec)|re-?spec|cannot proceed|can't proceed|stop(ped|ping)? rather/i;
+const RX_MERGE=/ready to merge|ready for merge|gh pr merge|merge command/i;
+function noticesAt(){
+  const out=[];
+  for(const lane of lanesSorted()){
+    const x=laneAt(lane); if(!x||x.done)continue;
+    const hb=handbacks(lane).at(-1);
+    if(x.a.st==='hand'&&hb&&!msgsTo(lane).some(m=>m.t>hb.t)){
+      const txt=plain(hb.text||hb.brief), mergedSince=(S.main?.tools||[]).some(tl=>tl.merge&&tl.t>hb.t&&tl.t<=T);
+      const pr=Number((txt.match(/(?:PR\s*#?|pull\/)(\d+)/i)||[])[1])||prOf(x.cur);
+      if(RX_ESC.test(txt))out.push({lane,x,kind:'escalation',what:'Escalation',since:hb.t,text:txt,pr});
+      else if(RX_MERGE.test(txt)&&!mergedSince)out.push({lane,x,kind:'merge',what:'Ready to merge'+(pr?' PR '+pr:''),since:hb.t,text:txt,pr});
+      else if(T-hb.t>60e3)out.push({lane,x,kind:'waiting',what:'Waiting on the orchestrator',since:hb.t,text:txt,pr});
+    }else if(x.a.st==='stall')out.push({lane,x,kind:'stall',what:'Silent for '+ago(T-x.a.lastT),since:x.a.lastT,text:x.a.last?(x.a.last.name+': '+x.a.last.brief):'',pr:prOf(x.cur)});
+  }
+  const rank={escalation:0,stall:1,merge:2,waiting:3};
+  return out.sort((a,b)=>rank[a.kind]-rank[b.kind]||a.since-b.since);
+}
+function tasksAt(){const m=new Map();let next=1;
+  for(const tl of S.main?.tools||[]){if(!tl.task||tl.t>T)continue;
+    if(tl.name==='TaskCreate')m.set(String(next++),{subject:tl.task.subject,description:tl.task.description,status:'pending'});
+    else{const x=m.get(String(tl.task.id));if(x){if(tl.task.description)x.description=tl.task.description;if(tl.task.subject)x.subject=tl.task.subject;if(tl.task.status)x.status=tl.task.status}}}
+  return [...m.values()].filter(x=>x.status!=='deleted');
+}
+// tool calls per 2-minute bin over the last hour: the agent's heartbeat
+function heartbeat(a,st){
+  const out=new Array(HB_BINS).fill(0),kids=new Array(HB_BINS).fill(0),from=T-HB_WINDOW,w=HB_WINDOW/HB_BINS;
+  const add=(ag,arr)=>{for(let i=upto(ag.tools,from);i<ag.tools.length&&ag.tools[i].t<=T;i++)arr[Math.min(HB_BINS-1,Math.floor((ag.tools[i].t-from)/w))]++};
+  add(a,out);for(const k of kidsOf(a))add(k,kids);
+  const max=Math.max(4,...out.map((v,i)=>v+kids[i])),W=200,H=20,bw=W/HB_BINS,y=v=>H-1-(v/max)*(H-3);
+  let lane='M0 '+y(out[0]),kid='M0 '+H;
+  out.forEach((v,i)=>{lane+=' H'+(i*bw)+' V'+y(v)+' H'+((i+1)*bw);kid+=' V'+y(v+kids[i])+' H'+((i+1)*bw)});
+  kid+=' V'+H+' Z';
+  return '<svg class="hb-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="tool calls per 2 minutes over the last hour"><path d="'+kid+'" fill="var(--line)"/><path d="'+lane+'" fill="none" stroke="var(--fg)" stroke-width="1.25" vector-effect="non-scaling-stroke"/><circle cx="'+(W-2)+'" cy="'+y(out.at(-1))+'" r="2.5" fill="var(--'+st+')"/></svg>';
+}
+
+// ---------- loading ----------
+async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status+' '+r.statusText);return r.json()}
+async function loadSessions(){
+  const list=await getJSON('/sessions');
+  $('session').innerHTML=list.map(s=>'<option value="'+s.id+'">'+esc(new Date(s.mtime).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(s.lanes.length?s.lanes.length+' lanes':s.agents+' agents')+' · '+s.project.slice(-26))+'</option>').join('');
+  if(qs.get('session'))$('session').value=qs.get('session');
+}
+async function loadState(keepT){
+  try{S=await getJSON('/state?session='+encodeURIComponent($('session').value));lastOk=Date.now();connErr=false}
+  catch(e){connErr=true;return}
+  byId={};for(const a of S.agents){a.tools.sort((x,y)=>x.t-y.t);byId[a.id]=a}
+  const spawns={};for(const a of [S.main,...S.agents])for(const tl of a?.tools||[])if(tl.useId)spawns[tl.useId]=tl;
+  for(const a of S.agents){a.spawn=spawns[a.useId];a.name=a.spawn?.agentName;
+    // a lane whose description names no issues: take its queue from the branches it created
+    if(a.isLane&&!a.queue.length)a.queue=[...new Set(a.tools.filter(t=>/worktree add/.test(t.brief)).flatMap(t=>(t.brief.match(/-b \S*?-(\d+)\b/)||[]).slice(1).map(Number)))]}
+  prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/);if(m)prIssue[p.number]=Number(m[1])}
+  const live=Date.now()-S.last<15*60e3;
+  $('live').disabled=!live;
+  if(!keepT){graphs.forEach(g=>g.reset());
+    const pinned=Number(qs.get('t'));
+    if(pinned&&pinned>=S.start&&pinned<=S.last+60e3){T=pinned;playing=false;following=false}
+    else if(live){following=true;playing=false}else{following=false;T=S.start;playing=true}}
+  sync();
+}
+const span=()=>Math.max((following?Date.now():S.last)-S.start,1);
+function sync(){
+  document.body.className='v-'+view;
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===view));
+  $('play').innerHTML=playing?ICON.pause:ICON.play;$('live').setAttribute('aria-pressed',following);
+  $('speed').value=String(speed);
+}
+
+// ---------- tooltip ----------
+const tip=$('tip');
+function showTip(e,html){tip.innerHTML=html;tip.style.display='block';const w=tip.offsetWidth,h=tip.offsetHeight;tip.style.left=Math.min(e.clientX+14,innerWidth-w-8)+'px';tip.style.top=Math.min(e.clientY+14,innerHeight-h-8)+'px'}
+const hideTip=()=>{tip.style.display='none'};
+const kv=(k,v)=>'<div><span class="k">'+k+'</span> '+v+'</div>';
+function agentTip(a){const s=at(a);
+  return '<b>'+esc(a===S.main?'orchestrator':a.desc)+'</b>'+(a.model?kv('model',a.model):'')+
+    kv('status',s.st==='hand'?'handed back '+ago(T-s.lastT)+' ago':s.st==='done'?'finished':s.st+' · idle '+ago(T-s.lastT))+kv('tool calls',s.n)+
+    (a.outTokens>1000?kv('output',Math.round(a.outTokens/1e3)+'k tokens, whole run'):'')+kv('last',esc((s.last?.name||'')+': '+(s.last?.brief||'').slice(0,120)))}
+function issueTip(d){const lane=byId[d.lane],x=laneAt(lane),pr=prOf(d.issue),mt=x?.merged.get(d.issue);
+  return '<b>#'+d.issue+'</b>'+kv('lane',esc(short(lane.desc)))+(d.cur?kv('stage',x.stage+' for '+ago(T-x.stageT)):'')+(pr?kv('PR','#'+pr):'')+kv('status',mt?'merged '+hhmm(mt):d.cur?'in flight':'queued')}
+function edgeTip(l){
+  if(l.kind==='issue')return issueTip(l.source);
+  const a=byId[l.source.id],s=at(a),parent=l.target.id==='main'?S.main:byId[l.target.id];
+  const hb=handbacks(a),ms=msgsTo(a),dur=(s.st==='hand'||s.st==='done'?s.lastT:T)-a.start;
+  let h='<b>'+esc(label(parent))+' → '+esc(label(a))+'</b>'+kv('spawned',hhmm(a.start)+(a.spawn?.promptLen?' · brief '+(a.spawn.promptLen/1e3).toFixed(1)+'k chars':''))+kv('ran',ago(dur)+' · '+s.n+' tool calls');
+  if(ms.length)h+=kv('resumes',ms.length+' · last: '+esc(ms.at(-1).summary||''));
+  if(hb.length)h+=kv('hand-backs',hb.length)+'<div style="margin-top:4px">'+esc(firstLine(hb.at(-1).text).slice(0,240))+'</div>';
+  if(a.isLane){const x=laneAt(a);if(x?.merged.size)h+=kv('merged',[...x.merged].map(([i,t])=>'#'+i+(prOf(i)?' (PR '+prOf(i)+')':'')+' '+hhmm(t)).join(', '))}
+  return h;
+}
+
+// ---------- graph (full + mini) ----------
+function makeGraph(el,compact){
+  let G=null;
+  function init(){
+    el.querySelector('svg.graph')?.remove();el.querySelector('.glegend')?.remove();
+    const svg=d3.select(el).append('svg').attr('class','graph').attr('role','img').attr('aria-label','Swarm graph: orchestrator, lanes, reviewers and issues'),root=svg.append('g');
+    if(!compact){svg.call(d3.zoom().scaleExtent([.3,3]).on('zoom',e=>root.attr('transform',e.transform)));
+      el.insertAdjacentHTML('beforeend','<div class="glegend">Ring colour is status; a dashed outer ring is a notice. Lettered nodes are lanes, small nodes are reviewers, squares are issues (filled = merged). Edge width counts messages; dashed means still running. A ripple is a tool call; a dot on an edge is a hand-back, resume or merge. Hover anything; double-click a lane to zoom.</div>')}
+    G={svg,root,lk:root.append('g'),fx:root.append('g'),nd:root.append('g'),nodes:new Map(),lm:new Map(),sig:'',
+      sim:d3.forceSimulation().force('charge',d3.forceManyBody().strength(compact?-45:-170)).force('link',d3.forceLink().id(d=>d.id).distance(l=>(l.kind==='issue'?30:l.kind==='kid'?44:105)*(compact?.55:1)).strength(.6)).force('collide',d3.forceCollide(d=>d.r+(compact?2:5))).alphaDecay(.02).on('tick',tick)};
+    const size=()=>{const r=el.getBoundingClientRect();G.w=r.width;G.h=r.height;G.sim.force('center',d3.forceCenter(r.width/2,r.height/2+(compact?10:0))).force('x',d3.forceX(r.width/2).strength(.04)).force('y',d3.forceY(r.height/2).strength(compact?.08:.04));G.sim.alpha(.3).restart()};
+    new ResizeObserver(size).observe(el);size();
+  }
+  function node(id){let n=G.nodes.get(id);if(!n){n={id,x:(G.w||400)/2+(Math.random()-.5)*60,y:(G.h||300)/2+(Math.random()-.5)*60};G.nodes.set(id,n)}return n}
+  function render(notices){
+    if(!G||!el.contains(G.svg.node()))init();
+    const W=Math.max(60e3,speed*1.5e3),nodes=[],links=[],fx=[],k=compact?.6:1,flagged=new Map(notices.map(n=>[n.lane.id,n.kind]));
+    if(S.main){const m=at(S.main);if(m)nodes.push(Object.assign(node('main'),{kind:'main',r:15*k,st:T-m.lastT<QUIET?'live':'quiet',ripple:T-m.lastT}))}
+    for(const a of S.agents){const s=at(a);if(!s)continue;
+      const kind=a.isLane?'lane':a.depth===1?'scout':'kid';
+      nodes.push(Object.assign(node(a.id),{kind,r:((a.isLane?10:4)+Math.sqrt(s.n)*1.1)*k,st:s.st,ripple:T-(s.last?.t??-1e15),letter:a.isLane?short(a.desc).slice(0,2):'',role:role(a.desc),flag:flagged.get(a.id)}));
+      const p=a.parent&&at(byId[a.parent])?a.parent:'main';
+      if(p!=='main'||S.main)links.push({source:a.id,target:p,kind:a.parent?'kid':'lane',w:1+Math.min(5,msgsTo(a).length+handbacks(a).length)*.6,running:s.st!=='hand'&&s.st!=='done'});
+      if(s.last?.name==='SubagentHandback'&&T-s.last.t<W)fx.push({from:a.id,to:p,k:(T-s.last.t)/W,c:'var(--hand)'});
+      for(const tl of msgsTo(a))if(T-tl.t<W)fx.push({from:'main',to:a.id,k:(T-tl.t)/W,c:'var(--fg)'});
+      if(a.isLane){const x=laneAt(a);for(const i of a.queue){const id='i'+a.id+i,mt=x.merged.get(i);
+        nodes.push(Object.assign(node(id),{kind:'issue',issue:i,lane:a.id,r:6*k,merged:mt!=null,cur:i===x.cur&&!x.done,stage:i===x.cur?x.stage:null}));links.push({source:id,target:a.id,kind:'issue',w:1,running:false});
+        if(mt!=null&&T-mt<W)fx.push({from:'main',to:id,k:(T-mt)/W,c:'var(--fg)'})}}
+    }
+    const stable=links.map(l=>{const key=l.source+'>'+l.target;let o=G.lm.get(key);if(!o){o={...l};G.lm.set(key,o)}else Object.assign(o,{kind:l.kind,w:l.w,running:l.running});return o});
+    const sig=nodes.map(n=>n.id).join(',');
+    if(sig!==G.sig){G.sim.nodes(nodes);G.sim.force('link').links(stable);G.sim.alpha(.5).restart();G.sig=sig}
+    G.fxs=fx;
+    const es=G.lk.selectAll('g.e').data(stable,l=>(l.source.id||l.source)+'>'+(l.target.id||l.target)).join(e=>{const g=e.append('g').attr('class','e');g.append('line').attr('class','hit');g.append('line').attr('class','vis');return g});
+    es.select('line.vis').attr('stroke','var(--faint)').attr('stroke-opacity',.6).attr('stroke-width',l=>l.w*(compact?.7:1.3)).attr('stroke-dasharray',l=>l.running?'4 3':null);
+    if(!compact)es.select('line.hit').on('mousemove',(e,l)=>showTip(e,edgeTip(l))).on('mouseleave',hideTip);
+    const sel=G.nd.selectAll('g.n').data(nodes,d=>d.id).join(e=>{const g=e.append('g').attr('class','n');g.append('circle').attr('class','flag');g.append('circle').attr('class','rip');g.append('circle').attr('class','body');g.append('rect').attr('class','sq');g.append('text').attr('class','in');g.append('text').attr('class','lab');return g});
+    sel.select('circle.body').attr('display',d=>d.kind==='issue'?'none':null).attr('r',d=>d.r)
+      .attr('fill',d=>d.kind==='main'||d.kind==='lane'?'var(--fg)':d.kind==='scout'?'var(--surface)':'var(--faint)')
+      .attr('stroke',d=>'var(--'+d.st+')').attr('stroke-width',compact?2:3).attr('opacity',d=>d.st==='done'||d.st==='hand'?(d.kind==='lane'?.7:.3):1);
+    sel.select('circle.flag').attr('r',d=>d.flag?d.r+(compact?5:8):0).attr('fill','none').attr('stroke-dasharray','3 3').attr('stroke-width',1.5)
+      .attr('stroke',d=>d.flag==='escalation'||d.flag==='stall'?'var(--stall)':'var(--hand)');
+    sel.select('rect.sq').attr('display',d=>d.kind==='issue'?null:'none').each(function(d){d3.select(this).attr('x',-d.r).attr('y',-d.r).attr('width',d.r*2).attr('height',d.r*2)}).attr('rx',1.5)
+      .attr('fill',d=>d.merged?'var(--fg)':'var(--bg)').attr('stroke',d=>d.cur?'var(--fg)':'var(--faint)').attr('stroke-width',d=>d.cur?(compact?1.5:2.5):1);
+    sel.select('circle.rip').attr('r',d=>d.ripple<W?d.r+3+d.ripple/W*(compact?10:18):0).attr('fill','none').attr('stroke','var(--live)').attr('opacity',d=>d.ripple<W?1-d.ripple/W:0);
+    sel.select('text.in').attr('dy',4.5).attr('text-anchor','middle').text(d=>d.kind==='lane'?d.letter:'');
+    sel.select('text.lab').attr('class',d=>'lab'+(d.kind==='kid'?' role':'')).attr('dy',d=>d.r+(compact?10:14)).attr('text-anchor','middle')
+      .text(d=>compact?(d.kind==='issue'&&d.cur?'#'+d.issue:d.kind==='main'?'orchestrator':''):d.kind==='main'?'orchestrator':d.kind==='lane'?'':d.kind==='issue'?('#'+d.issue+(d.cur?' · '+d.stage:'')):d.kind==='kid'?(d.st==='hand'||d.st==='done'?'':d.role):d.role);
+    if(compact)sel.on('click',()=>setView('graph')).style('cursor','pointer');
+    else sel.on('mousemove',(e,d)=>showTip(e,d.kind==='issue'?issueTip(d):agentTip(d.id==='main'?S.main:byId[d.id]))).on('mouseleave',hideTip)
+      .on('dblclick',(e,d)=>{if(d.kind==='lane'){setView('board');zoom(d.id)}})
+      .call(d3.drag().on('start',(e,d)=>{G.sim.alphaTarget(.2).restart();d.fx=d.x;d.fy=d.y}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y}).on('end',(e,d)=>{G.sim.alphaTarget(0);d.fx=null;d.fy=null}));
+    tick();
+  }
+  function tick(){if(!G)return;
+    G.lk.selectAll('line').attr('x1',l=>l.source.x).attr('y1',l=>l.source.y).attr('x2',l=>l.target.x).attr('y2',l=>l.target.y);
+    G.nd.selectAll('g.n').attr('transform',d=>'translate('+d.x+','+d.y+')');
+    G.fx.selectAll('circle').data(G.fxs||[]).join('circle').attr('r',compact?3:4).attr('fill',f=>f.c).each(function(f){const a=G.nodes.get(f.from),b=G.nodes.get(f.to);if(!a||!b)return;d3.select(this).attr('cx',a.x+(b.x-a.x)*f.k).attr('cy',a.y+(b.y-a.y)*f.k)});
+  }
+  return {render,reset(){if(G){G.sim.stop();G.svg.remove();el.querySelector('.glegend')?.remove();G=null}}};
+}
+const fullGraph=makeGraph($('view'),false), miniGraph=makeGraph($('mini'),true), graphs=[fullGraph,miniGraph];
+
+// ---------- timeline (whole swarm, or zoomed to one lane) ----------
+function axis(t0,t1){
+  const steps=[5,10,15,30,60,120,240].map(m=>m*60e3),step=steps.find(s=>(t1-t0)/s<=10)||480*60e3;
+  let h='';for(let t=Math.ceil(t0/step)*step;t<=t1;t+=step){const p=((t-t0)/(t1-t0)*100).toFixed(2)+'%';h+='<span style="left:'+p+'">'+hhmm(t)+'</span><i style="left:'+p+'"></i>'}
+  return '<div class="trow axis"><div class="lab"></div><div class="track">'+h+'</div></div>';
+}
+function renderTimeline(laneId){
+  const lane=laneId&&byId[laneId];
+  const t0=lane?lane.start:S.start,t1=lane?Math.max(T,t0+60e3):(following?Date.now():S.last);
+  const x=t=>(Math.max(0,Math.min(1,(t-t0)/(t1-t0)))*100).toFixed(3)+'%';
+  const row=(a,lab,kid,sub,extra='')=>{const s=at(a);if(!s)return'';
+    let h='<div class="bar" style="left:'+x(a.start)+';width:calc('+x(s.lastT)+' - '+x(a.start)+')"></div>'+extra,prev=a.start;
+    for(const tl of a.tools.slice(0,s.n)){
+      if(tl.t-prev>STALL&&a!==S.main)h+='<div class="gap" style="left:'+x(prev)+';width:calc('+x(tl.t)+' - '+x(prev)+')"></div>';prev=tl.t;
+      h+=tl.merge?'<div class="dia" style="left:'+x(tl.t)+'" title="'+esc(tl.brief)+'"></div>':'<div class="tick'+(tl.name==='SubagentHandback'?' hb':'')+'" style="left:'+x(tl.t)+'" title="'+esc(tl.name+': '+tl.brief)+'"></div>'}
+    if(a!==S.main&&s.st==='stall')h+='<div class="gap" style="left:'+x(prev)+';width:calc('+x(T)+' - '+x(prev)+')"></div>';
+    return '<div class="trow'+(kid?' kid':'')+'"'+(a.isLane&&!lane?' data-lane="'+a.id+'" tabindex="0" role="button"':'')+'><div class="lab"><span class="sq st-'+s.st+'"></span>'+lab+'<div class="sub">'+sub(s)+'</div></div><div class="track">'+h+'<div class="cursor" style="left:'+x(T)+'"></div></div></div>'};
+  let g='';
+  if(lane){
+    const touch=(S.main?.tools||[]).filter(tl=>tl.t<=T&&(tl===lane.spawn||(tl.name==='SendMessage'&&(tl.to===lane.name||tl.to===lane.id))||(tl.merge&&lane.queue.some(i=>mergeTool(i)===tl))));
+    const x0=laneAt(lane),cur=x0?.cur,pr=prOf(cur);
+    g+='<div class="crumb"><button id="back">← Board</button><b>Lane '+esc(short(lane.desc))+'</b><span class="mdl">'+mdl(lane.model)+'</span><span class="meta">'+esc(lane.desc)+'</span>'+
+      (ghIssue(cur)?'<a href="'+ghIssue(cur)+'" target="_blank" rel="noopener">'+ICON.gh+' #'+cur+'</a>':'')+(pr?'<a href="'+ghPr(pr)+'" target="_blank" rel="noopener">'+ICON.pr+' PR '+pr+'</a>':'')+'</div>';
+    g+=axis(t0,t1);
+    g+='<div class="trow"><div class="lab"><b>orchestrator</b><div class="sub">'+touch.length+' touches: spawn, resumes, merges</div></div><div class="track">'+touch.map(tl=>tl.merge?'<div class="dia" style="left:'+x(tl.t)+'" title="'+esc(tl.brief)+'"></div>':'<div class="msg" style="left:'+x(tl.t)+'" title="'+esc(tl.summary||tl.brief)+'"></div>').join('')+'<div class="cursor" style="left:'+x(T)+'"></div></div></div>';
+    const s=at(lane),tools=lane.tools.slice(0,s?.n||0);let segs='',stage='setup',from=lane.start,curI=null,lastMark=-1;
+    const seg=(a,b,st)=>'<div class="seg" title="'+st+'" style="left:'+x(a)+';width:calc('+x(b)+' - '+x(a)+');background:color-mix(in srgb,var(--fg) '+SHADE[st]+'%,var(--bg))"></div>';
+    for(const tl of tools){const r=tl.refs.find(i=>lane.queue.includes(i));
+      if(r!=null&&r!==curI){curI=r;const p=(tl.t-t0)/(t1-t0);if(p-lastMark>.04){segs+='<div class="imark" style="left:'+x(tl.t)+'">#'+r+'</div>';lastMark=p}}
+      const st=STAGE_OF[tl.stage];if(st&&st!==stage){segs+=seg(from,tl.t,stage);stage=st;from=tl.t}}
+    if(s)segs+=seg(from,s.lastT,stage);
+    g+=row(lane,'<b>Lane '+esc(short(lane.desc))+'</b>',false,s=>s.st+' · '+s.n+' tool calls',segs);
+    for(const k of kidsOf(lane).sort((a,b)=>a.start-b.start))g+=row(k,esc(role(k.desc))+' <span class="mdl">'+mdl(k.model)+'</span>',true,s=>esc(k.desc)+' · '+s.n+' calls');
+    g+='<div class="legend">Stage strip under the lane, light to dark: '+Object.keys(SHADE).map(k=>'<span><i style="background:color-mix(in srgb,var(--fg) '+SHADE[k]+'%,var(--bg))"></i>'+k+'</span>').join('')+'<span>Circle: orchestrator message</span><span>Diamond: merge</span><span style="color:var(--hand)">Blue tick: hand-back</span><span style="color:var(--stall)">Red dashes: silent over 10 min</span></div>';
+  }else{
+    g+=axis(t0,t1);
+    if(S.main)g+=row(S.main,'<b>orchestrator</b>',false,s=>s.n+' tool calls');
+    const walk=(p,d)=>S.agents.filter(a=>a.parent===p).sort((a,b)=>a.start-b.start).forEach(a=>{g+=row(a,esc(a.desc)+' <span class="mdl">'+mdl(a.model)+'</span>',d>0,s=>s.st+' · '+s.n+' calls · '+esc(s.last?.brief?.slice(0,60)));walk(a.id,d+1)});
+    walk(null,0);
+  }
+  $('view').innerHTML='<div style="padding-bottom:24px">'+g+'</div>';
+  $('back')?.addEventListener('click',()=>zoom(null));
+  $('view').querySelectorAll('.trow[data-lane]').forEach(el=>{el.onclick=()=>{setView('board');zoom(el.dataset.lane)};el.onkeydown=e=>{if(e.key==='Enter')el.onclick()}});
+}
+
+// ---------- board ----------
+let lastKbSig='';
+function renderBoard(notices){
+  const lanes=lanesSorted().map(l=>[l,laneAt(l)]);
+  const flag=new Map(notices.map(n=>[n.lane.id,n]));
+  const m=S.main?at(S.main):null, merges=(S.main?.tools||[]).filter(t=>t.merge&&t.t<=T).length;
+  const scouts=S.agents.filter(a=>a.depth===1&&!a.isLane).map(a=>[a,at(a)]).filter(([,x])=>x&&(x.st==='live'||x.st==='quiet'));
+  let h='<div class="orch"><span><b>Orchestrator</b> <span class="meta">'+(m?(T-m.lastT<QUIET?'working':'idle '+ago(T-m.lastT)):'not started')+'</span></span><span class="act">'+(m?esc((m.last?.name||'')+': '+(m.last?.brief||'')):'')+'</span><span class="meta"><span class="num">'+merges+'</span> merges</span>'+
+    (scouts.length?'<span class="meta">scouts: '+scouts.map(([a])=>esc(a.desc.slice(0,32))).join(', ')+'</span>':'')+'</div>';
+  h+='<div class="kb" aria-label="Lanes by stage"><div class="h">Lane</div>'+STAGES.map(s=>'<div class="h">'+s[1]+'</div>').join('');
+  for(const [l,x] of lanes){
+    const n=flag.get(l.id),red=n&&(n.kind==='escalation'||n.kind==='stall');
+    const cls='row'+(selLane===l.id?' sel':'')+(n?(red?' attn-red':' attn')+(n.kind==='escalation'||n.kind==='merge'?' cord':''):'');
+    const st=x.done?'done':x.a.st;
+    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(x.queue.length||'?')+'</span> merged</div></div></div>';
+    const queued=x.queue.filter(i=>i!==x.cur&&!x.merged.has(i));
+    h+='<div class="cell"><div class="chips">'+queued.map(i=>chip(i,false)).join('')+'</div></div>';
+    if(x.done)h+='<div class="donecell">Queue done'+(x.a.st==='hand'?' · handed back '+ago(T-x.a.lastT)+' ago':'')+'</div>';
+    else for(const [key] of STAGES.slice(1,5)){
+      let c='';
+      if(key===x.stage&&x.cur!=null){
+        const kids=kidsOf(l).map(k=>at(k)).filter(Boolean);
+        c='<div class="strip" data-lane="'+l.id+'" style="view-transition-name:s'+l.id+'"><div class="top"><span class="id">'+(typeof x.cur==='number'?'#'+x.cur:'—')+'</span>'+(n?'<span class="kind k-'+n.kind+'">'+n.kind+'</span>':'')+'<span class="age" title="time in '+key+'">'+ago(T-x.stageT)+'</span></div>'+
+          '<div class="act">'+esc((x.a.last?.name||'')+': '+(x.a.last?.brief||''))+'</div>'+(kids.length?'<div class="ft" aria-label="reviewers">'+kids.map(k=>'<i class="pip '+k.st+'" title="reviewer '+k.st+'"></i>').join('')+'</div>':'')+'</div>';
+      }
+      h+='<div class="cell'+(key===x.stage?' on':'')+'">'+c+'</div>';
+    }
+    h+='<div class="cell"><div class="chips">'+[...x.merged].map(([i])=>chip(i,true)).join('')+'</div></div></div>';
+  }
+  h+='</div>'+(lanes.length?'':'<p class="calm" style="padding:16px">No lanes yet at this moment. Lanes are depth-1 agents whose description starts with "Lane".</p>')+
+    '<div class="legend"><span><i style="background:var(--live)"></i>working</span><span><i style="background:var(--quiet)"></i>quiet over 2 min</span><span><i style="background:var(--stall)"></i>silent over 10 min</span><span><i style="background:var(--hand)"></i>handed back</span><span><i style="background:var(--done)"></i>finished</span><span>Trace: tool calls per 2 min over the last hour, reviewers in grey</span><span>O / S: opus / sonnet</span><span>Press ? for keys</span></div>';
+  const sig=lanes.map(([l,x])=>l.id+x.cur+x.stage+x.merged.size+x.done).join('|');
+  const focused=document.activeElement?.dataset?.lane;
+  const apply=()=>{$('view').innerHTML=h;
+    $('view').querySelectorAll('.lanecell,.strip').forEach(el=>{el.onclick=e=>{if(e.target.closest('a'))return;zoom(el.dataset.lane)};el.onkeydown=e=>{if(e.key==='Enter'){e.stopPropagation();zoom(el.dataset.lane)}}});
+    if(focused)document.querySelector('.lanecell[data-lane="'+focused+'"]')?.focus({preventScroll:true})};
+  if(sig!==lastKbSig&&lastKbSig&&document.startViewTransition&&!reduced)document.startViewTransition(apply);else apply();
+  lastKbSig=sig;
+}
+function chip(i,merged){
+  const pr=merged?prOf(i):null,url=pr?ghPr(pr):ghIssue(i),t=merged?'merged '+hhmm(mergeTool(i)?.t)+(pr?' · PR '+pr:''):'queued';
+  return url?'<a class="chip'+(merged?' m':'')+'" href="'+url+'" target="_blank" rel="noopener" title="#'+i+' · '+t+'">#'+i+'</a>':'<span class="chip'+(merged?' m':'')+'" title="'+t+'">#'+i+'</span>';
+}
+
+// ---------- band: needs you, goal ----------
+let lastBaySig='';
+function renderBay(notices){
+  const hbs=[];for(const a of S.agents)for(const tl of handbacks(a))hbs.push({a,tl});hbs.sort((x,y)=>y.tl.t-x.tl.t);
+  let h='<h2>Needs you <span class="num">'+notices.length+'</span></h2>';
+  h+=notices.length?notices.map(n=>{const issue=n.x.cur,iu=ghIssue(issue),pu=n.pr?ghPr(n.pr):null;
+      return '<div class="notice" data-lane="'+n.lane.id+'" tabindex="0"><span class="kind k k-'+n.kind+'">'+n.kind+'</span><span class="w">Lane '+esc(short(n.lane.desc))+' · '+esc(n.what)+'</span><span class="age">'+ago(T-n.since)+'</span>'+
+        '<span class="x">'+esc(firstLine(n.text).slice(0,200))+'</span><span class="links">'+(iu?'<a href="'+iu+'" target="_blank" rel="noopener">'+ICON.gh+' #'+issue+'</a>':'')+(pu?'<a href="'+pu+'" target="_blank" rel="noopener">'+ICON.pr+' PR '+n.pr+'</a>':'')+'<a href="#" data-zoom="'+n.lane.id+'">'+ICON.zoom+' Zoom</a></span></div>'}).join('')
+    :'<div class="calm">Nothing is waiting on you. Every lane is working or finished.</div>';
+  h+='<h2 style="margin-top:14px">Recent hand-backs <span class="num">'+hbs.length+'</span></h2>'+hbs.slice(0,5).map(({a,tl})=>'<div class="hbl" data-lane="'+(a.isLane?a.id:a.parent||'')+'"><span class="age">'+ago(T-tl.t)+'</span><b>'+esc(label(a))+'</b><span>'+esc(firstLine(tl.text||tl.brief))+'</span></div>').join('');
+  if(h===lastBaySig)return;lastBaySig=h;
+  $('bay').innerHTML=h;
+  $('bay').querySelectorAll('[data-zoom]').forEach(a=>a.onclick=e=>{e.preventDefault();zoom(a.dataset.zoom)});
+  $('bay').querySelectorAll('.notice,.hbl').forEach(el=>{el.onclick=e=>{if(e.target.closest('a'))return;if(el.dataset.lane)select(el.dataset.lane)};el.onkeydown=e=>{if(e.key==='Enter'&&el.dataset.lane){e.stopPropagation();zoom(el.dataset.lane)}}});
+}
+let lastGoalSig='';
+function renderGoal(){
+  const tasks=tasksAt(),rl=S.runLog;let h='<h2>Goal</h2>';
+  if(tasks.length){const [g,...rest]=tasks;
+    const parts=String(g.description||'').split(/\s*\b(MERGED|RUNNING|Next|DAG|Goal|HELD|BLOCKED|Stop|Scope|WAITING):\s*/);
+    h+='<div class="goal-subj">'+esc(g.subject)+'</div><dl>'+(parts[0].trim()?'<dt>note</dt><dd>'+esc(parts[0])+'</dd>':'');
+    for(let i=1;i<parts.length;i+=2)h+='<dt>'+esc(parts[i])+'</dt><dd>'+esc(parts[i+1])+'</dd>';
+    h+='</dl>'+(rest.length?'<div style="margin-top:8px">'+rest.map(t=>'<div class="task'+(t.status==='completed'?' done':'')+'">'+esc(t.subject)+'</div>').join('')+'</div>':'')}
+  if(rl?.tasks?.length)h+=(tasks.length?'<h2 style="margin-top:12px">Run log</h2>':'<div class="goal-subj">'+esc(rl.title||rl.file)+'</div>')+rl.tasks.map(t=>'<div class="task'+(t.done?' done':'')+'">'+esc(t.text.slice(0,120))+'</div>').join('');
+  if(!tasks.length&&!rl?.tasks?.length)h+='<div class="calm">No task list or run log for this session at this moment. The orchestrator\'s TaskCreate and TaskUpdate calls, or a run log Tasks section, fill this panel.</div>';
+  if(h===lastGoalSig)return;lastGoalSig=h;$('goal').innerHTML=h;
+}
+
+// ---------- frame loop ----------
+let lastFrame=performance.now(),lastRender=0,lastT=null;
+function frame(now){
+  const dt=now-lastFrame;lastFrame=now;
+  if(S){
+    if(following)T=Date.now();
+    else if(playing){T+=dt*speed;if(T>=S.last){T=S.last;playing=false;sync()}}
+    if(now-lastRender>(view==='graph'?120:200)){lastRender=now;
+      $('scrub').value=Math.round((T-S.start)/span()*1000);
+      $('clock').textContent=new Date(T).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'})+'  +'+ago(T-S.start);
+      $('conn').textContent=connErr?'Server unreachable · last update '+ago(Date.now()-lastOk)+' ago':'';
+      const all=S.agents.filter(a=>a.isLane),spawned=all.filter(a=>at(a)).length,live=S.agents.filter(a=>at(a)?.st==='live').length;
+      $('summary').innerHTML='<span class="num">'+spawned+'/'+all.length+'</span> lanes · <span class="num">'+live+'</span> agents working';
+      const notices=noticesAt();
+      if(view==='board'){focusLane?renderTimeline(focusLane):renderBoard(notices);miniGraph.render(notices);renderBay(notices);renderGoal()}
+      else if(view==='graph')fullGraph.render(notices);
+      else renderTimeline(null);
+      if(!playing&&!following){if(T!==lastT){lastT=T;setParam('t',Math.round(T))}}else if(qs.has('t'))setParam('t',null);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- controls ----------
+function setView(v){graphs.forEach(g=>g.reset());lastKbSig='';lastBaySig='';lastGoalSig='';hideTip();view=v;setParam('view',v);if(v!=='board')zoom(null);sync()}
+function zoom(id){focusLane=id;if(id)selLane=id;lastKbSig='';setParam('lane',id)}
+function select(id){selLane=id;lastKbSig='';setTimeout(()=>{const el=document.querySelector('.lanecell[data-lane="'+id+'"]');el?.focus({preventScroll:true});el?.scrollIntoView({block:'nearest'})},220)}
+function step(ms){following=false;playing=false;T=Math.max(S.start,Math.min(S.last,T+ms));sync()}
+function moveSel(d){const ls=lanesSorted();if(!ls.length)return;const i=ls.findIndex(l=>l.id===selLane);selLane=ls[(i+d+ls.length)%ls.length].id;if(focusLane)zoom(selLane);else select(selLane)}
+function openFor(kind){const l=byId[selLane];if(!l)return;const x=laneAt(l),n=noticesAt().find(n=>n.lane.id===l.id);
+  const url=kind==='pr'?ghPr(n?.pr||prOf(x?.cur)):ghIssue(x?.cur);if(url)open(url,'_blank','noopener')}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+addEventListener('keydown',e=>{
+  if(e.target.closest('input,textarea,select,[contenteditable]')||e.metaKey||e.ctrlKey||e.altKey||!S)return;
+  const k=e.key;
+  if(k>='1'&&k<='3')setView(VIEWS[k-1]);
+  else if(k==='j')moveSel(1);else if(k==='k')moveSel(-1);
+  else if(k==='Enter'&&selLane&&!e.target.closest('[data-lane],button,a')){if(view!=='board')setView('board');zoom(selLane)}
+  else if(k==='Escape'){if($('help').classList.contains('open'))$('help').classList.remove('open');else zoom(null)}
+  else if(k==='n'){const ns=noticesAt();if(ns.length){const i=ns.findIndex(n=>n.lane.id===selLane);select(ns[(i+1)%ns.length].lane.id)}}
+  else if(k==='g')openFor('issue');else if(k==='p')openFor('pr');
+  else if(k==='l'&&!$('live').disabled){following=true;playing=false;sync()}
+  else if(k===','||k==='<')step(-(e.shiftKey?600e3:60e3));else if(k==='.'||k==='>')step(e.shiftKey?600e3:60e3);
+  else if(k==='?')$('help').classList.toggle('open');
+  else if(k===' '){e.preventDefault();$('play').click()}
+});
+$('helpbtn').onclick=()=>$('help').classList.toggle('open');
+$('play').onclick=()=>{following=false;if(T>=S.last)T=S.start;playing=!playing;sync()};
+$('speed').onchange=e=>{speed=Number(e.target.value);setParam('speed',speed)};
+$('scrub').oninput=e=>{following=false;playing=false;T=S.start+e.target.value/1000*span();sync()};
+$('live').onclick=()=>{following=true;playing=false;sync()};
+$('session').onchange=e=>{setParam('session',e.target.value);setParam('t',null);zoom(null);loadState(false)};
+setInterval(()=>{if(following)loadState(true)},5000);
+(async()=>{try{await loadSessions()}catch(e){$('conn').textContent='Server unreachable: '+e.message;return}await loadState(false);sync();requestAnimationFrame(frame)})();
+</script></body></html>
