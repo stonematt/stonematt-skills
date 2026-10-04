@@ -53,6 +53,10 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 One `Agent` per lane, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md). Mark each lane's task in progress as it launches.
 
+**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n>`, its queue in order, and give it `name: lane-<x>`; resume it by that name. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
+
+**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the lane's last merge and mark its task complete.
+
 **Where you sit decides the worktree recipe.** From the main checkout, lanes build sibling worktrees (`LANE-BRIEF.md` step a). When you yourself run inside a worktree, a guard refuses that recipe for you and every subagent alike; launch each lane with `isolation: "worktree"` and brief it the isolated variant.
 
 **A browser tool is shared by the session.** One Playwright MCP is one browser for every lane, and two lanes critiquing at once resize it under each other. Brief UI lanes to take turns with it, or to drive their own headless browser.
@@ -109,4 +113,4 @@ Lanes die — a watchdog timeout, a stream that does not recover. Unattended, th
 
 ## Escalation
 
-A lane stops rather than crossing its fence or relaxing an acceptance criterion. Relay each escalation when it lands — the other lanes keep running, and a ticket that turns out unsatisfiable is the user's call to re-spec.
+A lane stops rather than crossing its fence or relaxing an acceptance criterion. Relay each escalation (a lane's `escalation` status line) when it lands — the other lanes keep running, and a ticket that turns out unsatisfiable is the user's call to re-spec.

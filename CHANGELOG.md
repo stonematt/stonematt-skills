@@ -10,6 +10,15 @@ Consumers can check whether their install is current with `scripts/check-latest.
 
 ## [Unreleased]
 
+### Added
+- `swarm-console` skill (**preview** — in `skills/in-progress/`, not in the pack
+  manifest). A local browser console over a swarm's own transcripts: a board of
+  lanes by stage (Queued → Setup → Build → Review → PR / CI → Merged), a
+  **Needs you** notice layer across stages, a tool-call heartbeat per agent, a
+  force graph with annotated edges, and a lane timeline. Follows a live swarm or
+  replays any past session; keyboard-driven, with GitHub links and `&t=` links
+  to a moment. Read-only.
+
 ## [0.3.0] - 2026-07-28
 
 Two of the seven skills in the pack manifest change in this release —
