@@ -16,7 +16,7 @@ The **dispatch notes** are a memory note named `bse-monitor` in the project's au
 - **integration branch:** the base that PRs target (the GitHub default branch unless the repo's docs name another).
 - **gates:** every check command the repo defines, from its agent docs, profile or `package.json` scripts.
 - **lifecycle doc:** the repo's doc for merge method, merge subject and cleanup, or `none`.
-- **labels:** the three label names in use.
+- **labels:** the three label names in use, each one present in the repo (`gh label list --repo <owner/repo> --json name --jq '.[].name'`). A missing label makes the watch match nothing, silently. Ask the user to create the missing ones; on a yes, create each with `gh label create`. On a no, stop before arming.
 
 Write the note with this body under the memory frontmatter (`type: reference`), and add its one-line pointer to `MEMORY.md` on first write:
 
@@ -32,7 +32,7 @@ labels: <bse>, <ready-for-agent>, <owner: build>
 
 When the implement hash differs from the previous note, tell the user the implement skill changed since the last check.
 
-**Done when** the note's `checked` date is today and every field holds a value.
+**Done when** the note's `checked` date is today, every field holds a value, and every label exists in the repo.
 
 ## 1. Arm the watch
 
