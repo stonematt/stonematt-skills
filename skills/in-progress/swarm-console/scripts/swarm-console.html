@@ -281,7 +281,9 @@ function heartbeat(a,st){
 // ---------- loading ----------
 async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status+' '+r.statusText);return r.json()}
 async function loadSessions(){
-  const list=await getJSON('/sessions');
+  const list=await getJSON('/sessions'+(qs.get('project')?'?project='+encodeURIComponent(qs.get('project')):''));
+  if(!list.length){$('conn').textContent='No sessions with subagents for this project yet';throw new Error('empty')}
+  document.title=list[0].project.replace(/^src-github-com-/,'').replace(/--claude-worktrees-.*/,'')+' · Swarm console';
   $('session').innerHTML=list.map(s=>'<option value="'+s.id+'">'+esc(new Date(s.mtime).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(s.lanes.length?s.lanes.length+' lanes':s.agents+' agents')+' · '+s.project.slice(-26))+'</option>').join('');
   if(qs.get('session'))$('session').value=qs.get('session');
 }
@@ -565,5 +567,5 @@ $('scrub').oninput=e=>{following=false;playing=false;T=S.start+e.target.value/10
 $('live').onclick=()=>{following=true;playing=false;sync()};
 $('session').onchange=e=>{setParam('session',e.target.value);setParam('t',null);zoom(null);loadState(false)};
 setInterval(()=>{if(following)loadState(true)},5000);
-(async()=>{try{await loadSessions()}catch(e){$('conn').textContent='Server unreachable: '+e.message;return}await loadState(false);sync();requestAnimationFrame(frame)})();
+(async()=>{try{await loadSessions()}catch(e){if(e.message!=='empty')$('conn').textContent='Server unreachable: '+e.message;setTimeout(()=>location.reload(),5000);return}await loadState(false);sync();requestAnimationFrame(frame)})();
 </script></body></html>

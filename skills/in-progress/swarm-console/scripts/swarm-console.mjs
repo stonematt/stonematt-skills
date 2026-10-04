@@ -15,9 +15,20 @@ import { execFile, execFileSync } from 'node:child_process';
 
 const argv = process.argv.join(' ');
 const PORT = Number((argv.match(/--port (\d+)/) ?? [])[1] ?? 4186);
+// Ports tried in order when PORT is taken by something else. 4190 is skipped: Safari refuses it.
+const PORTS = Array.from({ length: 14 }, (_, i) => PORT + i).filter(p => p !== 4190);
 const PROJECTS = path.join(os.homedir(), '.claude/projects');
 const RUNS = (argv.match(/--runs (\S+)/) ?? [])[1] ?? path.join(os.homedir(), '.claude/skill-workbench/swarm/runs');
 const PAGE = new URL('./swarm-console.html', import.meta.url);
+
+// The repo this console was started for, as Claude names its project folders: every non-alphanumeric becomes -.
+// Resolved through git's common dir, so starting from any worktree names the main checkout.
+function projectSlug(dir) {
+  let root = path.resolve(dir);
+  try { root = path.dirname(execFileSync('git', ['-C', dir, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()); } catch {}
+  return root.replace(/[^a-zA-Z0-9]/g, '-');
+}
+const PROJECT = projectSlug((argv.match(/--project (\S+)/) ?? [])[1] ?? process.cwd());
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }
 
@@ -32,7 +43,7 @@ function listSessions() {
       if (!fs.existsSync(sub)) continue;
       const metas = fs.readdirSync(sub).filter(n => n.endsWith('.meta.json')).map(n => readJson(path.join(sub, n)));
       const lanes = metas.filter(m => m.spawnDepth === 1 && /lane/i.test(m.description ?? '')).map(m => m.description);
-      out.push({ id: s, dir: path.join(pd, s), project: p.replace(/^-Users-[^-]+-/, ''), mtime: fs.statSync(sub).mtimeMs, agents: metas.length, lanes });
+      out.push({ id: s, dir: path.join(pd, s), projectDir: p, project: p.replace(/^-Users-[^-]+-/, ''), mtime: fs.statSync(sub).mtimeMs, agents: metas.length, lanes });
     }
   }
   return out.sort((a, b) => b.mtime - a.mtime);
@@ -160,11 +171,32 @@ function state(id) {
   return { now: Date.now(), session: s.id, project: s.project, start, last, main, agents, runLog: runLogFor(start, last), prs: prsFor(cwd), repo: repoFor(cwd) };
 }
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   const json = v => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(v)); };
-  if (u.pathname === '/sessions') return json(listSessions().slice(0, 40).map(({ dir, ...s }) => s));
+  if (u.pathname === '/whoami') return json({ app: 'swarm-console', pid: process.pid });
+  if (u.pathname === '/sessions') {
+    // A worktree's sessions live in folders named after the main checkout plus a suffix, so a prefix match keeps them.
+    const project = u.searchParams.get('project');
+    return json(listSessions().filter(s => !project || s.projectDir.startsWith(project)).slice(0, 40).map(({ dir, ...s }) => s));
+  }
   if (u.pathname === '/state') return json(state(u.searchParams.get('session')));
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   res.end(fs.readFileSync(PAGE));
-}).listen(PORT, () => console.log(`swarm console → http://localhost:${PORT}/`));
+});
+
+// One console per machine serves every project. If one already runs, print this project's link and leave it be.
+async function isConsole(port) {
+  try { return (await (await fetch(`http://127.0.0.1:${port}/whoami`, { signal: AbortSignal.timeout(800) })).json()).app === 'swarm-console'; }
+  catch { return false; }
+}
+const link = port => `http://localhost:${port}/?view=board&project=${PROJECT}`;
+(function listen(i) {
+  if (i >= PORTS.length) { console.error(`swarm console: ports ${PORTS[0]}–${PORTS.at(-1)} are all taken`); process.exit(1); }
+  server.once('error', async err => {
+    if (err.code !== 'EADDRINUSE') throw err;
+    if (await isConsole(PORTS[i])) { console.log(`swarm console already running (reused) → ${link(PORTS[i])}`); process.exit(0); }
+    listen(i + 1);
+  });
+  server.listen(PORTS[i], () => console.log(`swarm console started (pid ${process.pid}) → ${link(PORTS[i])}`));
+})(0);

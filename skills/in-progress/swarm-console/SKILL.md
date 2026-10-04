@@ -7,23 +7,22 @@ The console reads what a swarm already writes — session transcripts, subagent 
 
 ## 1. Serve it
 
-Start the server in the background from any directory:
+Run this in the background from the swarm's repo, or pass `--project <repo-path>`:
 
 ```
-node <skill-dir>/scripts/swarm-console.mjs [--port 4186] [--runs <run-log-dir>]
+node <skill-dir>/scripts/swarm-console.mjs [--project <repo-path>] [--port 4186] [--runs <run-log-dir>]
 ```
 
-`--runs` defaults to `~/.claude/skill-workbench/swarm/runs`. Port 4186 works in every browser; Safari refuses some higher ports, so pick a replacement from Safari's allowed range when 4186 is taken.
+One console serves every project on the machine. If one already runs, the script prints this project's link, says `reused`, and exits. Otherwise it starts on 4186, or on the next free port that isn't 4190, which Safari refuses, and says `started` with its pid. `--runs` defaults to `~/.claude/skill-workbench/swarm/runs`.
 
-**Done when** `http://localhost:<port>/sessions` answers with a JSON list.
+**Done when** the script has printed a link.
 
 ## 2. Hand over the link
 
-The session menu lists every session that spawned subagents, newest first, and opens the newest. Another session spawning subagents can outrank the swarm, so name the swarm's session with `&session=<id>` — the orchestrator's own session id.
+Use the printed link: `http://localhost:<port>/?view=board&project=<slug>`. `project` scopes the tab to the repo's sessions, its worktrees included, and opens the newest. Two swarms in two repos are two tabs on one console. When the swarm's repo has another session spawning subagents, pin the swarm with `&session=<id>`, the orchestrator's own session id.
 
-- Live swarm: `http://localhost:<port>/?view=board`
 - One lane: add `&lane=<agent-id>`
-- One moment: add `&t=<epoch-ms>` — a paused page writes it into the URL, so a copied link reopens the same moment.
+- One moment: add `&t=<epoch-ms>`. A paused page writes it into the URL, so a copied link reopens the same moment.
 
 Open it in the user's browser and give them the link. The page lists its own keys under `?`.
 
@@ -31,7 +30,7 @@ Open it in the user's browser and give them the link. The page lists its own key
 
 ## 3. Stop it
 
-Stop the server by its background task id or PID when the user is finished, never by a process-name pattern — that kills other sessions' servers.
+Stop the console only if this session started it. A `reused` console belongs to whoever started it, and other projects' tabs depend on it. Stop by the background task id or the printed pid, never by a process-name pattern.
 
 ## Data contract
 
