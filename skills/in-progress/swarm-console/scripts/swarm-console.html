@@ -187,8 +187,8 @@ const plain=s=>String(s??'').replace(/\*\*|__|`|^#+\s*/gm,'');
 const ago=ms=>ms<60e3?Math.max(0,Math.round(ms/1e3))+'s':ms<3600e3?Math.round(ms/60e3)+'m':(ms/3600e3).toFixed(1)+'h';
 const hhmm=t=>new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
 const short=d=>d.replace(/^Lane\s+/i,'').replace(/:.*/,'').trim();
-// The words after a lane description's queue: "Lane H: #528→#529 create club form" → "create club form".
-const objective=d=>d.replace(/^Lane\s+[^:]*:?\s*/i,'').replace(/^((#\d+|→|->|,|\+)\s*)+/,'').replace(/^[—–:·-]\s*/,'').trim();
+// The words after a lane description's queue: "Lane H: #528 (2/4) create club form" → "create club form".
+const objective=d=>d.replace(/^Lane\s+[^:]*:?\s*/i,'').replace(/^((#\d+|→|->|,|\+|\(\d+\/\d+\))\s*)+/,'').replace(/^[—–:·-]\s*/,'').trim();
 const firstLine=s=>plain(String(s||'').split('\n').find(l=>l.trim())||'');
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function setParam(k,v){if(v==null)qs.delete(k);else qs.set(k,v);history.replaceState(null,'','?'+qs)}
@@ -216,14 +216,15 @@ const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n]===issue);retu
 const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
 // Finished lanes sink below active ones so long swarms keep active lanes on screen; each group stays in start order.
 const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).map(a=>[a,laneAt(a).done?1:0]).sort((a,b)=>a[1]-b[1]||a[0].start-b[0].start).map(([a])=>a);
-const msgsTo=(a,t=T)=>(S.main?.tools||[]).filter(tl=>tl.name==='SendMessage'&&tl.t<=t&&(tl.to===a.name||tl.to===a.id));
+// A chained lane is resumed by a message to any of its links, or moved on by its next link's spawn.
+const msgsTo=(a,t=T)=>(S.main?.tools||[]).filter(tl=>tl.t<=t&&(tl.name==='SendMessage'&&(tl.to===a.name||tl.to===a.id||a.keys?.has(tl.to))||(a.spawns?.has(tl)&&tl!==a.spawn)));
 const handbacks=(a,t=T)=>a.tools.filter(tl=>isHandback(tl)&&tl.t<=t);
 const label=a=>a===S.main?'orchestrator':a.isLane?'Lane '+short(a.desc):role(a.desc)+(a.parent&&byId[a.parent]?.isLane?' · '+short(byId[a.parent].desc):'');
 function laneAt(lane){
   const a=at(lane); if(!a)return null;
   const tools=lane.tools.slice(0,a.n), queue=lane.queue;
   const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t]).filter(([,m])=>m!=null));
-  const allMerged=queue.length>0&&merged.size===queue.length;
+  const allMerged=queue.length>0&&merged.size===queue.length&&merged.size>=(lane.total||0);
   let cur=null;
   for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>queue.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
   if(cur==null&&!allMerged&&a.st!=='done')cur=queue.find(i=>!merged.has(i))??(queue.length?null:'—');
@@ -304,6 +305,7 @@ async function loadState(keepT){
   for(const a of S.agents){a.spawn=spawns[a.useId];a.name=a.spawn?.agentName;
     // a lane whose description names no issues: take its queue from the branches it created
     if(a.isLane&&!a.queue.length)a.queue=[...new Set(a.tools.filter(t=>/worktree add/.test(t.brief)).flatMap(t=>(t.brief.match(/-b \S*?-(\d+)\b/)||[]).slice(1).map(Number)))]}
+  foldChains();
   prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/);if(m)prIssue[p.number]=Number(m[1])}
   const live=Date.now()-S.last<15*60e3;
   $('live').disabled=!live;
@@ -312,6 +314,25 @@ async function loadState(keepT){
     if(pinned&&pinned>=S.start&&pinned<=S.last+60e3){T=pinned;playing=false;following=false}
     else if(live){following=true;playing=false}else{following=false;T=S.start;playing=true}}
   sync();
+}
+// A lane runs as a chain of agents, one per ticket: "Lane A: #524 (3/10) club admin forms". Fold each lane's links into one lane
+// whose tools, queue and children are the links' together. Lanes from before chains have one agent each and pass through.
+function foldChains(){
+  const groups=new Map();
+  for(const a of S.agents)if(a.isLane){const k=short(a.desc);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(a)}
+  for(const links of groups.values()){
+    const total=Math.max(0,...links.map(l=>Number((l.desc.match(/\((\d+)\/(\d+)\)/)||[])[2]||0)));
+    if(links.length<2&&!total)continue;
+    links.sort((a,b)=>a.start-b.start);
+    const first=links[0],last=links.at(-1);
+    const lane={...last,id:first.id,spawn:first.spawn,name:first.name,start:first.start,total,links,
+      tools:links.flatMap(l=>l.tools).sort((x,y)=>x.t-y.t),queue:[...new Set(links.flatMap(l=>l.queue))],
+      outTokens:links.reduce((s,l)=>s+(l.outTokens||0),0),
+      keys:new Set(links.flatMap(l=>[l.id,l.name].filter(Boolean))),spawns:new Set(links.map(l=>l.spawn).filter(Boolean))};
+    for(const l of links)byId[l.id]=lane;
+    for(const k of S.agents)if(k.parent&&links.some(l=>l.id===k.parent))k.parent=lane.id;
+    S.agents=S.agents.filter(a=>!links.includes(a)).concat(lane);
+  }
 }
 const span=()=>Math.max((following?Date.now():S.last)-S.start,1);
 function sync(){
@@ -425,7 +446,7 @@ function renderTimeline(laneId){
     return '<div class="trow'+(kid?' kid':'')+'"'+(a.isLane&&!lane?' data-lane="'+a.id+'" tabindex="0" role="button"':'')+'><div class="lab"><span class="sq st-'+s.st+'"></span>'+lab+'<div class="sub">'+sub(s)+'</div></div><div class="track">'+h+'<div class="cursor" style="left:'+x(T)+'"></div></div></div>'};
   let g='';
   if(lane){
-    const touch=(S.main?.tools||[]).filter(tl=>tl.t<=T&&(tl===lane.spawn||(tl.name==='SendMessage'&&(tl.to===lane.name||tl.to===lane.id))||(tl.merge&&lane.queue.some(i=>mergeTool(i)===tl))));
+    const touch=(S.main?.tools||[]).filter(tl=>tl.t<=T&&(tl===lane.spawn||lane.spawns?.has(tl)||(tl.name==='SendMessage'&&(tl.to===lane.name||tl.to===lane.id||lane.keys?.has(tl.to)))||(tl.merge&&lane.queue.some(i=>mergeTool(i)===tl))));
     const x0=laneAt(lane),cur=x0?.cur,pr=prOf(cur);
     g+='<div class="crumb"><button id="back">← Board</button><b>Lane '+esc(short(lane.desc))+'</b><span class="mdl">'+mdl(lane.model)+'</span><span class="meta">'+esc(lane.desc)+'</span>'+
       (ghIssue(cur)?'<a href="'+ghIssue(cur)+'" target="_blank" rel="noopener">'+ICON.gh+' #'+cur+'</a>':'')+(pr?'<a href="'+ghPr(pr)+'" target="_blank" rel="noopener">'+ICON.pr+' PR '+pr+'</a>':'')+'</div>';
@@ -465,7 +486,7 @@ function renderBoard(notices){
     const n=flag.get(l.id),k=n&&KIND[n.kind];
     const cls='row'+(selLane===l.id?' sel':'')+(k?(k.red?' attn-red':' attn')+(k.cord?' cord':''):'');
     const st=x.done?'done':x.a.st;
-    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+(objective(l.desc)?'<span class="obj" title="'+esc(objective(l.desc))+'">— '+esc(objective(l.desc))+'</span>':'')+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(x.queue.length||'?')+'</span> merged</div></div></div>';
+    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+(objective(l.desc)?'<span class="obj" title="'+esc(objective(l.desc))+'">— '+esc(objective(l.desc))+'</span>':'')+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(l.total||x.queue.length||'?')+'</span> merged'+(l.links?.length>1?' · <span class="num">'+l.links.length+'</span> agents':'')+'</div></div></div>';
     const queued=x.queue.filter(i=>i!==x.cur&&!x.merged.has(i));
     h+='<div class="cell"><div class="chips">'+queued.map(i=>chip(i,false)).join('')+'</div></div>';
     if(x.done)h+='<div class="donecell">Queue done'+(x.a.st==='hand'?' · handed back '+ago(T-x.a.lastT)+' ago':'')+'</div>';

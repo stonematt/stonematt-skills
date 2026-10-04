@@ -25,11 +25,13 @@ Serial inside a lane is the point, not a compromise — three issues in one file
 
 No collisions at all is one lane with no fence.
 
-**Some changes cannot be fenced.** A rename, a signature change, a vocabulary fix touches every lane's files at once. The file rule offers two exits — collapse every lane into one, or drop the issue. Take the third: give the fence a time dimension. That issue becomes its own lane, launched once the others have merged. Sequence it, don't fence it. A hub file that every ticket touches gets the same answer: the lanes run back to back, and each still keeps a small context.
+**Count lanes by what runs at the same time.** A lane is a parallel thread: a fence and an ordered queue. Two groups that can only run one after the other are one lane, not two — one queue, in build order. Ten tickets that must land in sequence are one lane with ten tickets. A long queue does not cost a long context; each ticket gets a fresh agent (step 4).
+
+**Some changes cannot be fenced.** A rename, a signature change, a vocabulary fix touches every lane's files at once. The file rule offers two exits — collapse every lane into one, or drop the issue. Take the third: give the fence a time dimension. That issue goes last: it waits for every other lane to merge, then runs as the final ticket of one of them. Sequence it, don't fence it. A hub file that every ticket touches gets the same answer: one lane, its tickets in build order.
 
 Watch for a collision you can only dissolve by pre-deciding a ticket's design fork. Sometimes the ticket's acceptance criteria already force that answer and you are merely reading it early. Check which before you constrain a lane, and say so.
 
-**Done when** every queued issue sits in exactly one lane, no file appears in two lanes running *at the same time*, and each lane is a task in the task list — its objective, its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. An unattended run outlives its context window, and the task list is what survives a compaction.
+**Done when** every queued issue sits in exactly one lane, no file appears in two lanes running *at the same time*, no two lanes run strictly one after the other, and each lane is a task in the task list — its objective, its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. An unattended run outlives its context window, and the task list is what survives a compaction.
 
 ## 3. Pin the profile
 
@@ -51,15 +53,15 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 ## 4. Launch
 
-One `Agent` per lane, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md). Mark each lane's task in progress as it launches.
+**A lane runs as a chain of agents, one per ticket.** Each **link** is a fresh `Agent`, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md) with a queue of one ticket (or the tickets that land as one PR). Launch a lane's next link when the last one hands back `queue-done`. Its brief carries what the earlier links left — new modules, helpers, shared components — so it extends their work instead of rebuilding it. One agent working a whole queue runs its late tickets on a compacted memory of its early ones; a fresh link per ticket keeps each one small. Mark each lane's task in progress as its first link launches.
 
-**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n> <objective>`, its queue in order, and give it `name: lane-<x>`; resume it by that name. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
+**Make the run legible.** Describe each link `Lane <X>: #<n> (<k>/<total>) <objective>` — its ticket, its place in the lane's queue, and the lane's objective — and give it `name: lane-<x>-<k>`; resume it by that name. The console folds a lane's links into one row. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
 
-**Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 create club form`, not `Lane H: #528`. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs on the lane's task, where its blocker already sits. Write the objective once in step 2, on the lane's task, and copy it into the description at launch.
+**Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 (2/4) club admin forms`, not `Lane H: #528`. It is the lane's, so every link carries the same one. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs on the lane's task, where its blocker already sits. Write the objective once in step 2, on the lane's task, and copy it into the description at launch.
 
-**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the lane's last merge and mark its task complete.
+**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the link's merge, then launch the lane's next link, or mark the lane's task complete after its last.
 
-**Where you sit decides the worktree recipe.** From the main checkout, lanes build sibling worktrees (`LANE-BRIEF.md` step a). When you yourself run inside a worktree, a guard refuses that recipe for you and every subagent alike; launch each lane with `isolation: "worktree"` and brief it the isolated variant.
+**Where you sit decides the worktree recipe.** From the main checkout, lanes build sibling worktrees (`LANE-BRIEF.md` step a). When you yourself run inside a worktree, a guard refuses that recipe for you and every subagent alike; launch each link with `isolation: "worktree"` and brief it the isolated variant.
 
 **A browser tool is shared by the session.** One Playwright MCP is one browser for every lane, and two lanes critiquing at once resize it under each other. Brief UI lanes to take turns with it, or to drive their own headless browser.
 

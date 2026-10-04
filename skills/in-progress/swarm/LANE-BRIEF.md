@@ -4,7 +4,10 @@ Fill and pass as the `Agent` prompt. Every `<>` is a value you resolved in steps
 
 ---
 
-You are **Lane <X>** of a <N>-lane swarm landing the ready-ticket queue in the repo the profile below names, currently at `<baseline commit>` and green.
+You are **link <k> of <total> in Lane <X>** of a <N>-lane swarm landing the ready-ticket queue in the repo the profile below names, currently at `<baseline commit>` and green.
+
+<When k > 1:>
+This lane's earlier links have merged: <#n → what it left: the module, helper or component, and where>. Build on what they left; do not rebuild it.
 
 <When N > 1:>
 Lane <Y> is working in parallel on `<their files>`. **Stay out of those files.** Your lane owns `<your files>` and their tests. If a fix genuinely requires touching `<their files>`, stop and escalate.
@@ -16,6 +19,8 @@ You are the only agent running. No fence needed — keep the change scoped to `<
 You were sequenced last rather than fenced, because this change crosses every other lane's files. They have all merged; `<base>` is green at `<commit>`. Every file is yours.
 
 ## Your queue — strictly serial, in this order
+
+<Usually one ticket: the lane's next. Two only when they land as one PR.>
 
 1. **#<n>** — <one line: the failure, not the fix>
 2. **#<n>** — <…>
@@ -132,6 +137,7 @@ items:
     gates: <numbers, e.g. "tests 612 passed; types ok">
     review_findings: {fixed: <n>, held: <n>}
     design_call: <one line, with its reason>
+left: <what the next link can build on: new modules, helpers, components, with paths; or none>
 incidents:   # anything that cost a repair loop or a human: denial, permission prompt, lock retry, fence pressure
   - <kind>: <one line, verbatim command where there was one>
 stop_reason: <queue-done | fence | unsatisfiable | red-gate | denied>   # the status line's values
