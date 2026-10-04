@@ -53,7 +53,7 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 One `Agent` per lane, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md). Mark each lane's task in progress as it launches.
 
-**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n>`, its queue in order, and give it `name: lane-<x>`; resume it by that name. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
+**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n> <objective>` — its queue in order, then two to four words saying what the lane changes (`Lane H: #528 create club form`) — and give it `name: lane-<x>`; resume it by that name. Name the change, not the order: `after G` belongs on the lane's task, where its blocker already sits. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
 
 **Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the lane's last merge and mark its task complete.
 
