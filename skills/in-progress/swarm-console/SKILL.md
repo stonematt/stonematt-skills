@@ -52,3 +52,7 @@ The console infers everything from habits the [`swarm`](../swarm/SKILL.md) skill
 Stage is inferred from each lane's tool calls: edits and test, lint, type and build commands are **Build**; reviewer subagents, browser tools and dev servers are **Review**; `gh pr create`, `gh pr checks` and `git push` are **PR / CI**. A hand-back keeps the stage it interrupted.
 
 A **notice** sits across stages: a lane handed back with no resume since, or silent for over 10 minutes. It clears on a resume, a merge, or the lane moving again.
+
+## Lessons
+
+Notes for the next edit of this skill live in `~/.claude/skill-workbench/swarm-console/`, outside any repo. When the console misleads, breaks, or the user asks for a change you did not make, append a dated entry to `feedback.md` there: what happened, the session it came from, and the line of this skill or its scripts you would change. Read that file before editing the skill.
