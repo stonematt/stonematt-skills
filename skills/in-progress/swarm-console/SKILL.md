@@ -44,7 +44,7 @@ The console infers everything from habits the [`swarm`](../swarm/SKILL.md) skill
 
 | The swarm does | The console shows |
 |---|---|
-| Describes each lane `Lane <X>: #<n>→#<n> <objective>` and names it `lane-<x>` (swarm step 4) | A board row, its queue and its objective beside the lane name; resumes on edges and in the lane zoom |
+| Describes each link `Lane <X>: #<n> (<k>/<total>) <objective>` and names it `lane-<x>-<k>` (swarm step 4) | One board row per lane, every link folded in: its queue, its objective beside the lane name, merged out of `<total>`; resumes and next links on edges and in the lane zoom. Older `Lane <X>: #<n>→#<n>` descriptions still read as one lane each. |
 | Opens every lane turn with the status line ([`LANE-BRIEF.md`](../swarm/LANE-BRIEF.md) "Status line") | The **Needs you** bay and the tag on the lane's card. Sessions from before the status line fall back to keywords in the hand-back. |
 | Runs every `gh pr merge` from the orchestrator, on branches ending `-<issue>` | Issues moving to Merged, merge diamonds, PR links |
 | Keeps the goal in a `TaskCreate` task and rewrites it with `TaskUpdate` | The Goal panel as it stood at each moment; a run log's `- [ ]` Tasks lines stand in without one |
