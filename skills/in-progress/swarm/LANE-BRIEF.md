@@ -76,7 +76,7 @@ Run every gate in the **foreground**, with a reporter that streams, and read its
 
 **f. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what. Watch CI with `gh pr checks --watch` in the foreground; it can exit early on a network reset, so re-run it until every check reports pass or fail. An early exit is not a result. If any commit lands after review — a CI fix — review that delta before you hand back, and say so.
 
-Take it as far as readiness, then end your turn with the PR number, the gate, critique and review outcomes, the head SHA pasted from `git rev-parse HEAD` output in this turn (never recalled), and the verbatim `gh pr merge` command. The orchestrator runs the merge and resumes you with the SHA; you pick up at **g**. If any command is denied, end your turn with that command verbatim and let the orchestrator decide.
+Take it as far as readiness, then end your turn with the `ready-to-merge` status line, the PR number, the gate, critique and review outcomes, the head SHA pasted from `git rev-parse HEAD` output in this turn (never recalled), and the verbatim `gh pr merge` command. The orchestrator runs the merge and resumes you with the SHA; you pick up at **g**. If any command is denied, end your turn with an `escalation` status line (`reason=denied`) and that command verbatim, and let the orchestrator decide.
 
 **g. Next.** In a sibling worktree: remove it, delete the branch local *and* remote, `git fetch origin --prune`, and branch the next item fresh off `origin/<base>`. Isolated: delete the branch remote, `git fetch origin --prune`, and `git checkout -b` the next item off `origin/<base>`. Either way the next item builds on what you just merged.
 
@@ -102,7 +102,19 @@ Stop and report when:
 - A ticket's acceptance criteria turn out to be unsatisfiable as written.
 - A gate goes red for a reason you did not introduce.
 
-Stop by ending your turn with the report below, the stop reason first. The orchestrator reads only what your final turn says.
+Stop by ending your turn with an `escalation` status line, then the report below, the stop reason first. The orchestrator reads only what your final turn says.
+
+## Status line
+
+The **first line** of every turn you end is a status line, plain text with nothing before it. The orchestrator and the swarm console read it exactly; the rest of the turn is for people.
+
+```
+swarm: ready-to-merge issue=<n> pr=<n> head=<sha>
+swarm: escalation issue=<n> reason=<fence | unsatisfiable | red-gate | denied>
+swarm: queue-done
+```
+
+`ready-to-merge` ends step **f**. `escalation` ends every stop and every denied command. `queue-done` ends your last item, after its step **g**.
 
 ## Report
 

@@ -232,6 +232,12 @@ function laneAt(lane){
 // Needs-you notices sit across stages. A notice clears when the orchestrator resumes the lane, merges, or the lane moves again.
 const RX_ESC=/escalat|\bblocked\b|\bheld\b|needs? (an? )?(owner|human|decision|re-?spec)|re-?spec|cannot proceed|can't proceed|stop(ped|ping)? rather/i;
 const RX_MERGE=/ready to merge|ready for merge|gh pr merge|merge command/i;
+// The lane brief's status line: first line of every lane hand-back, e.g. "swarm: ready-to-merge issue=431 pr=440 head=ab12cd3".
+// Sessions from before the status line fall back to the keyword guesses above.
+function statusLine(text){
+  const m=(String(text||'').split('\n').find(l=>l.trim())||'').replace(/[`*]/g,'').match(/^\s*swarm:\s*([a-z-]+)(.*)$/i);
+  return m?{kind:m[1].toLowerCase(),...Object.fromEntries([...m[2].matchAll(/([a-z_]+)=(\S+)/gi)].map(x=>[x[1].toLowerCase(),x[2].replace(/^#/,'')]))}:null;
+}
 function noticesAt(){
   const out=[];
   for(const lane of lanesSorted()){
@@ -239,8 +245,14 @@ function noticesAt(){
     const hb=handbacks(lane).at(-1);
     if(x.a.st==='hand'&&hb&&!msgsTo(lane).some(m=>m.t>hb.t)){
       const txt=plain(hb.text||hb.brief), mergedSince=(S.main?.tools||[]).some(tl=>tl.merge&&tl.t>hb.t&&tl.t<=T);
-      const pr=Number((txt.match(/(?:PR\s*#?|pull\/)(\d+)/i)||[])[1])||prOf(x.cur);
-      if(RX_ESC.test(txt))out.push({lane,x,kind:'escalation',what:'Escalation',since:hb.t,text:txt,pr});
+      const sl=statusLine(hb.text||hb.brief);
+      const pr=Number(sl?.pr)||Number((txt.match(/(?:PR\s*#?|pull\/)(\d+)/i)||[])[1])||prOf(x.cur);
+      if(sl){
+        if(sl.kind==='escalation')out.push({lane,x,kind:'escalation',what:'Escalation'+(sl.reason?': '+sl.reason.replace(/-/g,' '):''),since:hb.t,text:txt,pr});
+        else if(sl.kind==='ready-to-merge'&&!mergedSince)out.push({lane,x,kind:'merge',what:'Ready to merge'+(pr?' PR '+pr:''),since:hb.t,text:txt,pr});
+        else if(sl.kind!=='queue-done'&&sl.kind!=='ready-to-merge'&&T-hb.t>60e3)out.push({lane,x,kind:'waiting',what:'Waiting on the orchestrator',since:hb.t,text:txt,pr});
+      }
+      else if(RX_ESC.test(txt))out.push({lane,x,kind:'escalation',what:'Escalation',since:hb.t,text:txt,pr});
       else if(RX_MERGE.test(txt)&&!mergedSince)out.push({lane,x,kind:'merge',what:'Ready to merge'+(pr?' PR '+pr:''),since:hb.t,text:txt,pr});
       else if(T-hb.t>60e3)out.push({lane,x,kind:'waiting',what:'Waiting on the orchestrator',since:hb.t,text:txt,pr});
     }else if(x.a.st==='stall')out.push({lane,x,kind:'stall',what:'Silent for '+ago(T-x.a.lastT),since:x.a.lastT,text:x.a.last?(x.a.last.name+': '+x.a.last.brief):'',pr:prOf(x.cur)});

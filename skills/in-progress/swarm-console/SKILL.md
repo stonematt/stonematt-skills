@@ -41,7 +41,7 @@ The console infers everything from habits the swarm skill already has. Each habi
 |---|---|
 | Launches each lane as a depth-1 `Agent` whose description starts `Lane` and names its issues (`Lane C: #422→#423→#424`) | A board row and its queue. Without issue numbers, the queue falls back to the `-<issue>` suffix of branches the lane creates with `git worktree add -b`. |
 | Gives each lane a `name` and resumes it with `SendMessage` to that name | Resumes on the lane zoom and graph edges; a resume clears the lane's notice |
-| Ends each lane turn with `SubagentHandback`, first line saying what it needs — `READY TO MERGE …`, or an escalation naming `blocked`, `held` or `re-spec` | The **Needs you** bay and the tag on the lane's card |
+| Opens every lane hand-back with the lane brief's status line — `swarm: ready-to-merge issue=<n> pr=<n> head=<sha>`, `swarm: escalation issue=<n> reason=<…>`, `swarm: queue-done` | The **Needs you** bay and the tag on the lane's card, read exactly. Sessions from before the status line fall back to keywords (`ready to merge`, `blocked`, `held`, `re-spec`). |
 | Runs every `gh pr merge` from the orchestrator session, on branches ending `-<issue>` | Issues moving to Merged, merge diamonds, PR links |
 | Keeps the goal in a `TaskCreate` task and rewrites it with `TaskUpdate` (`MERGED: … RUNNING: … Next: …`) | The Goal panel, replayed as it stood at each moment. A run log's `- [ ]` Tasks lines stand in when there is no task. |
 

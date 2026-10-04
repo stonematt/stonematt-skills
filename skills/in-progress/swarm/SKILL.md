@@ -53,6 +53,8 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 One `Agent` per lane, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md). Mark each lane's task in progress as it launches.
 
+**Make the run legible.** Describe each lane `Lane <X>: #<n>→#<n>`, its queue in order, and give it `name: lane-<x>`; resume it by that name. Every lane turn opens with the brief's status line. The [`swarm-console`](../swarm-console/SKILL.md) skill reads all three, plus your `gh pr merge` calls and the goal task, so serve it once the lanes are running and give the user its link.
+
 **Where you sit decides the worktree recipe.** From the main checkout, lanes build sibling worktrees (`LANE-BRIEF.md` step a). When you yourself run inside a worktree, a guard refuses that recipe for you and every subagent alike; launch each lane with `isolation: "worktree"` and brief it the isolated variant.
 
 **A browser tool is shared by the session.** One Playwright MCP is one browser for every lane, and two lanes critiquing at once resize it under each other. Brief UI lanes to take turns with it, or to drive their own headless browser.
