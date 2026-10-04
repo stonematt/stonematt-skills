@@ -106,7 +106,7 @@ Stop by ending your turn with an `escalation` status line, then the report below
 
 ## Status line
 
-The **first line** of every turn you end is a status line, plain text with nothing before it. The orchestrator and the swarm console read it exactly; the rest of the turn is for people.
+The **first line** of every turn you end — whether you end it with `SubagentHandback` or in plain text — is a status line, plain text with nothing before it. The orchestrator and the swarm console read it exactly; the rest of the turn is for people.
 
 ```
 swarm: ready-to-merge issue=<n> pr=<n> head=<sha>
@@ -134,7 +134,7 @@ items:
     design_call: <one line, with its reason>
 incidents:   # anything that cost a repair loop or a human: denial, permission prompt, lock retry, fence pressure
   - <kind>: <one line, verbatim command where there was one>
-stop_reason: <queue done | fence | unsatisfiable | red gate>
+stop_reason: <queue-done | fence | unsatisfiable | red-gate | denied>   # the status line's values
 ```
 
 Then, separately, every **held finding** — what you found already broken and deliberately left alone, because it sat outside your fence or outside the ticket. A sibling bug, a test that proves less than it claims, a doc your change made incomplete. Name each with its file and line, and say which. That list is the handoff, not an afterthought — and it should not contain anything you could have fixed yourself.

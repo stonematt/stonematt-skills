@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Swarm console: ?view=board | graph | timeline, &session=<id>, &lane=<id> zooms, &t=<ms> pins a moment.
+<!-- Swarm console for one repo: ?view=board | graph | timeline, &session=<id>, &lane=<id> zooms, &t=<ms> pins a moment.
      Look: telemetry console (a heartbeat per agent) crossed with ATC strip bays. Hue means status, nothing else.
      Served by swarm-console.mjs. Lanes are depth-1 agents whose description starts with "Lane". -->
 <html><head><meta charset="utf-8"><title>Swarm console</title>
@@ -30,19 +30,19 @@ svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.75;str
 
 /* header */
 header{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line)}
-header>*{min-width:0}#session{max-width:100%}header h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.01em}
+#session{max-width:100%;min-width:0}header h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.01em}
 .tabs{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
 .tabs button{border:0;border-radius:0;background:transparent;padding:3px 10px;color:var(--muted)}
 .tabs button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
 .tabs kbd{font:11px var(--mono);opacity:.6;margin-left:4px}
-.play{display:flex;gap:8px;align-items:center;flex:1;min-width:280px}
-#scrub{flex:1;min-width:120px}#clock{font-size:12px;color:var(--muted);min-width:178px}
+.play{display:flex;gap:8px;align-items:center;flex:1 1 auto}
+#scrub{flex:1;min-width:120px}#clock{font-size:12px;color:var(--muted);flex:none;white-space:nowrap}
 #live[aria-pressed=true]{border-color:var(--live);color:var(--live)}
 #live .d{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--faint);margin-right:5px;vertical-align:1px}
 #live[aria-pressed=true] .d{background:var(--live)}
 #conn{font-size:12px;color:var(--stall)}
 #summary{font-size:12px;color:var(--muted)}
-@media(max-width:700px){.play{flex-basis:100%;min-width:0}#clock{min-width:0}}
+@media(max-width:700px){.play{flex-basis:100%;min-width:0}#clock{white-space:normal;flex:0 1 auto}}
 
 /* layout */
 #body{flex:1;display:grid;min-height:0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
@@ -139,7 +139,7 @@ svg.graph g.e:hover line.vis{stroke:var(--fg)!important;stroke-opacity:1!importa
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body class="v-board">
 <header>
-  <h1>Swarm console</h1>
+  <h1 id="h1">Swarm console</h1>
   <select id="session" aria-label="Session"></select>
   <div class="tabs" role="group" aria-label="View"><button data-v="board">Board<kbd>1</kbd></button><button data-v="graph">Graph<kbd>2</kbd></button><button data-v="timeline">Timeline<kbd>3</kbd></button></div>
   <div class="play">
@@ -194,12 +194,14 @@ const ghIssue=n=>S.repo&&typeof n==='number'?'https://github.com/'+S.repo+'/issu
 const ghPr=n=>{if(!n)return null;const p=S.prs.find(p=>p.number==n);return p?.url||(S.repo?'https://github.com/'+S.repo+'/pull/'+n:null)};
 
 // ---------- derived state at time T ----------
+// A lane hands back with SubagentHandback, or by ending its turn in plain text (TurnEnd).
+const isHandback=tl=>tl.name==='SubagentHandback'||tl.name==='TurnEnd';
 function upto(arr,t){let lo=0,hi=arr.length;while(lo<hi){const m=(lo+hi)>>1;if(arr[m].t<=t)lo=m+1;else hi=m}return lo}
 function at(a,t=T){
   if(!a||a.start==null||a.start>t)return null;
   const n=upto(a.tools,t), last=a.tools[n-1], lastT=Math.max(last?.t??0,a.start);
   let st;
-  if(last?.name==='SubagentHandback')st='hand';
+  if(last&&isHandback(last)&&a!==S.main)st='hand';
   else if(a.endT&&a.endT<=t&&(!last||a.endT>=last.t))st='done';
   else{const idle=t-lastT;st=idle<QUIET?'live':idle<STALL?'quiet':'stall'}
   return {n,last,lastT,st};
@@ -210,7 +212,7 @@ const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n]===issue);retu
 const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
 const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).sort((a,b)=>a.start-b.start);
 const msgsTo=(a,t=T)=>(S.main?.tools||[]).filter(tl=>tl.name==='SendMessage'&&tl.t<=t&&(tl.to===a.name||tl.to===a.id));
-const handbacks=(a,t=T)=>a.tools.filter(tl=>tl.name==='SubagentHandback'&&tl.t<=t);
+const handbacks=(a,t=T)=>a.tools.filter(tl=>isHandback(tl)&&tl.t<=t);
 const label=a=>a===S.main?'orchestrator':a.isLane?'Lane '+short(a.desc):role(a.desc)+(a.parent&&byId[a.parent]?.isLane?' · '+short(byId[a.parent].desc):'');
 function laneAt(lane){
   const a=at(lane); if(!a)return null;
@@ -232,6 +234,8 @@ function laneAt(lane){
 // Needs-you notices sit across stages. A notice clears when the orchestrator resumes the lane, merges, or the lane moves again.
 const RX_ESC=/escalat|\bblocked\b|\bheld\b|needs? (an? )?(owner|human|decision|re-?spec)|re-?spec|cannot proceed|can't proceed|stop(ped|ping)? rather/i;
 const RX_MERGE=/ready to merge|ready for merge|gh pr merge|merge command/i;
+// How each notice kind shows: red ring or blue, and whether it blinks (the andon cord).
+const KIND={escalation:{red:true,cord:true},stall:{red:true,cord:false},merge:{red:false,cord:true},waiting:{red:false,cord:false}};
 // The lane brief's status line: first line of every lane hand-back, e.g. "swarm: ready-to-merge issue=431 pr=440 head=ab12cd3".
 // Sessions from before the status line fall back to the keyword guesses above.
 function statusLine(text){
@@ -281,9 +285,9 @@ function heartbeat(a,st){
 // ---------- loading ----------
 async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error(r.status+' '+r.statusText);return r.json()}
 async function loadSessions(){
-  const list=await getJSON('/sessions'+(qs.get('project')?'?project='+encodeURIComponent(qs.get('project')):''));
-  if(!list.length){$('conn').textContent='No sessions with subagents for this project yet';throw new Error('empty')}
-  document.title=list[0].project.replace(/^src-github-com-/,'').replace(/--claude-worktrees-.*/,'')+' · Swarm console';
+  const [list,who]=await Promise.all([getJSON('/sessions'),getJSON('/whoami')]);
+  document.title=who.root.split('/').pop()+' · Swarm console';$('h1').textContent=who.root.split('/').pop();
+  if(!list.length){$('conn').textContent='No sessions with subagents in this repo yet';throw new Error('empty')}
   $('session').innerHTML=list.map(s=>'<option value="'+s.id+'">'+esc(new Date(s.mtime).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(s.lanes.length?s.lanes.length+' lanes':s.agents+' agents')+' · '+s.project.slice(-26))+'</option>').join('');
   if(qs.get('session'))$('session').value=qs.get('session');
 }
@@ -357,7 +361,7 @@ function makeGraph(el,compact){
       nodes.push(Object.assign(node(a.id),{kind,r:((a.isLane?10:4)+Math.sqrt(s.n)*1.1)*k,st:s.st,ripple:T-(s.last?.t??-1e15),letter:a.isLane?short(a.desc).slice(0,2):'',role:role(a.desc),flag:flagged.get(a.id)}));
       const p=a.parent&&at(byId[a.parent])?a.parent:'main';
       if(p!=='main'||S.main)links.push({source:a.id,target:p,kind:a.parent?'kid':'lane',w:1+Math.min(5,msgsTo(a).length+handbacks(a).length)*.6,running:s.st!=='hand'&&s.st!=='done'});
-      if(s.last?.name==='SubagentHandback'&&T-s.last.t<W)fx.push({from:a.id,to:p,k:(T-s.last.t)/W,c:'var(--hand)'});
+      if(s.last&&isHandback(s.last)&&T-s.last.t<W)fx.push({from:a.id,to:p,k:(T-s.last.t)/W,c:'var(--hand)'});
       for(const tl of msgsTo(a))if(T-tl.t<W)fx.push({from:'main',to:a.id,k:(T-tl.t)/W,c:'var(--fg)'});
       if(a.isLane){const x=laneAt(a);for(const i of a.queue){const id='i'+a.id+i,mt=x.merged.get(i);
         nodes.push(Object.assign(node(id),{kind:'issue',issue:i,lane:a.id,r:6*k,merged:mt!=null,cur:i===x.cur&&!x.done,stage:i===x.cur?x.stage:null}));links.push({source:id,target:a.id,kind:'issue',w:1,running:false});
@@ -375,7 +379,7 @@ function makeGraph(el,compact){
       .attr('fill',d=>d.kind==='main'||d.kind==='lane'?'var(--fg)':d.kind==='scout'?'var(--surface)':'var(--faint)')
       .attr('stroke',d=>'var(--'+d.st+')').attr('stroke-width',compact?2:3).attr('opacity',d=>d.st==='done'||d.st==='hand'?(d.kind==='lane'?.7:.3):1);
     sel.select('circle.flag').attr('r',d=>d.flag?d.r+(compact?5:8):0).attr('fill','none').attr('stroke-dasharray','3 3').attr('stroke-width',1.5)
-      .attr('stroke',d=>d.flag==='escalation'||d.flag==='stall'?'var(--stall)':'var(--hand)');
+      .attr('stroke',d=>KIND[d.flag]?.red?'var(--stall)':'var(--hand)');
     sel.select('rect.sq').attr('display',d=>d.kind==='issue'?null:'none').each(function(d){d3.select(this).attr('x',-d.r).attr('y',-d.r).attr('width',d.r*2).attr('height',d.r*2)}).attr('rx',1.5)
       .attr('fill',d=>d.merged?'var(--fg)':'var(--bg)').attr('stroke',d=>d.cur?'var(--fg)':'var(--faint)').attr('stroke-width',d=>d.cur?(compact?1.5:2.5):1);
     sel.select('circle.rip').attr('r',d=>d.ripple<W?d.r+3+d.ripple/W*(compact?10:18):0).attr('fill','none').attr('stroke','var(--live)').attr('opacity',d=>d.ripple<W?1-d.ripple/W:0);
@@ -411,7 +415,7 @@ function renderTimeline(laneId){
     let h='<div class="bar" style="left:'+x(a.start)+';width:calc('+x(s.lastT)+' - '+x(a.start)+')"></div>'+extra,prev=a.start;
     for(const tl of a.tools.slice(0,s.n)){
       if(tl.t-prev>STALL&&a!==S.main)h+='<div class="gap" style="left:'+x(prev)+';width:calc('+x(tl.t)+' - '+x(prev)+')"></div>';prev=tl.t;
-      h+=tl.merge?'<div class="dia" style="left:'+x(tl.t)+'" title="'+esc(tl.brief)+'"></div>':'<div class="tick'+(tl.name==='SubagentHandback'?' hb':'')+'" style="left:'+x(tl.t)+'" title="'+esc(tl.name+': '+tl.brief)+'"></div>'}
+      h+=tl.merge?'<div class="dia" style="left:'+x(tl.t)+'" title="'+esc(tl.brief)+'"></div>':'<div class="tick'+(isHandback(tl)?' hb':'')+'" style="left:'+x(tl.t)+'" title="'+esc(tl.name+': '+tl.brief)+'"></div>'}
     if(a!==S.main&&s.st==='stall')h+='<div class="gap" style="left:'+x(prev)+';width:calc('+x(T)+' - '+x(prev)+')"></div>';
     return '<div class="trow'+(kid?' kid':'')+'"'+(a.isLane&&!lane?' data-lane="'+a.id+'" tabindex="0" role="button"':'')+'><div class="lab"><span class="sq st-'+s.st+'"></span>'+lab+'<div class="sub">'+sub(s)+'</div></div><div class="track">'+h+'<div class="cursor" style="left:'+x(T)+'"></div></div></div>'};
   let g='';
@@ -453,8 +457,8 @@ function renderBoard(notices){
     (scouts.length?'<span class="meta">scouts: '+scouts.map(([a])=>esc(a.desc.slice(0,32))).join(', ')+'</span>':'')+'</div>';
   h+='<div class="kb" aria-label="Lanes by stage"><div class="h">Lane</div>'+STAGES.map(s=>'<div class="h">'+s[1]+'</div>').join('');
   for(const [l,x] of lanes){
-    const n=flag.get(l.id),red=n&&(n.kind==='escalation'||n.kind==='stall');
-    const cls='row'+(selLane===l.id?' sel':'')+(n?(red?' attn-red':' attn')+(n.kind==='escalation'||n.kind==='merge'?' cord':''):'');
+    const n=flag.get(l.id),k=n&&KIND[n.kind];
+    const cls='row'+(selLane===l.id?' sel':'')+(k?(k.red?' attn-red':' attn')+(k.cord?' cord':''):'');
     const st=x.done?'done':x.a.st;
     h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(x.queue.length||'?')+'</span> merged</div></div></div>';
     const queued=x.queue.filter(i=>i!==x.cur&&!x.merged.has(i));
