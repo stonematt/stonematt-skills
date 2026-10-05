@@ -10,6 +10,56 @@ Consumers can check whether their install is current with `scripts/check-latest.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
+Four skills in the pack manifest change in this release: `obsidian-quick-capture`
+joins it, and `stone-merge`, `stone-commit` and `stone-ai-sniff-test` change.
+The swarm skills below are previews and do not reach a `npx skills add` /
+marketplace install.
+
+### Added
+- `obsidian-quick-capture` joins the pack (promoted from `skills/in-progress/`).
+  It drops a note into a vault's `0.inbox/` in one `obsidian` CLI call, with
+  minimal frontmatter, and captures to the vault the user names.
+- `stone-merge` logs every run to a cross-repo JSONL through a new `log-run.sh`,
+  including promotions. It warns on incomplete log calls instead of writing
+  them silently.
+- `stone-ai-sniff-test` flags the passive-projection opener ("Spent the
+  weekend...", "Wrote up...") as a format-trap tell. (#47)
+- `swarm` skill (**preview**, in `skills/in-progress/`). Lands a ticket queue
+  unattended with file-fenced lanes of agents. Each lane runs as a chain of
+  fresh agents, one per ticket, and the orchestrator runs every merge.
+- `swarm-console` skill (**preview**, in `skills/in-progress/`). A local browser
+  console over a swarm's own transcripts: a board of lanes by stage (Queued,
+  Setup, Build, Review, PR / CI, Merged), a **Needs you** notice layer, a
+  heartbeat per agent, a force graph and a lane timeline. Follows a live swarm
+  or replays a past one. Read-only.
+- `bse-monitor` skill (**preview**, in `skills/in-progress/`). A user-invoked
+  watch that lands ready BSEs through a fresh subagent each.
+
+### Changed
+- `stone-merge` keeps `gh pr merge` in the main session and delegates the
+  reversible work around it: the CI wait, log triage and the bookkeeping tail.
+  The auto-mode classifier blocks that merge call from a subagent, so the skill
+  is cut on that seam and names the resume path when a release merge is denied.
+- `stone-merge` tiers its review gate, names the reviewer in the review policy,
+  drops GSD state and stops offering production promotion unprompted. The
+  `stone-merge-c` canary is folded back into the skill.
+- The `stone-` prefix is now a convention for names likely to collide, such as
+  common verbs, not a rule for every shipped skill (ADR-0004).
+
+### Fixed
+- `stone-merge` passes `--subject`, so merge commit titles keep the PR title.
+- `stone-merge` prunes the stale `origin` ref after deleting a branch, and
+  checks that it went.
+- `stone-merge` separates transient classifier errors from content blocks.
+- `stone-commit` refreshes the knowledge graph only where `graphify-out/` is
+  tracked, not wherever it exists.
+
+### Internal
+- The plist test passes once the user opts in.
+- The validation gate no longer fails a shipped skill with a bare name.
+
 ## [0.3.0] - 2026-07-28
 
 Two of the seven skills in the pack manifest change in this release —
@@ -78,7 +128,8 @@ repo-internal and does not reach a `npx skills add` / marketplace install.
 - Nightly auto-journaling sweep (`scripts/journal-sweep.sh`) with launchd
   install/uninstall/run helpers.
 
-[Unreleased]: https://github.com/stonematt/stonematt-skills/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/stonematt/stonematt-skills/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/stonematt/stonematt-skills/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stonematt/stonematt-skills/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/stonematt/stonematt-skills/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/stonematt/stonematt-skills/releases/tag/v0.1.0

@@ -2,8 +2,9 @@
 
 Cross-surface Claude Code / Codex / opencode / claude.ai skills authored by Matt Stone.
 
-All skills are namespaced `stone-*` so they install into a shared central store
-(`~/.agents/skills`) without colliding with same-named skills from other packs.
+Skills with common names are namespaced `stone-*` so they install into a shared
+central store (`~/.agents/skills`) without colliding with same-named skills from
+other packs. Distinctive names, like `obsidian-quick-capture`, ship bare.
 The prefix only changes the explicit slash command (`/stone-commit`) — natural-language
 triggers ("commit this", "write a journal") are unaffected.
 
@@ -79,7 +80,7 @@ current uploader. Build one per skill:
 
 **engineering/** — [stone-commit](./skills/engineering/stone-commit/SKILL.md), [stone-merge](./skills/engineering/stone-merge/SKILL.md), [stone-promote-settings](./skills/engineering/stone-promote-settings/SKILL.md)
 
-**productivity/** — [stone-ai-sniff-test](./skills/productivity/stone-ai-sniff-test/SKILL.md), [stone-client-report](./skills/productivity/stone-client-report/SKILL.md)
+**productivity/** — [obsidian-quick-capture](./skills/productivity/obsidian-quick-capture/SKILL.md), [stone-ai-sniff-test](./skills/productivity/stone-ai-sniff-test/SKILL.md), [stone-client-report](./skills/productivity/stone-client-report/SKILL.md)
 
 **personal/** — [stone-journal](./skills/personal/stone-journal/SKILL.md), [stone-journal-status](./skills/personal/stone-journal-status/SKILL.md)
 

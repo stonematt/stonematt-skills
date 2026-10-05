@@ -1,12 +1,12 @@
 .DS_Store
 node_modules/
 .kg-data/
+graphify-out/
 .journal/
 *.log
 .claude/settings.local.json
 .claudeai-build/
 *.zip
-.journal
 
 # Adopt-Pocock workbench (v2-durability engine): local-only, never pushed.
 # The live index+siblings grow per-install; only templates+spec under

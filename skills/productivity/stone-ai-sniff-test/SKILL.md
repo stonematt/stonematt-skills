@@ -97,6 +97,7 @@ Less load-bearing than the primary checks, but still worth a pass.
 - **Bold-numbered lists** ("**1. Do this.** Explanation. **2. Do that.** Explanation.") — the AI's favorite structure for suggestions. It's a listicle. Use paragraphs and let points flow.
 - **"Three things, in order of impact:"** is an AI intro sentence. Just start saying the things.
 - **Imperative-verb sequences.** Three consecutive paragraphs that each open with a command is a listicle without numbers. Same disease, no formatting. Vary the openings.
+- **Passive-projection openers.** Sentences that open with a subject-dropped participle or gerund: "Been wiring…", "Spent the weekend…", "Wrote up…", "Grinding on…". They perform activity with no subject owning it. Fake momentum, LinkedIn register. Check the first word of every paragraph. Rewrite with a real subject, a noun or a pronoun, not reflexively "I" (the point is a subject, not first person). Scoped exception: dashboard, caption, and status-line copy where subject-drop is the intended terse register.
 
 ## Backstop: Lexical Tells
 

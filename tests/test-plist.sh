@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Phase 5 test: launchd plist is valid and correctly configured. Never loaded.
+# Phase 5 test: launchd plist is valid and correctly configured, and the suite
+# never loads it. A user who opted in via launchd/install.sh may have it loaded.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 PLIST="$(cd "$TESTS_DIR/.." && pwd)/launchd/com.stonematt.journal-sweep.plist"
@@ -15,11 +16,17 @@ assert_contains "$(ext StandardOutPath)" "journal-sweep.log" "stdout -> log file
 assert_contains "$(ext ProgramArguments.1)" "journal-sweep.sh" "runs journal-sweep.sh"
 assert_eq "false" "$(ext RunAtLoad)" "RunAtLoad false (calendar-only)"
 
-# Make sure we didn't accidentally load it.
-if launchctl list 2>/dev/null | grep -q 'com.stonematt.journal-sweep'; then
-  _bad "agent is NOT loaded (must stay unloaded until user opts in)"
+# Make sure *the tests* didn't load it. Loading is the user's call, made by
+# running launchd/install.sh, which copies the plist to ~/Library/LaunchAgents.
+# The tests never write there, so that file is the signal that a running agent
+# was opted into rather than started by accident.
+INSTALLED="$HOME/Library/LaunchAgents/com.stonematt.journal-sweep.plist"
+if ! launchctl list 2>/dev/null | grep -q 'com.stonematt.journal-sweep'; then
+  _ok "agent not loaded (tests did not load it)"
+elif [ -f "$INSTALLED" ]; then
+  _ok "agent loaded from an installed plist (user opted in)"
 else
-  _ok "agent is NOT loaded (correct — user loads it)"
+  _bad "agent loaded with no installed plist — something loaded it transiently"
 fi
 
 finish "plist"
