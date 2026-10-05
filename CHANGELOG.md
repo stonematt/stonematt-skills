@@ -19,6 +19,12 @@ Consumers can check whether their install is current with `scripts/check-latest.
   replays any past session; keyboard-driven, with GitHub links and `&t=` links
   to a moment. Read-only.
 
+### Changed
+- The `stone-` prefix is now a convention for names likely to collide, such as
+  common verbs, not a rule for every shipped skill (ADR-0004). The validation
+  gate no longer fails a shipped skill with a bare name, which unblocks
+  `obsidian-quick-capture`.
+
 ## [0.3.0] - 2026-07-28
 
 Two of the seven skills in the pack manifest change in this release —

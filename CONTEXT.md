@@ -13,7 +13,7 @@ Top-level taxonomy folder under `skills/`. One of: `engineering/`, `productivity
 _Avoid_: category, group, namespace (reserve "namespace" for the `stone-` prefix)
 
 **Namespace**:
-The `stone-` prefix carried by every shipped skill's directory name, `name:` frontmatter, and slash command. Guarantees collision-free installs in the flat, name-keyed Central store. Only the explicit `/name` carries it — natural-language triggers (the `description`) activate unprefixed.
+The `stone-` prefix on a skill's directory name, `name:` frontmatter, and slash command. A convention, not a rule: carried by skills whose bare name is likely to collide in the flat, name-keyed Central store, such as common verbs (`stone-commit`); distinctive names ship bare. Only the explicit `/name` carries it — natural-language triggers (the `description`) activate unprefixed.
 _Avoid_: scope, vendor-prefix
 
 **Central store**:
