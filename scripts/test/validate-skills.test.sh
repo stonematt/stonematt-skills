@@ -47,11 +47,6 @@ for skill_md in "${skill_paths[@]}"; do
     && ok "$skill_name name matches folder" \
     || bad "$skill_name name matches folder" "frontmatter name is '$frontmatter_name'"
 
-  case "$skill_name" in
-    stone-*) ok "$skill_name uses stone namespace" ;;
-    *) bad "$skill_name uses stone namespace" "all shipped skills should be stone-*" ;;
-  esac
-
   if [ "$bucket" != "deprecated" ] && [ "$bucket" != "in-progress" ]; then
     shipped_skill_dirs+=("./skills/$bucket/$skill_name")
 

@@ -2,8 +2,9 @@
 
 Cross-surface Claude Code / Codex / opencode / claude.ai skills authored by Matt Stone.
 
-All skills are namespaced `stone-*` so they install into a shared central store
-(`~/.agents/skills`) without colliding with same-named skills from other packs.
+Skills with common names are namespaced `stone-*` so they install into a shared
+central store (`~/.agents/skills`) without colliding with same-named skills from
+other packs. Distinctive names, like `obsidian-quick-capture`, ship bare.
 The prefix only changes the explicit slash command (`/stone-commit`) — natural-language
 triggers ("commit this", "write a journal") are unaffected.
 
