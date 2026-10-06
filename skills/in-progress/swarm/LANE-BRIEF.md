@@ -12,7 +12,10 @@ This swarm lands the goal "<goal>" on its goal branch, `<base>`. Every branch yo
 <When k > 1:>
 This lane's earlier links have merged: <#n → what it left: the module, helper or component, and where>. Build on what they left; do not rebuild it.
 
-<When N > 1:>
+<When N > 1 in a goal swarm:>
+Other lanes are building on `<base>` in parallel, and you may share files with them: <the hub files, and which lanes touch them>. Keep your edits to a shared file narrow and additive, so a rebase merges them. The fenced files are `<fenced files, e.g. the schema and its migrations>`; <your lane owns them | Lane <Y> owns them>. If a fix genuinely requires a fenced file you do not own, stop and escalate.
+
+<When N > 1 in a queue swarm:>
 Lane <Y> is working in parallel on `<their files>`. **Stay out of those files.** Your lane owns `<your files>` and their tests. If a fix genuinely requires touching `<their files>`, stop and escalate.
 
 <When N == 1:>
@@ -83,6 +86,8 @@ Run every gate in the **foreground**, with a reporter that streams, and read its
 **e. Review.** The profile's **review** verb, both axes — standards and spec. Every reviewer subagent you brief is **read-only**: it reads the diff and the files at your branch head, and it never checks out, commits, stashes or writes a file — the worktree, its HEAD and its commits stay yours. Fix every finding that sits inside your fence and your ticket, in this branch; its findings leave as commits, not as notes. A finding outside either is a held finding for your report.
 
 **f. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what. <When the profile's **CI** row says PRs into `<base>` get checks:> Watch CI with `gh pr checks --watch` in the foreground; it can exit early on a network reset, so re-run it until every check reports pass or fail. An early exit is not a result. <Otherwise:> `<base>` gets no CI, so your step c gates are the check; say so in the hand-back. If any commit lands after review — a CI fix — review that delta before you hand back, and say so.
+
+<In a goal swarm:> Right before you hand back, `git fetch origin` and `git rebase origin/<base>`, since other lanes merge into it while you work. Resolve a conflict yourself only when it is one of the shapes the **merge** verb names as recognised (set or list add, import list, version bump); any other conflict is an `escalation` with `reason=fence`. If the rebase brought in commits, re-run the gates, then `git push --force-with-lease` your own branch.
 
 Take it as far as readiness, then end your turn with the `ready-to-merge` status line, the PR number, the gate, critique and review outcomes, the head SHA pasted from `git rev-parse HEAD` output in this turn (never recalled), and the verbatim `gh pr merge` command. The orchestrator runs the merge and resumes you with the SHA; you pick up at **g**. If any command is denied, end your turn with an `escalation` status line (`reason=denied`) and that command verbatim, and let the orchestrator decide.
 
