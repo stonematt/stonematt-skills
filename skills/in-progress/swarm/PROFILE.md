@@ -21,6 +21,8 @@ Leave the filled copy at `.claude/swarm-profile.md` in the repo. The next swarm 
 | `<tests>` | `<uv run pytest>` | `<561 passed, 26 deselected>` |
 | `<types>` | `<uv run mypy>` | `<Success, 22 source files>` |
 
+**CI** `<which PR bases trigger checks, read from the workflow triggers — e.g. PRs into dev and main only, so a lane PR into a goal branch gets none>`. Where a lane's PR base gets no CI, the gates above are its only check.
+
 **Blast radius** — probes planted at `<the temp root, the home config dir, any live data dir>`, gate set run at `<commit>`: `<which markers died, which survived>`. A lane's own new tests hold that line: `<what a new test pins, and to what>`.
 
 **Leave unrun** `<script path>` — `<what it touches, and whose files those are>`. The owner's own servers belong here.

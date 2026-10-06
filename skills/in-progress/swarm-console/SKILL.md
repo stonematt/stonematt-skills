@@ -48,6 +48,7 @@ The console infers everything from habits the [`swarm`](../swarm/SKILL.md) skill
 | Opens every lane turn with the status line ([`LANE-BRIEF.md`](../swarm/LANE-BRIEF.md) "Status line") | The **Needs you** bay and the tag on the lane's card. Sessions from before the status line fall back to keywords in the hand-back. |
 | Runs every `gh pr merge` from the orchestrator, on branches ending `-<issue>` | Issues moving to Merged, merge diamonds, PR links |
 | Keeps the goal in a `TaskCreate` task and rewrites it with `TaskUpdate` | The Goal panel as it stood at each moment; a run log's `- [ ]` Tasks lines stand in without one |
+| In a goal swarm, names the goal branch in the goal task's `Scope: goal/<slug> → <base>` line, and leaves the goal PR for the owner to merge | The landing target in the Goal panel's Scope row. Lane PRs into the goal branch read like any other; the goal PR never shows as a merge, because the orchestrator never runs it. |
 
 Stage is inferred from each lane's tool calls: edits and test, lint, type and build commands are **Build**; reviewer subagents, browser tools and dev servers are **Review**; `gh pr create`, `gh pr checks` and `git push` are **PR / CI**. A hand-back keeps the stage it interrupted.
 
