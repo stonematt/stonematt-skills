@@ -1,19 +1,23 @@
 ---
 name: swarm
-description: "Swarm a ticket queue to done unattended — file-fenced lanes of agents landing issues in parallel. Use when the user says swarm it, or wants open issues worked while they're AFK."
+description: "Swarm a ticket queue to done unattended — file-fenced lanes of agents landing issues in parallel. Use when the user says swarm it, or wants open issues, or a spec or milestone's tickets, worked while they're AFK."
 ---
 
 A **lane** is one agent that owns a set of **files**, not a set of issues. Lanes run in parallel; items inside a lane run serial. The fence is what makes the run unattended — two agents that never touch the same file never conflict, so nobody has to be awake to referee.
 
 ## 1. Build the queue
 
-Read every open issue. Each lands in-queue or out-with-a-reason.
+**First name the run's shape, from what the user pointed you at.** A **goal** swarm works a spec, a milestone, or a goal's list of tickets: a collection that only means something once all of it lands. It lands on a **goal branch** (step 4) and reaches the base branch as one PR the owner reviews. A **queue** swarm works the open issue list, or a one-off batch with no shared goal; each ticket lands on the base branch as its own PR. The shape is on the run's task from here on.
+
+Read every open issue in scope: the goal's tickets, or the whole open list. Each lands in-queue or out-with-a-reason.
 
 In-queue means the ticket is a spec an agent can finish alone: acceptance criteria it can check itself, and a scope boundary naming what it is not. Out means a parent spec, a map, or anything needing a device, a credential, or a human eye in the loop.
 
 The repo's agent-ready label narrows the list; it does not decide it. A parent spec can carry the label and still be the umbrella over the very issues you just queued. Apply the finish-alone test to every labelled issue.
 
-**Done when** the user has both lists, and the out-list says why for each.
+A goal's parent spec or milestone is the goal, not a ticket: out of the queue, and named on the run's task.
+
+**Done when** the user has the run's shape and both lists, and the out-list says why for each.
 
 ## 2. Fence the lanes
 
@@ -53,6 +57,10 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 ## 4. Launch
 
+**A goal swarm cuts its goal branch first.** Branch `goal/<slug>` off the profile's base branch and push it. Make the slug words with no digits: the console reads any `-<digits>` as an issue number. Open a draft **goal PR** from it into the base branch: the goal in its title, a `Closes #<n>` line for every queued ticket (`stone-merge` reads them to stage each one when it lands), and a pointer to the spec or milestone. Add `Scope: goal/<slug> → <base branch>` to the goal task's description; the console's Goal panel shows it.
+
+From then on the goal branch is the `<base>` in every lane brief: lanes branch off it, open their PRs into it, and the cleanup lane lands there too. The base branch is untouched until the owner lands the goal PR. A queue swarm skips all this; its lanes' `<base>` is the base branch itself.
+
 **A lane runs as a chain of agents, one per ticket.** Each **link** is a fresh `Agent`, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md) with a queue of one ticket (or the tickets that land as one PR). Launch a lane's next link when the last one hands back `queue-done`. Its brief carries what the earlier links left — new modules, helpers, shared components — so it extends their work instead of rebuilding it. One agent working a whole queue runs its late tickets on a compacted memory of its early ones; a fresh link per ticket keeps each one small. Mark each lane's task in progress as its first link launches.
 
 **Make the run legible.** Describe each link `Lane <X>: #<n> (<k>/<total>) <objective>` — its ticket, its place in the lane's queue, and the lane's objective — and give it `name: lane-<x>-<k>`; resume it by that name. The console folds a lane's links into one row. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
@@ -73,6 +81,8 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 **Key every merge on `gh pr view` state, never on the latest message.** A resume can show "queued" instead of "Resuming", and a stale or duplicate hand-back then arrives after the merge it asked for. When a resume shows "queued", check the remote branch for progress before you resend.
 
+**On a goal branch, run the gates after every merge.** Each lane's gates ran on its own branch, before the merge. Two lanes can each be green and still break each other: one lane's new constraint fails a test in another lane's file, and git merges both clean. Run the profile's gates on the goal branch at the new merge commit, in a scratch worktree made with `git worktree add --detach`, before you resume the lane. Green → resume it. Red → hold every other `ready-to-merge` and launch one **fix link** off the goal branch: the next link of the lane whose merge went red, carrying that lane's ticket number in its description and branch so the console folds it into the lane, fenced to the files the failure names, with the failing output as its ticket. It lands like any link, and the held merges follow it. Log each red one as an incident. A goal branch is often CI-dark (the profile's **CI** row), so these runs are the only check the merged whole gets before the goal PR.
+
 **Keep the run log from the first launch.** The skill improves only from what a run records. Create `~/.claude/skill-workbench/swarm/runs/<YYYY-MM-DD>-<repo>.md` and append one line the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
 
 **Done when** every lane is running, the run log exists, and the user has the table: which objective, which issues, which files, which order, which model.
@@ -85,13 +95,15 @@ Lane gate numbers are often measured mid-branch, before the lane's last commits.
 
 When the run changed UI, serve the merged base locally and open every changed page yourself before the owner is asked to look; then give them the link.
 
-**Done when** you have personally confirmed: gates green at a named commit, no open PRs, no leftover `fix/*` branches **local or remote**, worktrees back to baseline, changed pages seen on a local server, and every issue named beside its PR number and merge commit. Mark each lane's task complete as its merges pass this check.
+A goal swarm verifies the goal branch. Once its cleanup lane (step 6) lands, mark the goal PR ready with `gh pr ready`, watch its CI to a result, and put the PR's link in front of the owner. Landing it is the owner's call, through `stone-merge` or by hand; you leave the goal PR unmerged.
+
+**Done when** you have personally confirmed: gates green at a named commit, no open PRs except a goal swarm's goal PR, no leftover `fix/*` branches **local or remote**, worktrees back to baseline, changed pages seen on a local server, and every issue named beside its PR number and merge commit. Mark each lane's task complete as its merges pass this check.
 
 ## 6. Clear the debris, then file the rest
 
 Sort every finding the lanes reported into two piles: what this swarm introduced, and what was already there. Verify with `git grep <symbol> <baseline-commit>` — "absent at baseline" is the test, not memory.
 
-**Debris the swarm made, the swarm clears.** A dead branch, a duplicated primitive, a default that reintroduces the bug just fixed, a sibling caller left on the old shape. The lane that saw it could not reach it — the fence had it — but the fence dissolves the moment the lanes finish. Fix it in one cleanup lane off the merged base, and land that too. A run that closes five issues and opens five for its own leavings has moved nothing.
+**Debris the swarm made, the swarm clears.** A dead branch, a duplicated primitive, a default that reintroduces the bug just fixed, a sibling caller left on the old shape. The lane that saw it could not reach it — the fence had it — but the fence dissolves the moment the lanes finish. Fix it in one cleanup lane off the merged base (a goal swarm's goal branch), and land that too. A run that closes five issues and opens five for its own leavings has moved nothing.
 
 Dead code cascades: removing one structure leaves its inputs with no reader. Brief the cleanup lane to clear the whole chain in one PR, then grep each removed symbol's former inputs once more after its diff.
 

@@ -6,6 +6,9 @@ Fill and pass as the `Agent` prompt. Every `<>` is a value you resolved in steps
 
 You are **link <k> of <total> in Lane <X>** of a <N>-lane swarm landing the ready-ticket queue in the repo the profile below names, currently at `<baseline commit>` and green.
 
+<When it is a goal swarm:>
+This swarm lands the goal "<goal>" on its goal branch, `<base>`. Every branch you cut starts from `<base>`, and every PR you open targets it; the owner lands `<base>` into `<base branch>` as one PR once the goal is whole.
+
 <When k > 1:>
 This lane's earlier links have merged: <#n → what it left: the module, helper or component, and where>. Build on what they left; do not rebuild it.
 
@@ -79,7 +82,7 @@ Run every gate in the **foreground**, with a reporter that streams, and read its
 
 **e. Review.** The profile's **review** verb, both axes — standards and spec. Every reviewer subagent you brief is **read-only**: it reads the diff and the files at your branch head, and it never checks out, commits, stashes or writes a file — the worktree, its HEAD and its commits stay yours. Fix every finding that sits inside your fence and your ticket, in this branch; its findings leave as commits, not as notes. A finding outside either is a held finding for your report.
 
-**f. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what. Watch CI with `gh pr checks --watch` in the foreground; it can exit early on a network reset, so re-run it until every check reports pass or fail. An early exit is not a result. If any commit lands after review — a CI fix — review that delta before you hand back, and say so.
+**f. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what. <When the profile's **CI** row says PRs into `<base>` get checks:> Watch CI with `gh pr checks --watch` in the foreground; it can exit early on a network reset, so re-run it until every check reports pass or fail. An early exit is not a result. <Otherwise:> `<base>` gets no CI, so your step c gates are the check; say so in the hand-back. If any commit lands after review — a CI fix — review that delta before you hand back, and say so.
 
 Take it as far as readiness, then end your turn with the `ready-to-merge` status line, the PR number, the gate, critique and review outcomes, the head SHA pasted from `git rev-parse HEAD` output in this turn (never recalled), and the verbatim `gh pr merge` command. The orchestrator runs the merge and resumes you with the SHA; you pick up at **g**. If any command is denied, end your turn with an `escalation` status line (`reason=denied`) and that command verbatim, and let the orchestrator decide.
 
