@@ -36,20 +36,47 @@ const inProject = dir => dir === PROJECT || dir.startsWith(PROJECT + '--claude-w
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }
 
-// This repo's sessions that spawned subagents, newest first.
+// A resumed session is a new transcript that starts with a copy of the old one, message uuids and all.
+// The first uuid is the run's key: every session that shares it is the same run.
+const roots = new Map();
+function rootOf(file) {
+  if (roots.has(file)) return roots.get(file);
+  let r = null;
+  try {
+    const fd = fs.openSync(file, 'r'), buf = Buffer.alloc(65536);
+    r = (buf.toString('utf8', 0, fs.readSync(fd, buf, 0, buf.length, 0)).match(/"uuid":"([^"]+)"/) ?? [])[1] ?? null;
+    fs.closeSync(fd);
+  } catch {}
+  if (r) roots.set(file, r);
+  return r;
+}
+
+// This repo's runs that spawned subagents, newest first. A run resumed into new sessions is one entry,
+// named by its newest session; `members` holds every session folder of the run, oldest first.
 function listSessions() {
-  const out = [];
+  const runs = new Map();
   for (const p of fs.readdirSync(PROJECTS).filter(inProject)) {
     const pd = path.join(PROJECTS, p);
     if (!fs.statSync(pd).isDirectory()) continue;
-    for (const s of fs.readdirSync(pd)) {
-      const sub = path.join(pd, s, 'subagents');
-      if (!fs.existsSync(sub)) continue;
-      const metas = fs.readdirSync(sub).filter(n => n.endsWith('.meta.json')).map(n => readJson(path.join(sub, n)));
-      // A lane may run as a chain of agents; count each lane letter once.
-      const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && /lane/i.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
-      out.push({ id: s, dir: path.join(pd, s), project: p.startsWith(HOME_SLUG) ? p.slice(HOME_SLUG.length) : p, mtime: fs.statSync(sub).mtimeMs, agents: metas.length, lanes });
+    for (const n of fs.readdirSync(pd).filter(n => n.endsWith('.jsonl'))) {
+      const s = n.slice(0, -6), dir = path.join(pd, s), sub = path.join(dir, 'subagents');
+      const metas = fs.existsSync(sub) ? fs.readdirSync(sub).filter(n => n.endsWith('.meta.json')).map(n => ({ id: n.replace(/^agent-|\.meta\.json$/g, ''), ...readJson(path.join(sub, n)) })) : [];
+      const mtime = Math.max(fs.statSync(dir + '.jsonl').mtimeMs, metas.length ? fs.statSync(sub).mtimeMs : 0);
+      const key = rootOf(dir + '.jsonl') ?? s;
+      const run = runs.get(key) ?? { members: [], metas: new Map(), project: p.startsWith(HOME_SLUG) ? p.slice(HOME_SLUG.length) : p };
+      run.members.push({ id: s, dir, mtime });
+      for (const m of metas) run.metas.set(m.id, m);
+      runs.set(key, run);
     }
+  }
+  const out = [];
+  for (const run of runs.values()) {
+    if (!run.metas.size) continue;
+    run.members.sort((a, b) => a.mtime - b.mtime);
+    const metas = [...run.metas.values()], newest = run.members.at(-1);
+    // A lane may run as a chain of agents; count each lane letter once.
+    const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && /lane/i.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
+    out.push({ id: newest.id, dir: newest.dir, members: run.members.map(m => m.dir), ids: run.members.map(m => m.id), project: run.project, mtime: newest.mtime, agents: metas.length, lanes });
   }
   return out.sort((a, b) => b.mtime - a.mtime);
 }
@@ -87,7 +114,7 @@ function parseTranscript(file) {
   const key = `${st.size}:${st.mtimeMs}`;
   const hit = cache.get(file);
   if (hit && hit.key === key) return hit.v;
-  const v = { start: null, last: null, endT: null, tools: [], outTokens: 0, cwd: null };
+  const v = { start: null, last: null, endT: null, tools: [], outTokens: 0, cwd: null, tokensById: {} };
   const seen = new Map();
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (!line) continue;
@@ -99,18 +126,18 @@ function parseTranscript(file) {
     if (j.type !== 'assistant' || !m) continue;
     if (m.usage) {
       const o = m.usage.output_tokens ?? 0, prev = seen.get(m.id) ?? 0;
-      if (o > prev) { v.outTokens += o - prev; seen.set(m.id, o); }
+      if (o > prev) { v.outTokens += o - prev; seen.set(m.id, o); v.tokensById[m.id] = o; }
     }
     const uses = (m.content ?? []).filter(c => c.type === 'tool_use');
     if (!uses.length && m.stop_reason === 'end_turn') {
       // A turn that ends in plain text is a hand-back too; its first line may carry the status line.
       v.endT = t;
       const text = (m.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('\n');
-      if (text.trim()) v.tools.push({ t, name: 'TurnEnd', text: text.slice(0, 900), brief: toolSummary({ message: text }), stage: null, refs: [] });
+      if (text.trim()) v.tools.push({ key: m.id, t, name: 'TurnEnd', text: text.slice(0, 900), brief: toolSummary({ message: text }), stage: null, refs: [] });
     }
     for (const c of uses) {
       const inp = c.input ?? {};
-      const tool = { t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: /gh pr merge/.test(String(inp.command ?? '')) || undefined };
+      const tool = { key: c.id, t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: /gh pr merge/.test(String(inp.command ?? '')) || undefined };
       // extras the page uses for edge annotations and the goal panel
       if (c.name === 'Agent' || c.name === 'Task') Object.assign(tool, { useId: c.id, agentName: inp.name, promptLen: String(inp.prompt ?? '').length });
       if (c.name === 'SendMessage') Object.assign(tool, { to: inp.to, summary: inp.summary ?? String(inp.message ?? '').slice(0, 120) });
@@ -134,6 +161,8 @@ function runLogFor(start, last) {
   return {
     file: path.basename(f),
     title: (text.match(/^# (.*)$/m) ?? [])[1],
+    // `Key: value` lines between the title and the first section name the goal: Shape, Scope, Queue, Frontier.
+    lines: [...text.split(/^## /m)[0].matchAll(/^([A-Z][A-Za-z -]{1,30}): (.+)$/gm)].map(m => ({ key: m[1], value: m[2] })),
     tasks: [...text.matchAll(/^- \[( |x)\] (.*)$/gm)].map(m => ({ done: m[1] === 'x', text: m[2] })),
     incidents: (text.split(/^## Incidents\s*$/m)[1] ?? '').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2)),
   };
@@ -155,21 +184,40 @@ const REPO = (() => {
   catch { return null; }
 })();
 
+// One orchestrator transcript from every session of a resumed run: the copied history counts once.
+function mergeMains(parts) {
+  if (parts.length < 2) return parts[0] ?? null;
+  const tools = new Map(), tokensById = {};
+  for (const p of parts) {
+    for (const tl of p.tools) tools.set(tl.key ?? `${tl.t}:${tl.name}`, tl);
+    Object.assign(tokensById, p.tokensById);
+  }
+  return { start: Math.min(...parts.map(p => p.start ?? Infinity)), last: Math.max(...parts.map(p => p.last ?? 0)), endT: Math.max(...parts.map(p => p.endT ?? 0)) || null,
+    cwd: parts[0].cwd, tools: [...tools.values()].sort((a, b) => a.t - b.t), outTokens: Object.values(tokensById).reduce((s, o) => s + o, 0), tokensById };
+}
+
 function state(id) {
   const sessions = listSessions();
-  const s = sessions.find(x => x.id === id) ?? sessions[0];
+  const s = sessions.find(x => x.ids.includes(id)) ?? sessions[0];
   if (!s) return { empty: true };
-  const sub = path.join(s.dir, 'subagents');
-  const agents = fs.readdirSync(sub).filter(n => n.endsWith('.jsonl')).map(n => {
-    const aid = n.replace(/^agent-|\.jsonl$/g, '');
+  // An agent running when the run was resumed has a transcript in both sessions; keep the longer one.
+  const files = new Map(), size = (sub, aid) => fs.statSync(path.join(sub, `agent-${aid}.jsonl`)).size;
+  for (const dir of s.members) {
+    const sub = path.join(dir, 'subagents');
+    if (!fs.existsSync(sub)) continue;
+    for (const n of fs.readdirSync(sub).filter(n => n.endsWith('.jsonl'))) {
+      const aid = n.replace(/^agent-|\.jsonl$/g, ''), had = files.get(aid);
+      if (!had || size(sub, aid) >= size(had, aid)) files.set(aid, sub);
+    }
+  }
+  const agents = [...files].map(([aid, sub]) => {
     const meta = readJson(path.join(sub, `agent-${aid}.meta.json`));
     const desc = meta.description ?? aid;
     const isLane = (meta.spawnDepth ?? 1) === 1 && /lane/i.test(desc);
     return { id: aid, useId: meta.toolUseId, desc, model: meta.model ?? '?', parent: meta.parentAgentId ?? null, depth: meta.spawnDepth ?? 1,
-      isLane, queue: isLane ? [...desc.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : [], ...parseTranscript(path.join(sub, n)) };
+      isLane, queue: isLane ? [...desc.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : [], ...parseTranscript(path.join(sub, `agent-${aid}.jsonl`)) };
   });
-  const mainFile = s.dir + '.jsonl';
-  const main = fs.existsSync(mainFile) ? parseTranscript(mainFile) : null;
+  const main = mergeMains(s.members.map(d => d + '.jsonl').filter(f => fs.existsSync(f)).map(parseTranscript));
   const start = Math.min(...agents.map(a => a.start).filter(Boolean), main?.start ?? Infinity);
   const last = Math.max(...agents.map(a => a.last ?? 0), main?.last ?? 0);
   return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(start, last), prs: prsNow(), repo: REPO };
@@ -179,7 +227,7 @@ const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   const json = v => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(v)); };
   if (u.pathname === '/whoami') return json({ app: 'swarm-console', pid: process.pid, project: PROJECT, root: ROOT });
-  if (u.pathname === '/sessions') return json(listSessions().slice(0, 40).map(({ dir, ...s }) => s));
+  if (u.pathname === '/sessions') return json(listSessions().slice(0, 40).map(({ dir, members, ...s }) => s));
   if (u.pathname === '/state') return json(state(u.searchParams.get('session')));
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   res.end(fs.readFileSync(PAGE));

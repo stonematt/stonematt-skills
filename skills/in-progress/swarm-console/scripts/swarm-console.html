@@ -295,7 +295,9 @@ async function loadSessions(){
   document.title=who.root.split('/').pop()+' · Swarm console';$('h1').textContent=who.root.split('/').pop();
   if(!list.length){$('conn').textContent='No sessions with subagents in this repo yet';throw new Error('empty')}
   $('session').innerHTML=list.map(s=>'<option value="'+s.id+'">'+esc(new Date(s.mtime).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(s.lanes.length?s.lanes.length+' lanes':s.agents+' agents')+' · '+s.project.slice(-26))+'</option>').join('');
-  if(qs.get('session'))$('session').value=qs.get('session');
+  // A run resumed into a new session keeps one entry, named by its newest session; an older id still finds it.
+  const pin=qs.get('session'),run=pin&&list.find(s=>s.ids?.includes(pin));
+  if(run)$('session').value=run.id;
 }
 async function loadState(keepT){
   try{S=await getJSON('/state?session='+encodeURIComponent($('session').value));lastOk=Date.now();connErr=false}
@@ -539,8 +541,10 @@ function renderGoal(){
     h+='<div class="goal-subj">'+esc(g.subject)+'</div><dl>'+(parts[0].trim()?'<dt>note</dt><dd>'+esc(parts[0])+'</dd>':'');
     for(let i=1;i<parts.length;i+=2)h+='<dt>'+esc(parts[i])+'</dt><dd>'+esc(parts[i+1])+'</dd>';
     h+='</dl>'+(rest.length?'<div style="margin-top:8px">'+rest.map(t=>'<div class="task'+(t.status==='completed'?' done':'')+'">'+esc(t.subject)+'</div>').join('')+'</div>':'')}
-  if(rl?.tasks?.length)h+=(tasks.length?'<h2 style="margin-top:12px">Run log</h2>':'<div class="goal-subj">'+esc(rl.title||rl.file)+'</div>')+rl.tasks.map(t=>'<div class="task'+(t.done?' done':'')+'">'+esc(t.text.slice(0,120))+'</div>').join('');
-  if(!tasks.length&&!rl?.tasks?.length)h+='<div class="calm">No task list or run log for this session at this moment. The orchestrator\'s TaskCreate and TaskUpdate calls, or a run log Tasks section, fill this panel.</div>';
+  // Without a task list, the run log's title and its `Key: value` lines stand in for the goal task.
+  if(!tasks.length&&rl&&(rl.title||rl.lines?.length||rl.tasks?.length))h+='<div class="goal-subj">'+esc(rl.title||rl.file)+'</div>'+(rl.lines?.length?'<dl>'+rl.lines.map(l=>'<dt>'+esc(l.key)+'</dt><dd>'+esc(l.value)+'</dd>').join('')+'</dl>':'');
+  if(rl?.tasks?.length)h+=(tasks.length?'<h2 style="margin-top:12px">Run log</h2>':'<div style="margin-top:8px"></div>')+rl.tasks.map(t=>'<div class="task'+(t.done?' done':'')+'">'+esc(t.text.slice(0,120))+'</div>').join('');
+  if(!tasks.length&&!(rl&&(rl.title||rl.lines?.length||rl.tasks?.length)))h+='<div class="calm">No task list or run log for this session at this moment. The orchestrator\'s TaskCreate and TaskUpdate calls, or a run log\'s title and Tasks lines, fill this panel.</div>';
   if(h===lastGoalSig)return;lastGoalSig=h;$('goal').innerHTML=h;
 }
 
