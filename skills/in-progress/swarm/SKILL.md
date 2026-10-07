@@ -37,7 +37,9 @@ No collisions at all is one lane with no fence.
 
 Watch for a collision you can only dissolve by pre-deciding a ticket's design fork. Sometimes the ticket's acceptance criteria already force that answer and you are merely reading it early. Check which before you constrain a lane, and say so.
 
-**Done when** every queued issue sits in exactly one lane, no fenced file appears in two lanes running *at the same time* (every file, in a queue swarm), no two lanes run strictly one after the other, a goal swarm runs as many lanes as its widest frontier, and each lane is a task in the task list — its objective, its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. An unattended run outlives its context window, and the task list is what survives a compaction.
+**Done when** every queued issue sits in exactly one lane, no fenced file appears in two lanes running *at the same time* (every file, in a queue swarm), no two lanes run strictly one after the other, a goal swarm runs as many lanes as its widest frontier, and each lane is a task in the task list — its objective, its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. Create that goal task first, with `TaskCreate`: its subject names the goal and its parent issue, and the console reads the first task as the goal. An unattended run outlives its context window, and the task list is what survives a compaction.
+
+**The task tools are not always there.** Load them with `ToolSearch` (`select:TaskCreate,TaskUpdate,TaskList`). Some sessions are offered none: the search returns nothing for them. Then the run log (step 4) holds the goal and the lanes instead, and you write it now rather than at launch. Say so in your table to the user. Never let the goal live only in your context.
 
 ## 3. Pin the profile
 
@@ -85,9 +87,25 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 **On a goal branch, run the gates after every merge.** Each lane's gates ran on its own branch, before the merge. Two lanes can each be green and still break each other: one lane's new constraint fails a test in another lane's file, and git merges both clean. Run the profile's gates on the goal branch at the new merge commit, in a scratch worktree made with `git worktree add --detach`, before you resume the lane. Green → resume it. Red → hold every other `ready-to-merge` and launch one **fix link** off the goal branch: the next link of the lane whose merge went red, carrying that lane's ticket number in its description and branch so the console folds it into the lane, fenced to the files the failure names, with the failing output as its ticket. It lands like any link, and the held merges follow it. Log each red one as an incident. A goal branch is often CI-dark (the profile's **CI** row), so these runs are the only check the merged whole gets before the goal PR.
 
-**Keep the run log from the first launch.** The skill improves only from what a run records. Create `~/.claude/skill-workbench/swarm/runs/<YYYY-MM-DD>-<repo>.md` and append one line the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
+**Keep the run log from the first launch.** The skill improves only from what a run records. Create `~/.claude/skill-workbench/swarm/runs/<YYYY-MM-DD>-<repo>.md`. Open it with the goal, in the shape the console reads when there is no task list:
 
-**Done when** every lane is running, the run log exists, and the user has the table: which objective, which issues, which files, which order, which model.
+```markdown
+# <goal> (#<parent>) → goal/<slug>
+
+Shape: goal swarm off <base branch> <commit>
+Scope: goal/<slug> → <base branch>
+Queue: #<n>, #<n>, …
+Frontier: #<n>, #<n>
+
+- [ ] Lane A: <objective> — #<n>, #<n>
+- [ ] Lane B: <objective> — #<n>
+
+## Incidents
+```
+
+A queue swarm drops the arrow and the `Scope:` line. Tick a lane's `- [x]` when you mark its task complete. Then append one line under `## Incidents` the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
+
+**Done when** every lane is running, the run log exists with the goal and a line for every lane, and the user has the table: which objective, which issues, which files, which order, which model.
 
 ## 5. Verify independently
 
