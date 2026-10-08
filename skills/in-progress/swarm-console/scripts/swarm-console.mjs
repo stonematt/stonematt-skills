@@ -123,19 +123,50 @@ function parseTranscript(file) {
   return v;
 }
 
-// The swarm skill names run logs <date>-<repo>[-n].md; take this repo's newest one written during the session.
-function runLogFor(start, last) {
+// The run log's "## Lanes" block is the orchestrator's plan, rewritten whenever it changes:
+//   Session: <orchestrator session id>
+//   - [ ] Lane B (Squad SQL into module): #730 #725 #731 — #731 after Lane A
+//     Files: src/lib/squads/grid.ts, …
+// → { session, lanes: { B: { objective, tickets: [730, 725, 731], after: { 731: 'A' }, files, done } } }. The checkbox,
+// objective and Files line are optional. null when the log has no such block (an older log's lane table reads as none).
+function planOf(text) {
+  const sec = (text.split(/^## Lanes\s*$/m)[1] ?? '').split(/^## /m)[0];
+  const lanes = {};
+  for (const m of sec.matchAll(/^- (?:\[( |x)\] )?Lane\s+([^:\s(]+)\s*(?:\(([^)]*)\))?:\s*(.*)$((?:\n[ \t]+\S.*)*)/gm)) {
+    const [head, tail = ''] = m[4].split(/\s+[—–]\s+/);
+    const tickets = [...head.matchAll(/#(\d+)/g)].map(x => Number(x[1]));
+    const after = Object.fromEntries([...tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)].map(x => [x[1], x[2]]));
+    const files = ((m[5].match(/^\s*Files:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*/).map(f => f.replace(/`/g, '').trim()).filter(Boolean);
+    if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, done: m[1] === 'x' };
+  }
+  const session = (sec.match(/^Session:\s*([\w-]+)/m) ?? [])[1] ?? null;
+  return Object.keys(lanes).length ? { session, lanes } : null;
+}
+// The swarm skill names run logs <date>-<repo>[-n].md. Which one is this session's: the one whose plan names
+// this session; else one whose plan shares a ticket with the session's lanes; else the newest written during
+// the session, skipping a planned log that shares no ticket with lanes already running. A log whose plan names
+// another session is never this one's.
+function runLogFor(id, start, last, tickets) {
   if (!fs.existsSync(RUNS)) return null;
   const name = path.basename(ROOT);
-  const f = fs.readdirSync(RUNS).filter(n => n.includes('-' + name)).map(n => path.join(RUNS, n))
-    .map(f => [f, fs.statSync(f).mtimeMs]).filter(([, m]) => m >= start && m <= last + 3600e3).sort((a, b) => b[1] - a[1])[0]?.[0];
-  if (!f) return null;
-  const text = fs.readFileSync(f, 'utf8');
+  const logs = fs.readdirSync(RUNS).filter(n => n.includes('-' + name)).map(n => path.join(RUNS, n)).map(f => {
+    const text = fs.readFileSync(f, 'utf8');
+    return { f, m: fs.statSync(f).mtimeMs, text, plan: planOf(text) };
+  }).filter(l => !l.plan?.session || l.plan.session === id).sort((a, b) => b.m - a.m);
+  const during = l => l.m >= start && l.m <= last + 3600e3;
+  const l = logs.find(l => l.plan?.session === id)
+    ?? logs.find(l => l.m >= start && Object.values(l.plan?.lanes ?? {}).some(p => p.tickets.some(t => tickets.has(t))))
+    ?? logs.find(l => during(l) && (!l.plan || !tickets.size));
+  if (!l) return null;
+  const { f, text, plan } = l;
   return {
     file: path.basename(f),
     title: (text.match(/^# (.*)$/m) ?? [])[1],
+    // a goal swarm's landing target, "Scope: goal/<slug> → <base>", on its own line or inside the goal line
+    scope: (text.match(/\bScope:\s*`?([^\s`]+`?\s*(?:→|->)\s*`?[^\s`.,;]+)/) ?? [])[1]?.replace(/`/g, '') ?? null,
     tasks: [...text.matchAll(/^- \[( |x)\] (.*)$/gm)].map(m => ({ done: m[1] === 'x', text: m[2] })),
     incidents: (text.split(/^## Incidents\s*$/m)[1] ?? '').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2)),
+    plan,
   };
 }
 
@@ -172,7 +203,8 @@ function state(id) {
   const main = fs.existsSync(mainFile) ? parseTranscript(mainFile) : null;
   const start = Math.min(...agents.map(a => a.start).filter(Boolean), main?.start ?? Infinity);
   const last = Math.max(...agents.map(a => a.last ?? 0), main?.last ?? 0);
-  return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(start, last), prs: prsNow(), repo: REPO };
+  const tickets = new Set(agents.flatMap(a => a.queue));
+  return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(s.id, start, last, tickets), prs: prsNow(), repo: REPO };
 }
 
 const server = http.createServer((req, res) => {
