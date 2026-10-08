@@ -7,7 +7,9 @@ A **lane** is one agent that owns a set of **files**, not a set of issues. Lanes
 
 ## 1. Build the queue
 
-**First name the run's shape, from what the user pointed you at.** A **goal** swarm works a spec, a milestone, or a goal's list of tickets: a collection that only means something once all of it lands. It lands on a **goal branch** (step 4) and reaches the base branch as one PR the owner reviews. A **queue** swarm works the open issue list, or a one-off batch with no shared goal; each ticket lands on the base branch as its own PR. The shape is on the run's task from here on.
+**First name the run's shape, from what the user pointed you at.** A **goal** swarm works a spec, a milestone, or a goal's list of tickets: a collection that only means something once all of it lands. It lands on a **goal branch** (step 4) and reaches the base branch as one PR the owner reviews. A **queue** swarm works the open issue list, or a one-off batch with no shared goal; each ticket lands on the base branch as its own PR.
+
+Create the **run log** now, `~/.claude/skill-workbench/swarm/runs/<YYYY-MM-DD>-<repo>.md`, with a `# ` title naming the goal and the shape on the lines below it. The run log is the run's only durable record: goal, plan, baseline and incidents all live there.
 
 Read every open issue in scope: the goal's tickets, or the whole open list. Each lands in-queue or out-with-a-reason.
 
@@ -15,7 +17,7 @@ In-queue means the ticket is a spec an agent can finish alone: acceptance criter
 
 The repo's agent-ready label narrows the list; it does not decide it. A parent spec can carry the label and still be the umbrella over the very issues you just queued. Apply the finish-alone test to every labelled issue.
 
-A goal's parent spec or milestone is the goal, not a ticket: out of the queue, and named on the run's task.
+A goal's parent spec or milestone is the goal, not a ticket: out of the queue, and named at the top of the run log, with the stop condition.
 
 **Done when** the user has the run's shape and both lists, and the out-list says why for each.
 
@@ -37,7 +39,20 @@ No collisions at all is one lane with no fence.
 
 Watch for a collision you can only dissolve by pre-deciding a ticket's design fork. Sometimes the ticket's acceptance criteria already force that answer and you are merely reading it early. Check which before you constrain a lane, and say so.
 
-**Done when** every queued issue sits in exactly one lane, no fenced file appears in two lanes running *at the same time* (every file, in a queue swarm), no two lanes run strictly one after the other, a goal swarm runs as many lanes as its widest frontier, and each lane is a task in the task list — its objective, its issues in order, its files, and any lane it waits on as a blocker. One more task holds the goal, scope and stop condition. An unattended run outlives its context window, and the task list is what survives a compaction.
+**Write the plan into the run log** as a `## Lanes` block, one line per lane:
+
+```
+## Lanes
+Session: ${CLAUDE_SESSION_ID}
+- [ ] Lane A (one lap rule set): #729
+  Files: src/lib/laps/rules.ts, src/lib/laps/rules.test.ts
+- [ ] Lane B (Squad SQL into module): #730 #725 #731 — #731 after Lane A
+  Files: src/lib/squads/grid.ts, src/lib/db/schema.ts
+```
+
+The objective goes in parentheses (step 4), the tickets in build order, space-separated, and any cross-lane wait after ` — ` as `#<n> after Lane <X>`, comma-separated when there are several. If the `Session:` line shows no id, leave it out. Rewrite the block whenever the plan changes — a ticket added, moved, dropped or reordered, a lane opened. The swarm console reads this block for every lane's queue and waits, and finds the run log by its `Session:` line; a stale block shows the user a plan you are no longer running.
+
+**Done when** every queued issue sits in exactly one lane, no fenced file appears in two lanes running *at the same time* (every file, in a queue swarm), no two lanes run strictly one after the other, a goal swarm runs as many lanes as its widest frontier, and the run log's Lanes block holds every lane. An unattended run outlives its context window: after a compaction or a resume, re-read the run log, Lanes block first, before you act on any lane's status line.
 
 ## 3. Pin the profile
 
@@ -55,21 +70,21 @@ Name the destructive scripts the lanes are to leave unrun, and say what each one
 
 Split servers in two. A server the owner runs — the main checkout's, on its port, against its data — is leave-unrun. A lane's **own server** is not: where the repo can serve one checkout on its own port and its own database, record the command that starts it from a worktree, how it gets env without copying a secrets file, and how it stops. UI lanes serve their branch with it and critique what they see (`LANE-BRIEF.md` step d), so the owner is not the first one to look.
 
-**Done when** the profile has every field filled, its filled copy is in the repo at `.claude/swarm-profile.md`, and the baseline is on the run's task.
+**Done when** the profile has every field filled, its filled copy is in the repo at `.claude/swarm-profile.md`, and the baseline is in the run log.
 
 ## 4. Launch
 
-**A goal swarm cuts its goal branch first.** If the repo's docs or memory record a decision against goal branches — epics land ticket by ticket, say — ask the owner before you cut one, and run it as a queue swarm if they say no. Branch `goal/<slug>` off the profile's base branch and push it. Make the slug words with no digits: the console reads any `-<digits>` as an issue number. After the first lane merge, open a draft **goal PR** from it into the base branch (GitHub refuses a PR from a branch with no commits): the goal in its title, a `Closes #<n>` line for every queued ticket (`stone-merge` reads them to stage each one when it lands), and a pointer to the spec or milestone. Add `Scope: goal/<slug> → <base branch>` to the goal task's description; the console's Goal panel shows it.
+**A goal swarm cuts its goal branch first.** If the repo's docs or memory record a decision against goal branches — epics land ticket by ticket, say — ask the owner before you cut one, and run it as a queue swarm if they say no. Branch `goal/<slug>` off the profile's base branch and push it. Make the slug words with no digits: the console reads any `-<digits>` as an issue number. After the first lane merge, open a draft **goal PR** from it into the base branch (GitHub refuses a PR from a branch with no commits): the goal in its title, a `Closes #<n>` line for every queued ticket (`stone-merge` reads them to stage each one when it lands), and a pointer to the spec or milestone. Write `Scope: goal/<slug> → <base branch>` at the top of the run log; the console's Goal panel shows it.
 
 From then on the goal branch is the `<base>` in every lane brief: lanes branch off it, open their PRs into it, and the cleanup lane lands there too. The base branch is untouched until the owner lands the goal PR. A queue swarm skips all this; its lanes' `<base>` is the base branch itself.
 
-**A lane runs as a chain of agents, one per ticket.** Each **link** is a fresh `Agent`, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md) with a queue of one ticket (or the tickets that land as one PR). Launch a lane's next link when the last one hands back `queue-done`. Its brief carries what the earlier links left — new modules, helpers, shared components — so it extends their work instead of rebuilding it. One agent working a whole queue runs its late tickets on a compacted memory of its early ones; a fresh link per ticket keeps each one small. Mark each lane's task in progress as its first link launches.
+**A lane runs as a chain of agents, one per ticket.** Each **link** is a fresh `Agent`, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md) with a queue of one ticket (or the tickets that land as one PR). Launch a lane's next link when the last one hands back `queue-done`. Its brief carries what the earlier links left — new modules, helpers, shared components — so it extends their work instead of rebuilding it. One agent working a whole queue runs its late tickets on a compacted memory of its early ones; a fresh link per ticket keeps each one small.
 
-**Make the run legible.** Describe each link `Lane <X>: #<n> (<k>/<total>) <objective>` — its ticket, its place in the lane's queue, and the lane's objective — and give it `name: lane-<x>-<k>`; resume it by that name. The console folds a lane's links into one row. That holds for every link launched mid-run too — fix links, UAT findings, the cleanup lane: it continues its lane's letter, or takes the next unused one. Never reuse another lane's letter, and never drop the ticket number. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the goal task — serve it once the lanes are running and give the user its link.
+**Make the run legible.** Describe each link `Lane <X>: #<n> (<k>/<total>) <objective>` — its ticket, its place in the lane's queue, and the lane's objective — and give it `name: lane-<x>-<k>`; resume it by that name. The console folds a lane's links into one row. That holds for every link launched mid-run too — fix links, UAT findings, the cleanup lane: it continues its lane's letter, or takes the next unused one. Never reuse another lane's letter, and never drop the ticket number. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the run log — serve it once the lanes are running and give the user its link.
 
-**Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 (2/4) club admin forms`, not `Lane H: #528`. It is the lane's, so every link carries the same one. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs on the lane's task, where its blocker already sits. Write the objective once in step 2, on the lane's task, and copy it into the description at launch.
+**Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 (2/4) club admin forms`, not `Lane H: #528`. It is the lane's, so every link carries the same one. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs in the Lanes block, as `#<n> after Lane G`. Write the objective once in step 2, in the lane's line of the Lanes block, and copy it into the description at launch.
 
-**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the link's merge, then launch the lane's next link, or mark the lane's task complete after its last.
+**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the link's merge, then launch the lane's next ticket from the Lanes block as its next link.
 
 **Where you sit decides the worktree recipe.** From the main checkout, lanes build sibling worktrees (`LANE-BRIEF.md` step a). When you yourself run inside a worktree, a guard refuses that recipe for you and every subagent alike; launch each link with `isolation: "worktree"` and brief it the isolated variant.
 
@@ -85,9 +100,9 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 **On a goal branch, run the gates after every merge.** Each lane's gates ran on its own branch, before the merge. Two lanes can each be green and still break each other: one lane's new constraint fails a test in another lane's file, and git merges both clean. Run the profile's gates on the goal branch at the new merge commit, in a scratch worktree made with `git worktree add --detach`, before you resume the lane. Green → resume it. Red → hold every other `ready-to-merge` and launch one **fix link** off the goal branch: the next link of the lane whose merge went red, carrying that lane's ticket number in its description and branch so the console folds it into the lane, fenced to the files the failure names, with the failing output as its ticket. It lands like any link, and the held merges follow it. Log each red one as an incident. A goal branch is often CI-dark (the profile's **CI** row), so these runs are the only check the merged whole gets before the goal PR.
 
-**Keep the run log from the first launch.** The skill improves only from what a run records. Create `~/.claude/skill-workbench/swarm/runs/<YYYY-MM-DD>-<repo>.md` and append one line the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
+**Log every incident in the run log.** The skill improves only from what a run records. Append one line under `## Incidents` the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
 
-**Done when** every lane is running, the run log exists, and the user has the table: which objective, which issues, which files, which order, which model.
+**Done when** every lane is running, the Lanes block matches what you launched, and the user has the table: which objective, which issues, which files, which order, which model.
 
 ## 5. Verify independently
 
@@ -103,7 +118,7 @@ When the run changed UI, serve the merged base locally and open every changed pa
 
 A goal swarm verifies the goal branch. When the owner says their review is done, mark the goal PR ready with `gh pr ready`, watch its CI to a result, and put the PR's link in front of the owner. Landing it is the owner's call, through `stone-merge` or by hand; you leave the goal PR unmerged.
 
-**Done when** you have personally confirmed: gates green at a named commit, no open PRs except a goal swarm's goal PR, no leftover `fix/*` branches **local or remote**, worktrees back to baseline, changed pages seen on a local server, and every issue named beside its PR number and merge commit. Mark each lane's task complete as its merges pass this check.
+**Done when** you have personally confirmed: gates green at a named commit, no open PRs except a goal swarm's goal PR, no leftover `fix/*` branches **local or remote**, worktrees back to baseline, changed pages seen on a local server, and every issue named beside its PR number and merge commit. Tick each lane `[x]` in the Lanes block as its merges pass this check.
 
 ## 6. Clear the debris, then file the rest
 

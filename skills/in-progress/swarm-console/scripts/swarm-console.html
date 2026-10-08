@@ -80,7 +80,7 @@ h2 .num{font-weight:500;color:var(--fg)}h2 .sp{flex:1}
 .lanecell{display:grid;grid-template-columns:30px minmax(0,1fr);gap:0 10px;align-items:center;padding:8px 10px 8px 14px;border-bottom:1px solid var(--line);cursor:pointer}
 .row.sel .lanecell{background:var(--surface);box-shadow:inset 3px 0 0 var(--fg)}
 .blk{width:30px;height:30px;border-radius:4px;display:grid;place-items:center;font:600 15px var(--sans);color:var(--bg);background:var(--done)}
-.st-live{background:var(--live)}.st-quiet{background:var(--quiet)}.st-stall{background:var(--stall)}.st-hand{background:var(--hand)}.st-done{background:var(--done)}
+.st-live{background:var(--live)}.st-quiet{background:var(--quiet)}.st-stall{background:var(--stall)}.st-hand{background:var(--hand)}.st-done{background:var(--done)}.st-plan{background:none;color:var(--muted);box-shadow:inset 0 0 0 1.5px var(--line)}.lanecell.planned{cursor:default}
 .row.attn .blk{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--hand)}.row.attn-red .blk{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--stall)}
 .row.cord .blk{animation:cord 1s steps(2,jump-none) infinite}@keyframes cord{50%{opacity:.35}}
 .ln{font-weight:600;display:flex;gap:6px;align-items:baseline;white-space:nowrap}
@@ -220,23 +220,33 @@ const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).map(a=>[a,laneAt(a).do
 const msgsTo=(a,t=T)=>(S.main?.tools||[]).filter(tl=>tl.t<=t&&(tl.name==='SendMessage'&&(tl.to===a.name||tl.to===a.id||a.keys?.has(tl.to))||(a.spawns?.has(tl)&&tl!==a.spawn)));
 const handbacks=(a,t=T)=>a.tools.filter(tl=>isHandback(tl)&&tl.t<=t);
 const label=a=>a===S.main?'orchestrator':a.isLane?'Lane '+short(a.desc):role(a.desc)+(a.parent&&byId[a.parent]?.isLane?' · '+short(byId[a.parent].desc):'');
+// The run log's "## Lanes" block, parsed by the server: {session, lanes:{A:{tickets:[729],after:{731:'A'}}}}. Read as it is now,
+// so a replay shows the latest plan. Without one, every lane falls back to what its links' descriptions name.
+const planLanes=()=>S.runLog?.plan?.lanes||{};
+const afterOf=i=>{for(const p of Object.values(planLanes()))if(p.after?.[i])return p.after[i];return null};
 function laneAt(lane){
   const a=at(lane); if(!a)return null;
-  const tools=lane.tools.slice(0,a.n), queue=lane.queue;
+  // own: the issues the lane's links were spawned for; only those can be current, since a lane's calls also name issues it only checks.
+  // queue puts the plan's tickets first, so ones no link has reached yet wait in Queued; the plan also sets the total.
+  const plan=planLanes()[short(lane.desc)]?.tickets;
+  const tools=lane.tools.slice(0,a.n), own=lane.queue, queue=[...new Set([...(plan||[]),...own])], total=plan?queue.length:Math.max(lane.total||0,queue.length);
   const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t]).filter(([,m])=>m!=null));
-  const allMerged=queue.length>0&&merged.size===queue.length&&merged.size>=(lane.total||0);
+  const allMerged=queue.length>0&&merged.size===queue.length&&merged.size>=total;
   let cur=null;
-  for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>queue.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
-  if(cur==null&&!allMerged&&a.st!=='done')cur=queue.find(i=>!merged.has(i))??(queue.length?null:'—');
-  const done=allMerged||(a.st==='done'&&cur==null);
+  for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>own.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
+  if(cur==null&&!allMerged&&a.st!=='done')cur=own.find(i=>!merged.has(i))??(own.length?null:'—');
+  const done=allMerged||(a.st==='done'&&cur==null&&queue.every(i=>merged.has(i)||own.includes(i)));
   let stage='setup',stageT=lane.start;
   if(cur!=null&&!done){
     let from=tools.findIndex(x=>x.refs.includes(cur)); if(from<0)from=0; stageT=tools[from]?.t??lane.start;
     for(let i=from;i<tools.length;i++){const s=STAGE_OF[tools[i].stage];if(s&&s!==stage){stage=s;stageT=tools[i].t}}
     if(stage!=='review'&&stage!=='pr'&&kidsOf(lane).some(k=>{const x=at(k);return x&&(x.st==='live'||x.st==='quiet')}))stage='review';
   }
-  return {a,cur,stage,stageT,merged,queue,done};
+  return {a,cur,stage,stageT,merged,queue,total,done};
 }
+// Lanes the plan names that no link has started by T, with tickets still to merge.
+const plannedOnly=()=>{const started=new Set(lanesSorted().map(l=>short(l.desc)));
+  return Object.entries(planLanes()).filter(([k,p])=>!started.has(k)&&!p.done&&!p.tickets.every(i=>mergeTool(i)))};
 // Needs-you notices sit across stages. A notice clears when the orchestrator resumes the lane, merges, or the lane moves again.
 const RX_ESC=/escalat|\bblocked\b|\bheld\b|needs? (an? )?(owner|human|decision|re-?spec)|re-?spec|cannot proceed|can't proceed|stop(ped|ping)? rather/i;
 const RX_MERGE=/ready to merge|ready for merge|gh pr merge|merge command/i;
@@ -306,7 +316,7 @@ async function loadState(keepT){
     // a lane whose description names no issues: take its queue from the branches it created
     if(a.isLane&&!a.queue.length)a.queue=[...new Set(a.tools.filter(t=>/worktree add/.test(t.brief)).flatMap(t=>(t.brief.match(/-b \S*?-(\d+)\b/)||[]).slice(1).map(Number)))]}
   foldChains();
-  prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/);if(m)prIssue[p.number]=Number(m[1])}
+  prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/)||p.headRefName.match(/\/(\d+)-/);if(m)prIssue[p.number]=Number(m[1])}
   const live=Date.now()-S.last<15*60e3;
   $('live').disabled=!live;
   if(!keepT){graphs.forEach(g=>g.reset());
@@ -317,6 +327,7 @@ async function loadState(keepT){
 }
 // A lane runs as a chain of agents, one per ticket: "Lane A: #524 (3/10) club admin forms". Fold each lane's links into one lane
 // whose tools, queue and children are the links' together. Lanes from before chains have one agent each and pass through.
+// Board and timeline read the fold; the graph unfolds it again through lane.links and each child's link.
 function foldChains(){
   const groups=new Map();
   for(const a of S.agents)if(a.isLane){const k=short(a.desc);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(a)}
@@ -330,7 +341,7 @@ function foldChains(){
       outTokens:links.reduce((s,l)=>s+(l.outTokens||0),0),
       keys:new Set(links.flatMap(l=>[l.id,l.name].filter(Boolean))),spawns:new Set(links.map(l=>l.spawn).filter(Boolean))};
     for(const l of links)byId[l.id]=lane;
-    for(const k of S.agents)if(k.parent&&links.some(l=>l.id===k.parent))k.parent=lane.id;
+    for(const k of S.agents)if(k.parent&&links.some(l=>l.id===k.parent)){k.link=k.parent;k.parent=lane.id}
     S.agents=S.agents.filter(a=>!links.includes(a)).concat(lane);
   }
 }
@@ -351,29 +362,35 @@ function agentTip(a){const s=at(a);
   return '<b>'+esc(a===S.main?'orchestrator':a.desc)+'</b>'+(a.model?kv('model',a.model):'')+
     kv('status',s.st==='hand'?'handed back '+ago(T-s.lastT)+' ago':s.st==='done'?'finished':s.st+' · idle '+ago(T-s.lastT))+kv('tool calls',s.n)+
     (a.outTokens>1000?kv('output',Math.round(a.outTokens/1e3)+'k tokens, whole run'):'')+kv('last',esc((s.last?.name||'')+': '+(s.last?.brief||'').slice(0,120)))}
-function issueTip(d){const lane=byId[d.lane],x=laneAt(lane),pr=prOf(d.issue),mt=x?.merged.get(d.issue);
-  return '<b>#'+d.issue+'</b>'+kv('lane',esc(short(lane.desc)))+(d.cur?kv('stage',x.stage+' for '+ago(T-x.stageT)):'')+(pr?kv('PR','#'+pr):'')+kv('status',mt?'merged '+hhmm(mt):d.cur?'in flight':'queued')}
+function issueTip(d){const lane=d.lane&&byId[d.lane],x=lane&&laneAt(lane),pr=prOf(d.issue),mt=x?.merged.get(d.issue),af=afterOf(d.issue);
+  return '<b>#'+d.issue+'</b>'+kv('lane',esc(lane?short(lane.desc):d.laneKey))+(d.cur?kv('stage',x.stage+' for '+ago(T-x.stageT)):'')+(pr?kv('PR','#'+pr):'')+kv('status',mt?'merged '+hhmm(mt):d.cur?'in flight':d.plan?'planned, no link yet':'queued')+(af?kv('after','Lane '+esc(af)):'')}
+// A graph node names its agent in d.ag; a link node reads "Lane B · #730".
+const nodeName=d=>d.kind==='link'?'Lane '+short(d.ag.desc)+' · #'+(d.ag.queue[0]??'?'):label(d.ag);
 function edgeTip(l){
-  if(l.kind==='issue')return issueTip(l.source);
-  const a=byId[l.source.id],s=at(a),parent=l.target.id==='main'?S.main:byId[l.target.id];
+  if(l.kind==='issue'||l.source.kind==='issue')return issueTip(l.source);
+  if(l.kind==='after')return '<b>#'+l.source.issue+' after Lane '+esc(l.target.letter)+'</b>'+kv('waits','on Lane '+esc(l.target.letter)+' to merge');
+  if(!l.source.ag)return '<b>Lane '+esc(l.source.letter)+'</b>'+kv('status','planned, no link yet');
+  const a=l.source.ag,s=at(a),parent=l.target.ag;
   const hb=handbacks(a),ms=msgsTo(a),dur=(s.st==='hand'||s.st==='done'?s.lastT:T)-a.start;
-  let h='<b>'+esc(label(parent))+' → '+esc(label(a))+'</b>'+kv('spawned',hhmm(a.start)+(a.spawn?.promptLen?' · brief '+(a.spawn.promptLen/1e3).toFixed(1)+'k chars':''))+kv('ran',ago(dur)+' · '+s.n+' tool calls');
+  let h='<b>'+esc(nodeName(l.target))+' → '+esc(nodeName(l.source))+'</b>'+kv('spawned',hhmm(a.start)+(a.spawn?.promptLen?' · brief '+(a.spawn.promptLen/1e3).toFixed(1)+'k chars':''))+kv('ran',ago(dur)+' · '+s.n+' tool calls');
   if(ms.length)h+=kv('resumes',ms.length+' · last: '+esc(ms.at(-1).summary||''));
   if(hb.length)h+=kv('hand-backs',hb.length)+'<div style="margin-top:4px">'+esc(firstLine(hb.at(-1).text).slice(0,240))+'</div>';
-  if(a.isLane){const x=laneAt(a);if(x?.merged.size)h+=kv('merged',[...x.merged].map(([i,t])=>'#'+i+(prOf(i)?' (PR '+prOf(i)+')':'')+' '+hhmm(t)).join(', '))}
+  if(l.source.kind==='lane'){const x=laneAt(a);if(x?.merged.size)h+=kv('merged',[...x.merged].map(([i,t])=>'#'+i+(prOf(i)?' (PR '+prOf(i)+')':'')+' '+hhmm(t)).join(', '))}
   return h;
 }
 
 // ---------- graph (full + mini) ----------
+// Edge rest lengths by kind; an "after" edge only draws, it never pulls.
+const LINK_LEN={issue:26,kid:40,lane:95,chain:34,plan:24,after:150};
 function makeGraph(el,compact){
   let G=null;
   function init(){
     el.querySelector('svg.graph')?.remove();el.querySelector('.glegend')?.remove();
     const svg=d3.select(el).append('svg').attr('class','graph').attr('role','img').attr('aria-label','Swarm graph: orchestrator, lanes, reviewers and issues'),root=svg.append('g');
     if(!compact){svg.call(d3.zoom().scaleExtent([.3,3]).on('zoom',e=>root.attr('transform',e.transform)));
-      el.insertAdjacentHTML('beforeend','<div class="glegend">Ring colour is status; a dashed outer ring is a notice. Lettered nodes are lanes, small nodes are reviewers, squares are issues (filled = merged). Edge width counts messages; dashed means still running. A ripple is a tool call; a dot on an edge is a hand-back, resume or merge. Hover anything; double-click a lane to zoom.</div>')}
+      el.insertAdjacentHTML('beforeend','<div class="glegend">Ring colour is status; a dashed outer ring is a notice. Lettered nodes are lanes; each lane\'s links (one agent per ticket) chain off it in order, reviewers hang off their link, squares are issues (filled = merged, dashed = planned, no link yet). Edge width counts messages; dashed means still running; a faint dotted edge from an issue to a lane means it waits on that lane. A ripple is a tool call; a dot on an edge is a hand-back, resume or merge. Hover anything; double-click a lane to zoom.</div>')}
     G={svg,root,lk:root.append('g'),fx:root.append('g'),nd:root.append('g'),nodes:new Map(),lm:new Map(),sig:'',
-      sim:d3.forceSimulation().force('charge',d3.forceManyBody().strength(compact?-45:-170)).force('link',d3.forceLink().id(d=>d.id).distance(l=>(l.kind==='issue'?30:l.kind==='kid'?44:105)*(compact?.55:1)).strength(.6)).force('collide',d3.forceCollide(d=>d.r+(compact?2:5))).alphaDecay(.02).on('tick',tick)};
+      sim:d3.forceSimulation().force('charge',d3.forceManyBody().strength(compact?-45:-170)).force('link',d3.forceLink().id(d=>d.id).distance(l=>(LINK_LEN[l.kind]??105)*(compact?.55:1)).strength(l=>l.kind==='after'?0:.6)).force('collide',d3.forceCollide(d=>d.r+(compact?2:5))).alphaDecay(.02).on('tick',tick)};
     const size=()=>{const r=el.getBoundingClientRect();G.w=r.width;G.h=r.height;G.sim.force('center',d3.forceCenter(r.width/2,r.height/2+(compact?10:0))).force('x',d3.forceX(r.width/2).strength(.04)).force('y',d3.forceY(r.height/2).strength(compact?.08:.04));G.sim.alpha(.3).restart()};
     new ResizeObserver(size).observe(el);size();
   }
@@ -381,40 +398,68 @@ function makeGraph(el,compact){
   function render(notices){
     if(!G||!el.contains(G.svg.node()))init();
     const W=Math.max(60e3,speed*1.5e3),nodes=[],links=[],fx=[],k=compact?.6:1,flagged=new Map(notices.map(n=>[n.lane.id,n.kind]));
-    if(S.main){const m=at(S.main);if(m)nodes.push(Object.assign(node('main'),{kind:'main',r:15*k,st:T-m.lastT<QUIET?'live':'quiet',ripple:T-m.lastT}))}
+    if(S.main){const m=at(S.main);if(m)nodes.push(Object.assign(node('main'),{kind:'main',ag:S.main,r:15*k,st:T-m.lastT<QUIET?'live':'quiet',ripple:T-m.lastT}))}
+    // A lane draws as its hub, then its links in a chain (hub → link 1 → link 2 …), each link with its ticket squares.
+    // Planned tickets no link has reached trail the chain as dashed squares; "#n after Lane X" adds a faint edge to X's hub.
+    const hub={},tnode={},planned=(from,laneKey,lane,tickets)=>{let prev=from;
+      for(const i of tickets){const id='i'+(lane?.id||laneKey)+i;tnode[i]=id;
+        nodes.push(Object.assign(node(id),{kind:'issue',issue:i,lane:lane?.id,laneKey,r:6*k,plan:true,merged:false,cur:false}));links.push({source:id,target:prev,kind:'plan',w:1});prev=id}};
     for(const a of S.agents){const s=at(a);if(!s)continue;
-      const kind=a.isLane?'lane':a.depth===1?'scout':'kid';
-      nodes.push(Object.assign(node(a.id),{kind,r:((a.isLane?10:4)+Math.sqrt(s.n)*1.1)*k,st:s.st,ripple:T-(s.last?.t??-1e15),letter:a.isLane?short(a.desc).slice(0,2):'',role:role(a.desc),flag:flagged.get(a.id)}));
-      const p=a.parent&&at(byId[a.parent])?a.parent:'main';
+      if(a.isLane){const x=laneAt(a),X=short(a.desc),seen=new Set();hub[X]=a.id;
+        nodes.push(Object.assign(node(a.id),{kind:'lane',ag:a,r:11*k,st:x.done?'done':s.st,ripple:Infinity,letter:X.slice(0,2),flag:flagged.get(a.id)}));
+        if(S.main)links.push({source:a.id,target:'main',kind:'lane',w:1+Math.min(5,msgsTo(a).length+handbacks(a).length)*.6,running:!x.done&&s.st!=='hand'&&s.st!=='done'});
+        if(s.last&&isHandback(s.last)&&T-s.last.t<W)fx.push({from:a.id,to:'main',k:(T-s.last.t)/W,c:'var(--hand)'});
+        for(const tl of msgsTo(a))if(T-tl.t<W)fx.push({from:'main',to:a.id,k:(T-tl.t)/W,c:'var(--fg)'});
+        const ticket=(i,on)=>{const id='i'+a.id+i,mt=x.merged.get(i);seen.add(i);tnode[i]=id;
+          nodes.push(Object.assign(node(id),{kind:'issue',issue:i,lane:a.id,laneKey:X,r:6*k,merged:mt!=null,cur:i===x.cur&&!x.done,stage:i===x.cur?x.stage:null}));links.push({source:id,target:on,kind:'issue',w:1});
+          if(mt!=null&&T-mt<W)fx.push({from:'main',to:id,k:(T-mt)/W,c:'var(--fg)'})};
+        const chain=(a.links||[a]).filter(l=>at(l));let prev=a.id;
+        chain.forEach((l,j)=>{const ls=at(l),id='k'+l.id;
+          // a link is spent once the next one runs, or its tickets merged after its hand-back
+          const st=chain[j+1]||(ls.st==='hand'&&l.queue.length&&l.queue.every(i=>x.merged.has(i)))?'done':ls.st;
+          nodes.push(Object.assign(node(id),{kind:'link',ag:l,lane:a.id,r:(4+Math.sqrt(ls.n)*.8)*k,st,ripple:T-(ls.last?.t??-1e15)}));
+          links.push({source:id,target:prev,kind:'chain',w:1,running:st!=='hand'&&st!=='done'});prev=id;
+          for(const i of l.queue)if(!seen.has(i))ticket(i,id)});
+        for(const i of a.queue)if(!seen.has(i))ticket(i,prev);
+        planned(prev,X,a,x.queue.filter(i=>!seen.has(i)&&!x.merged.has(i)));
+        continue}
+      nodes.push(Object.assign(node(a.id),{kind:a.depth===1?'scout':'kid',ag:a,r:(4+Math.sqrt(s.n)*1.1)*k,st:s.st,ripple:T-(s.last?.t??-1e15),role:role(a.desc)}));
+      // a reviewer hangs off the link that spawned it
+      const p=a.parent&&byId[a.parent]?.isLane?'k'+(a.link??a.parent):a.parent&&at(byId[a.parent])?a.parent:'main';
       if(p!=='main'||S.main)links.push({source:a.id,target:p,kind:a.parent?'kid':'lane',w:1+Math.min(5,msgsTo(a).length+handbacks(a).length)*.6,running:s.st!=='hand'&&s.st!=='done'});
       if(s.last&&isHandback(s.last)&&T-s.last.t<W)fx.push({from:a.id,to:p,k:(T-s.last.t)/W,c:'var(--hand)'});
       for(const tl of msgsTo(a))if(T-tl.t<W)fx.push({from:'main',to:a.id,k:(T-tl.t)/W,c:'var(--fg)'});
-      if(a.isLane){const x=laneAt(a);for(const i of a.queue){const id='i'+a.id+i,mt=x.merged.get(i);
-        nodes.push(Object.assign(node(id),{kind:'issue',issue:i,lane:a.id,r:6*k,merged:mt!=null,cur:i===x.cur&&!x.done,stage:i===x.cur?x.stage:null}));links.push({source:id,target:a.id,kind:'issue',w:1,running:false});
-        if(mt!=null&&T-mt<W)fx.push({from:'main',to:id,k:(T-mt)/W,c:'var(--fg)'})}}
     }
+    for(const [X,p] of plannedOnly()){const id='p'+X;hub[X]=id;
+      nodes.push(Object.assign(node(id),{kind:'lane',ghost:true,r:11*k,st:'done',ripple:Infinity,letter:X.slice(0,2)}));
+      if(S.main)links.push({source:id,target:'main',kind:'plan',w:1});
+      planned(id,X,null,p.tickets.filter(i=>!mergeTool(i)))}
+    for(const p of Object.values(planLanes()))for(const [i,X] of Object.entries(p.after||{}))
+      if(tnode[i]&&hub[X]&&!mergeTool(Number(i)))links.push({source:tnode[i],target:hub[X],kind:'after',w:1});
     const stable=links.map(l=>{const key=l.source+'>'+l.target;let o=G.lm.get(key);if(!o){o={...l};G.lm.set(key,o)}else Object.assign(o,{kind:l.kind,w:l.w,running:l.running});return o});
     const sig=nodes.map(n=>n.id).join(',');
     if(sig!==G.sig){G.sim.nodes(nodes);G.sim.force('link').links(stable);G.sim.alpha(.5).restart();G.sig=sig}
     G.fxs=fx;
     const es=G.lk.selectAll('g.e').data(stable,l=>(l.source.id||l.source)+'>'+(l.target.id||l.target)).join(e=>{const g=e.append('g').attr('class','e');g.append('line').attr('class','hit');g.append('line').attr('class','vis');return g});
-    es.select('line.vis').attr('stroke','var(--faint)').attr('stroke-opacity',.6).attr('stroke-width',l=>l.w*(compact?.7:1.3)).attr('stroke-dasharray',l=>l.running?'4 3':null);
+    es.select('line.vis').attr('stroke','var(--faint)').attr('stroke-opacity',l=>l.kind==='after'?.4:.6).attr('stroke-width',l=>l.w*(compact?.7:1.3)).attr('stroke-dasharray',l=>l.kind==='after'||l.kind==='plan'?'2 3':l.running?'4 3':null);
     if(!compact)es.select('line.hit').on('mousemove',(e,l)=>showTip(e,edgeTip(l))).on('mouseleave',hideTip);
-    const sel=G.nd.selectAll('g.n').data(nodes,d=>d.id).join(e=>{const g=e.append('g').attr('class','n');g.append('circle').attr('class','flag');g.append('circle').attr('class','rip');g.append('circle').attr('class','body');g.append('rect').attr('class','sq');g.append('text').attr('class','in');g.append('text').attr('class','lab');return g});
+    const sel=G.nd.selectAll('g.n').data(nodes,d=>d.id).join(e=>{const g=e.append('g').attr('class','n');g.append('circle').attr('class','flag');g.append('circle').attr('class','rip');g.append('circle').attr('class','body');g.append('rect').attr('class','isq');g.append('text').attr('class','in');g.append('text').attr('class','lab');return g});
     sel.select('circle.body').attr('display',d=>d.kind==='issue'?'none':null).attr('r',d=>d.r)
-      .attr('fill',d=>d.kind==='main'||d.kind==='lane'?'var(--fg)':d.kind==='scout'?'var(--surface)':'var(--faint)')
-      .attr('stroke',d=>'var(--'+d.st+')').attr('stroke-width',compact?2:3).attr('opacity',d=>d.st==='done'||d.st==='hand'?(d.kind==='lane'?.7:.3):1);
+      .attr('fill',d=>d.ghost?'var(--bg)':d.kind==='main'||d.kind==='lane'?'var(--fg)':d.kind==='scout'?'var(--surface)':d.kind==='link'?'var(--muted)':'var(--faint)')
+      .attr('stroke',d=>d.ghost?'var(--faint)':'var(--'+d.st+')').attr('stroke-width',d=>d.ghost?1.5:compact?2:3).attr('stroke-dasharray',d=>d.ghost?'3 2':null)
+      .attr('opacity',d=>d.ghost?1:d.st==='done'||d.st==='hand'?(d.kind==='lane'||d.kind==='link'&&d.st==='hand'?.7:d.kind==='link'?.45:.3):1);
     sel.select('circle.flag').attr('r',d=>d.flag?d.r+(compact?5:8):0).attr('fill','none').attr('stroke-dasharray','3 3').attr('stroke-width',1.5)
       .attr('stroke',d=>KIND[d.flag]?.red?'var(--stall)':'var(--hand)');
-    sel.select('rect.sq').attr('display',d=>d.kind==='issue'?null:'none').each(function(d){d3.select(this).attr('x',-d.r).attr('y',-d.r).attr('width',d.r*2).attr('height',d.r*2)}).attr('rx',1.5)
-      .attr('fill',d=>d.merged?'var(--fg)':'var(--bg)').attr('stroke',d=>d.cur?'var(--fg)':'var(--faint)').attr('stroke-width',d=>d.cur?(compact?1.5:2.5):1);
+    sel.select('rect.isq').attr('display',d=>d.kind==='issue'?null:'none').each(function(d){d3.select(this).attr('x',-d.r).attr('y',-d.r).attr('width',d.r*2).attr('height',d.r*2)}).attr('rx',1.5)
+      .attr('fill',d=>d.merged?'var(--fg)':'var(--bg)').attr('stroke',d=>d.cur?'var(--fg)':'var(--faint)').attr('stroke-width',d=>d.cur?(compact?1.5:2.5):1)
+      .attr('stroke-dasharray',d=>d.plan?'2 2':null).attr('opacity',d=>d.plan?.6:1);
     sel.select('circle.rip').attr('r',d=>d.ripple<W?d.r+3+d.ripple/W*(compact?10:18):0).attr('fill','none').attr('stroke','var(--live)').attr('opacity',d=>d.ripple<W?1-d.ripple/W:0);
-    sel.select('text.in').attr('dy',4.5).attr('text-anchor','middle').text(d=>d.kind==='lane'?d.letter:'');
+    sel.select('text.in').attr('dy',4.5).attr('text-anchor','middle').style('fill',d=>d.ghost?'var(--muted)':null).text(d=>d.kind==='lane'?d.letter:'');
     sel.select('text.lab').attr('class',d=>'lab'+(d.kind==='kid'?' role':'')).attr('dy',d=>d.r+(compact?10:14)).attr('text-anchor','middle')
-      .text(d=>compact?(d.kind==='issue'&&d.cur?'#'+d.issue:d.kind==='main'?'orchestrator':''):d.kind==='main'?'orchestrator':d.kind==='lane'?'':d.kind==='issue'?('#'+d.issue+(d.cur?' · '+d.stage:'')):d.kind==='kid'?(d.st==='hand'||d.st==='done'?'':d.role):d.role);
+      .text(d=>compact?(d.kind==='issue'&&d.cur?'#'+d.issue:d.kind==='main'?'orchestrator':''):d.kind==='main'?'orchestrator':d.kind==='lane'||d.kind==='link'?'':d.kind==='issue'?('#'+d.issue+(d.cur?' · '+d.stage:'')):d.kind==='kid'?(d.st==='hand'||d.st==='done'?'':d.role):d.role);
     if(compact)sel.on('click',()=>setView('graph')).style('cursor','pointer');
-    else sel.on('mousemove',(e,d)=>showTip(e,d.kind==='issue'?issueTip(d):agentTip(d.id==='main'?S.main:byId[d.id]))).on('mouseleave',hideTip)
-      .on('dblclick',(e,d)=>{if(d.kind==='lane'){setView('board');zoom(d.id)}})
+    else sel.on('mousemove',(e,d)=>showTip(e,d.kind==='issue'?issueTip(d):d.ag?agentTip(d.ag):'<b>Lane '+esc(d.letter)+'</b>'+kv('status','planned, no link yet'))).on('mouseleave',hideTip)
+      .on('dblclick',(e,d)=>{const id=d.kind==='lane'&&!d.ghost?d.id:d.kind==='link'?d.lane:null;if(id){setView('board');zoom(id)}})
       .call(d3.drag().on('start',(e,d)=>{G.sim.alphaTarget(.2).restart();d.fx=d.x;d.fy=d.y}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y}).on('end',(e,d)=>{G.sim.alphaTarget(0);d.fx=null;d.fy=null}));
     tick();
   }
@@ -486,7 +531,8 @@ function renderBoard(notices){
     const n=flag.get(l.id),k=n&&KIND[n.kind];
     const cls='row'+(selLane===l.id?' sel':'')+(k?(k.red?' attn-red':' attn')+(k.cord?' cord':''):'');
     const st=x.done?'done':x.a.st;
-    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+(objective(l.desc)?'<span class="obj" title="'+esc(objective(l.desc))+'">— '+esc(objective(l.desc))+'</span>':'')+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(l.total||x.queue.length||'?')+'</span> merged'+(l.links?.length>1?' · <span class="num">'+l.links.length+'</span> agents':'')+'</div></div></div>';
+    const ob=objective(l.desc)||planLanes()[short(l.desc)]?.objective;
+    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+(ob?'<span class="obj" title="'+esc(ob)+'">— '+esc(ob)+'</span>':'')+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(x.total||'?')+'</span> merged'+(l.links?.length>1?' · <span class="num">'+l.links.length+'</span> agents':'')+'</div></div></div>';
     const queued=x.queue.filter(i=>i!==x.cur&&!x.merged.has(i));
     h+='<div class="cell"><div class="chips">'+queued.map(i=>chip(i,false)).join('')+'</div></div>';
     if(x.done)h+='<div class="donecell">Queue done'+(x.a.st==='hand'?' · handed back '+ago(T-x.a.lastT)+' ago':'')+'</div>';
@@ -501,9 +547,14 @@ function renderBoard(notices){
     }
     h+='<div class="cell"><div class="chips">'+[...x.merged].map(([i])=>chip(i,true)).join('')+'</div></div></div>';
   }
-  h+='</div>'+(lanes.length?'':'<p class="calm" style="padding:16px">No lanes yet at this moment. Lanes are depth-1 agents whose description starts with "Lane".</p>')+
+  // Lanes the plan names that no link has started yet: their tickets wait in Queued.
+  const planned=plannedOnly();
+  for(const [k,p] of planned)
+    h+='<div class="row"><div class="lanecell planned"><span class="blk st-plan">'+esc(k.slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(k)+(p.objective?'<span class="obj" title="'+esc(p.objective)+'">— '+esc(p.objective)+'</span>':'')+'</div><div class="meta">not started · <span class="num">'+p.tickets.length+'</span> planned</div></div></div>'+
+      '<div class="cell"><div class="chips">'+p.tickets.filter(i=>!mergeTool(i)).map(i=>chip(i,false)).join('')+'</div></div><div class="donecell">Not started</div><div class="cell"></div></div>';
+  h+='</div>'+(lanes.length||planned.length?'':'<p class="calm" style="padding:16px">No lanes yet at this moment. Lanes are depth-1 agents whose description starts with "Lane".</p>')+
     '<div class="legend"><span><i style="background:var(--live)"></i>working</span><span><i style="background:var(--quiet)"></i>quiet over 2 min</span><span><i style="background:var(--stall)"></i>silent over 10 min</span><span><i style="background:var(--hand)"></i>handed back</span><span><i style="background:var(--done)"></i>finished</span><span>Trace: tool calls per 2 min over the last hour, reviewers in grey</span><span>O / S: opus / sonnet</span><span>Press ? for keys</span></div>';
-  const sig=lanes.map(([l,x])=>l.id+x.cur+x.stage+x.merged.size+x.done).join('|');
+  const sig=lanes.map(([l,x])=>l.id+x.cur+x.stage+x.merged.size+x.done).join('|')+'|'+planned.map(([k])=>k).join(',');
   const focused=document.activeElement?.dataset?.lane;
   const apply=()=>{$('view').innerHTML=h;
     $('view').querySelectorAll('.lanecell,.strip').forEach(el=>{el.onclick=e=>{if(e.target.closest('a'))return;zoom(el.dataset.lane)};el.onkeydown=e=>{if(e.key==='Enter'){e.stopPropagation();zoom(el.dataset.lane)}}});
@@ -512,7 +563,7 @@ function renderBoard(notices){
   lastKbSig=sig;
 }
 function chip(i,merged){
-  const pr=merged?prOf(i):null,url=pr?ghPr(pr):ghIssue(i),t=merged?'merged '+hhmm(mergeTool(i)?.t)+(pr?' · PR '+pr:''):'queued';
+  const pr=merged?prOf(i):null,url=pr?ghPr(pr):ghIssue(i),t=merged?'merged '+hhmm(mergeTool(i)?.t)+(pr?' · PR '+pr:''):'queued'+(afterOf(i)?' · after Lane '+afterOf(i):'');
   return url?'<a class="chip'+(merged?' m':'')+'" href="'+url+'" target="_blank" rel="noopener" title="#'+i+' · '+t+'">#'+i+'</a>':'<span class="chip'+(merged?' m':'')+'" title="'+t+'">#'+i+'</span>';
 }
 
@@ -539,8 +590,8 @@ function renderGoal(){
     h+='<div class="goal-subj">'+esc(g.subject)+'</div><dl>'+(parts[0].trim()?'<dt>note</dt><dd>'+esc(parts[0])+'</dd>':'');
     for(let i=1;i<parts.length;i+=2)h+='<dt>'+esc(parts[i])+'</dt><dd>'+esc(parts[i+1])+'</dd>';
     h+='</dl>'+(rest.length?'<div style="margin-top:8px">'+rest.map(t=>'<div class="task'+(t.status==='completed'?' done':'')+'">'+esc(t.subject)+'</div>').join('')+'</div>':'')}
-  if(rl?.tasks?.length)h+=(tasks.length?'<h2 style="margin-top:12px">Run log</h2>':'<div class="goal-subj">'+esc(rl.title||rl.file)+'</div>')+rl.tasks.map(t=>'<div class="task'+(t.done?' done':'')+'">'+esc(t.text.slice(0,120))+'</div>').join('');
-  if(!tasks.length&&!rl?.tasks?.length)h+='<div class="calm">No task list or run log for this session at this moment. The orchestrator\'s TaskCreate and TaskUpdate calls, or a run log Tasks section, fill this panel.</div>';
+  if(rl?.tasks?.length)h+=(tasks.length?'<h2 style="margin-top:12px">Run log</h2>':'<div class="goal-subj">'+esc(rl.title||rl.file)+'</div>'+(rl.scope?'<dl style="margin-bottom:8px"><dt>Scope</dt><dd>'+esc(rl.scope)+'</dd></dl>':''))+rl.tasks.map(t=>'<div class="task'+(t.done?' done':'')+'">'+esc(t.text.slice(0,120))+'</div>').join('');
+  if(!tasks.length&&!rl?.tasks?.length)h+='<div class="calm">No task list or run log for this session at this moment. The orchestrator\'s TaskCreate and TaskUpdate calls, or a run log\'s - [ ] lines, fill this panel.</div>';
   if(h===lastGoalSig)return;lastGoalSig=h;$('goal').innerHTML=h;
 }
 
@@ -556,7 +607,8 @@ function frame(now){
       $('clock').textContent=new Date(T).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'})+'  +'+ago(T-S.start);
       $('conn').textContent=connErr?'Server unreachable · last update '+ago(Date.now()-lastOk)+' ago':'';
       const all=S.agents.filter(a=>a.isLane),spawned=all.filter(a=>at(a)).length,live=S.agents.filter(a=>at(a)?.st==='live').length;
-      $('summary').innerHTML='<span class="num">'+spawned+'/'+all.length+'</span> lanes · <span class="num">'+live+'</span> agents working';
+      const lanesN=new Set([...all.map(a=>short(a.desc)),...Object.keys(planLanes())]).size;
+      $('summary').innerHTML='<span class="num">'+spawned+'/'+lanesN+'</span> lanes · <span class="num">'+live+'</span> agents working';
       const notices=noticesAt();
       if(view==='board'){focusLane?renderTimeline(focusLane):renderBoard(notices);miniGraph.render(notices);renderBay(notices);renderGoal()}
       else if(view==='graph')fullGraph.render(notices);
