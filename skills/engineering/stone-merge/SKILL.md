@@ -256,6 +256,12 @@ When the invocation carries the keyword:
    RELEASE=$(git show-ref --verify --quiet refs/remotes/origin/main && echo main || echo master)
    ```
 2. `git log origin/<release>..origin/dev --oneline` — what is being promoted.
+2a. **The version rides the release PR.** A release is not done until its tag exists and names what is deployed. When the repo versions its releases (a `version` in its manifest, a `CHANGELOG.md`, or `vX.Y.Z` tags):
+   - Compute the next version from the Conventional Commits in step 2's range, including branch commits under merge commits: `!` or `BREAKING CHANGE` → major, any `feat` → minor, otherwise patch. A `Release-As: X.Y.Z` footer wins.
+   - Cut `release/vX.Y.Z` from `origin/dev`, commit the version bump and the new CHANGELOG section there (`chore(release): vX.Y.Z`), and push. That branch, not `dev`, is the release PR's head in step 3, so one merge carries the code and its version.
+   - After step 4's merge: `gh release create vX.Y.Z --target <merge-sha> --title vX.Y.Z --notes-file <the CHANGELOG section>`. Then merge `release/vX.Y.Z` into `dev` (a PR, same merge rules) so `dev` carries the version, and delete the branch.
+   - A repo on release-please: point it at `dev` (`target-branch: dev`, `skip-github-release: true`) and let a job on the release branch tag the manifest's version at the release PR's head, then relabel the version PR `autorelease: tagged`. The release-please PR into `dev` replaces the `release/vX.Y.Z` branch: merge it into `dev` last, then open the release PR from `dev`. Reference: `stonematt/bike_race_results` `.github/workflows/release-please.yml` and `scripts/tag-release.ts`.
+   - A repo whose release-please still targets the release branch: merge its version PR right after the release PR, never before. Merged first, it cuts off the commits the release PR brings, and the tag and changelog skip them.
 3. Create the release PR. The body must carry a `Closes #N` line for **every** issue staged by the commits being promoted (Section 5's labels are how you find them: `gh issue list --label "status: staged" --json number`):
    ```bash
    gh pr create --base <release> --head dev --title "<title>" --body-file - <<'EOF'
