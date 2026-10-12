@@ -223,7 +223,9 @@ const label=a=>a===S.main?'orchestrator':a.isLane?'Lane '+short(a.desc):role(a.d
 // The run log's "## Lanes" block, parsed by the server: {session, lanes:{A:{tickets:[729],after:{731:'A'}}}}. Read as it is now,
 // so a replay shows the latest plan. Without one, every lane falls back to what its links' descriptions name.
 const planLanes=()=>S.runLog?.plan?.lanes||{};
-const afterOf=i=>{for(const p of Object.values(planLanes()))if(p.after?.[i])return p.after[i];return null};
+// The lanes a ticket waits on, from every plan line that names it: one for a chain, several for a join.
+const afterOf=i=>{const w=new Set();for(const p of Object.values(planLanes()))for(const X of [].concat(p.after?.[i]||[]))w.add(X);return [...w]};
+const afterTxt=i=>afterOf(i).map(X=>'Lane '+X).join(' and ');
 function laneAt(lane){
   const a=at(lane); if(!a)return null;
   // own: the issues the lane's links were spawned for; only those can be current, since a lane's calls also name issues it only checks.
@@ -244,6 +246,8 @@ function laneAt(lane){
   }
   return {a,cur,stage,stageT,merged,queue,total,done};
 }
+// What a lane no link has started waits on: the lanes its first unmerged ticket waits on, or '' when it can start.
+const waitOf=p=>{const i=p.tickets.find(i=>!mergeTool(i));return i==null?'':afterTxt(i)};
 // Lanes the plan names that no link has started by T, with tickets still to merge.
 const plannedOnly=()=>{const started=new Set(lanesSorted().map(l=>short(l.desc)));
   return Object.entries(planLanes()).filter(([k,p])=>!started.has(k)&&!p.done&&!p.tickets.every(i=>mergeTool(i)))};
@@ -363,7 +367,7 @@ function agentTip(a){const s=at(a);
     kv('status',s.st==='hand'?'handed back '+ago(T-s.lastT)+' ago':s.st==='done'?'finished':s.st+' · idle '+ago(T-s.lastT))+kv('tool calls',s.n)+
     (a.outTokens>1000?kv('output',Math.round(a.outTokens/1e3)+'k tokens, whole run'):'')+kv('last',esc((s.last?.name||'')+': '+(s.last?.brief||'').slice(0,120)))}
 function issueTip(d){const lane=d.lane&&byId[d.lane],x=lane&&laneAt(lane),pr=prOf(d.issue),mt=x?.merged.get(d.issue),af=afterOf(d.issue);
-  return '<b>#'+d.issue+'</b>'+kv('lane',esc(lane?short(lane.desc):d.laneKey))+(d.cur?kv('stage',x.stage+' for '+ago(T-x.stageT)):'')+(pr?kv('PR','#'+pr):'')+kv('status',mt?'merged '+hhmm(mt):d.cur?'in flight':d.plan?'planned, no link yet':'queued')+(af?kv('after','Lane '+esc(af)):'')}
+  return '<b>#'+d.issue+'</b>'+kv('lane',esc(lane?short(lane.desc):d.laneKey))+(d.cur?kv('stage',x.stage+' for '+ago(T-x.stageT)):'')+(pr?kv('PR','#'+pr):'')+kv('status',mt?'merged '+hhmm(mt):d.cur?'in flight':d.plan?'planned, no link yet':'queued')+(af.length?kv('after',esc(afterTxt(d.issue))):'')}
 // A graph node names its agent in d.ag; a link node reads "Lane B · #730".
 const nodeName=d=>d.kind==='link'?'Lane '+short(d.ag.desc)+' · #'+(d.ag.queue[0]??'?'):label(d.ag);
 function edgeTip(l){
@@ -434,7 +438,7 @@ function makeGraph(el,compact){
       nodes.push(Object.assign(node(id),{kind:'lane',ghost:true,r:11*k,st:'done',ripple:Infinity,letter:X.slice(0,2)}));
       if(S.main)links.push({source:id,target:'main',kind:'plan',w:1});
       planned(id,X,null,p.tickets.filter(i=>!mergeTool(i)))}
-    for(const p of Object.values(planLanes()))for(const [i,X] of Object.entries(p.after||{}))
+    for(const p of Object.values(planLanes()))for(const [i,Xs] of Object.entries(p.after||{}))for(const X of [].concat(Xs))
       if(tnode[i]&&hub[X]&&!mergeTool(Number(i)))links.push({source:tnode[i],target:hub[X],kind:'after',w:1});
     const stable=links.map(l=>{const key=l.source+'>'+l.target;let o=G.lm.get(key);if(!o){o={...l};G.lm.set(key,o)}else Object.assign(o,{kind:l.kind,w:l.w,running:l.running});return o});
     const sig=nodes.map(n=>n.id).join(',');
@@ -550,8 +554,8 @@ function renderBoard(notices){
   // Lanes the plan names that no link has started yet: their tickets wait in Queued.
   const planned=plannedOnly();
   for(const [k,p] of planned)
-    h+='<div class="row"><div class="lanecell planned"><span class="blk st-plan">'+esc(k.slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(k)+(p.objective?'<span class="obj" title="'+esc(p.objective)+'">— '+esc(p.objective)+'</span>':'')+'</div><div class="meta">not started · <span class="num">'+p.tickets.length+'</span> planned</div></div></div>'+
-      '<div class="cell"><div class="chips">'+p.tickets.filter(i=>!mergeTool(i)).map(i=>chip(i,false)).join('')+'</div></div><div class="donecell">Not started</div><div class="cell"></div></div>';
+    h+='<div class="row"><div class="lanecell planned"><span class="blk st-plan">'+esc(k.slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(k)+(p.objective?'<span class="obj" title="'+esc(p.objective)+'">— '+esc(p.objective)+'</span>':'')+'</div><div class="meta">'+(waitOf(p)?'pending':'not started')+' · <span class="num">'+p.tickets.length+'</span> planned</div></div></div>'+
+      '<div class="cell"><div class="chips">'+p.tickets.filter(i=>!mergeTool(i)).map(i=>chip(i,false)).join('')+'</div></div><div class="donecell">'+(waitOf(p)?'Waiting on '+esc(waitOf(p)):'Not started')+'</div><div class="cell"></div></div>';
   h+='</div>'+(lanes.length||planned.length?'':'<p class="calm" style="padding:16px">No lanes yet at this moment. Lanes are depth-1 agents whose description starts with "Lane".</p>')+
     '<div class="legend"><span><i style="background:var(--live)"></i>working</span><span><i style="background:var(--quiet)"></i>quiet over 2 min</span><span><i style="background:var(--stall)"></i>silent over 10 min</span><span><i style="background:var(--hand)"></i>handed back</span><span><i style="background:var(--done)"></i>finished</span><span>Trace: tool calls per 2 min over the last hour, reviewers in grey</span><span>O / S: opus / sonnet</span><span>Press ? for keys</span></div>';
   const sig=lanes.map(([l,x])=>l.id+x.cur+x.stage+x.merged.size+x.done).join('|')+'|'+planned.map(([k])=>k).join(',');
@@ -563,7 +567,7 @@ function renderBoard(notices){
   lastKbSig=sig;
 }
 function chip(i,merged){
-  const pr=merged?prOf(i):null,url=pr?ghPr(pr):ghIssue(i),t=merged?'merged '+hhmm(mergeTool(i)?.t)+(pr?' · PR '+pr:''):'queued'+(afterOf(i)?' · after Lane '+afterOf(i):'');
+  const pr=merged?prOf(i):null,url=pr?ghPr(pr):ghIssue(i),t=merged?'merged '+hhmm(mergeTool(i)?.t)+(pr?' · PR '+pr:''):'queued'+(afterOf(i).length?' · after '+afterTxt(i):'');
   return url?'<a class="chip'+(merged?' m':'')+'" href="'+url+'" target="_blank" rel="noopener" title="#'+i+' · '+t+'">#'+i+'</a>':'<span class="chip'+(merged?' m':'')+'" title="'+t+'">#'+i+'</span>';
 }
 
@@ -606,9 +610,11 @@ function frame(now){
       $('scrub').value=Math.round((T-S.start)/span()*1000);
       $('clock').textContent=new Date(T).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'})+'  +'+ago(T-S.start);
       $('conn').textContent=connErr?'Server unreachable · last update '+ago(Date.now()-lastOk)+' ago':'';
-      const all=S.agents.filter(a=>a.isLane),spawned=all.filter(a=>at(a)).length,live=S.agents.filter(a=>at(a)?.st==='live').length;
+      const all=S.agents.filter(a=>a.isLane),live=S.agents.filter(a=>at(a)?.st==='live').length;
+      // Running: a lane with a link that has not finished. Pending: a planned lane no link has started.
       const lanesN=new Set([...all.map(a=>short(a.desc)),...Object.keys(planLanes())]).size;
-      $('summary').innerHTML='<span class="num">'+spawned+'/'+lanesN+'</span> lanes · <span class="num">'+live+'</span> agents working';
+      const running=new Set(all.filter(a=>{const s=at(a);return s&&s.st!=='done'}).map(a=>short(a.desc))).size,pending=plannedOnly().length;
+      $('summary').innerHTML='<span class="num">'+running+'</span> running · <span class="num">'+pending+'</span> pending of <span class="num">'+lanesN+'</span> lanes · <span class="num">'+live+'</span> agents working';
       const notices=noticesAt();
       if(view==='board'){focusLane?renderTimeline(focusLane):renderBoard(notices);miniGraph.render(notices);renderBay(notices);renderGoal()}
       else if(view==='graph')fullGraph.render(notices);

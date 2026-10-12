@@ -3,7 +3,7 @@ name: swarm
 description: "Swarm a ticket queue to done unattended — file-fenced lanes of agents landing issues in parallel. Use when the user says swarm it, or wants open issues, or a spec or milestone's tickets, worked while they're AFK."
 ---
 
-A **lane** is one agent that owns a set of **files**, not a set of issues. Lanes run in parallel; items inside a lane run serial. The fence is what makes the run unattended — two agents that never touch the same file never conflict, so nobody has to be awake to referee.
+A **lane** is a chain of tickets toward one objective, shown as one row on the console. Each ticket is a fresh agent, a **link**, and a lane's links run one after another. Which lanes run at the same time is the dependency graph's call (step 2). The **fence** is what makes the run unattended: two lanes running at once never edit the same fenced file, so nobody has to be awake to referee.
 
 ## 1. Build the queue
 
@@ -21,23 +21,27 @@ A goal's parent spec or milestone is the goal, not a ticket: out of the queue, a
 
 **Done when** the user has the run's shape and both lists, and the out-list says why for each.
 
-## 2. Fence the lanes
+## 2. Plan the lanes
 
-Map each queued issue to the files it will edit — from the issue bodies and the code, not from whatever handoff sent you here. Confirm every absence a map agent reports with your own `git grep` before it goes into a brief or to the user; a map's "X doesn't exist" becomes a wrong brief.
+Lanes do two jobs: they let tickets that cannot collide run at the same time, and they let the owner read the run as a few objectives. The **dependency graph** decides what can run together; lanes only label it. Build the graph, then draw the lanes on it.
 
-Group by collision: same file, same lane. Test files collide as hard as source files, and the ones you will miss are the ones that never name your file: a shared test module, a fixture typed by an interface a lane changes (grep the type name), an end-to-end spec elsewhere that finds the component by its role or visible text (grep the tests tree for its strings).
+**Build the dependency graph.** Its nodes are the queued tickets. An edge says one ticket runs after another, and edges come from two sources.
 
-Serial inside a lane is the point, not a compromise — three issues in one file, run parallel, manufacture the conflicts the fence exists to prevent.
+The first is declared dependencies. A goal's tickets carry `blocked-by` edges (`/to-tickets` writes them as native GitHub links; read them with `gh api repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by`). Where a repo has no native edges, read the order from the ticket bodies and say so in the run log.
 
-No collisions at all is one lane with no fence.
+The second is fence collisions. Map each queued ticket to the files it will edit — from the issue bodies and the code, not from whatever handoff sent you here. Confirm every absence a map agent reports with your own `git grep` before it goes into a brief or to the user; a map's "X doesn't exist" becomes a wrong brief. Two tickets that edit the same **fenced** file get an edge between them, in build order. In a queue swarm every file is fenced, because each ticket lands on the base branch alone. In a goal swarm the fence holds only files that cannot merge by rebase: a schema and its migrations, a lockfile, a generated file. Every other shared file is safe there: lanes rebase onto the goal branch before they hand back, and your gate run after each merge (step 4) catches the semantic breaks git merges clean.
 
-**Count lanes by what runs at the same time.** A lane is a parallel thread: a fence and an ordered queue. Two groups that can only run one after the other are one lane, not two — one queue, in build order. Ten tickets that must land in sequence are one lane with ten tickets. A long queue does not cost a long context; each ticket gets a fresh agent (step 4).
+Test files collide as hard as source files, and the ones you will miss are the ones that never name your file: a shared test module, a fixture typed by an interface a ticket changes (grep the type name), an end-to-end spec elsewhere that finds the component by its role or visible text (grep the tests tree for its strings).
 
-**Some changes cannot be fenced.** A rename, a signature change, a vocabulary fix touches every lane's files at once. The file rule offers two exits — collapse every lane into one, or drop the issue. Take the third: give the fence a time dimension. That issue goes last: it waits for every other lane to merge, then runs as the final ticket of one of them. Sequence it, don't fence it. In a queue swarm, a hub file that every ticket touches gets the same answer: one lane, its tickets in build order.
+**Some changes cannot be fenced.** A rename, a signature change, a vocabulary fix touches every ticket's files at once. Give it an edge from every other ticket, so it runs last, on the merged result. A hub file that every ticket in a queue swarm touches needs no special case: its edges already chain those tickets in build order.
 
-**A goal swarm lanes by the frontier, not the fence.** Its tickets carry `blocked-by` edges (`/to-tickets` writes them as native GitHub links; read them with `gh api repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by`), and those edges set the lanes. Every ticket unblocked at the same moment runs at the same time, hub file or not. When a ticket merges, the first ticket it unblocks continues its lane as the next link; each other newly unblocked ticket opens a new lane. A ticket blocked by two lanes waits for both and continues the later one. The goal branch is what makes the shared files safe: lanes rebase onto it before they hand back, and your gate run after each merge (step 4) catches the semantic breaks git merges clean. Keep the fence only on files that cannot merge by rebase: a schema and its migrations, a lockfile, a generated file. Tickets that touch one of those share a lane, in build order.
+Watch for a collision you can only dissolve by pre-deciding a ticket's design fork. Sometimes the ticket's acceptance criteria already force that answer and you are merely reading it early. Check which before you constrain a ticket, and say so.
 
-Watch for a collision you can only dissolve by pre-deciding a ticket's design fork. Sometimes the ticket's acceptance criteria already force that answer and you are merely reading it early. Check which before you constrain a lane, and say so.
+**Draw the lanes as chains.** Walk the graph in build order. A ticket with exactly one predecessor continues that predecessor's lane when it serves the same objective; when one merge unblocks several such tickets, the one closest to the lane's objective continues it. Every other ticket opens a lane: one with no predecessor, one with a new objective, and a **join** — a ticket with two or more predecessors, which belongs to none of them. Opening a lane costs nothing, since every ticket is a fresh agent either way (step 4), so draw lanes for the reader: each row on the console should read as one objective. The lane count is whatever the graph gives; a queue of independent tickets is a lane per ticket.
+
+**Throttle what runs, not what you plan.** The profile's **Lanes at once** is how many links this host runs at the same time. When more tickets are unblocked than that, launch first the ones with the most tickets waiting behind them; the rest wait as pending lanes, already in the Lanes block.
+
+**Work that arrives mid-run enters the same graph.** A fix link, an owner's finding, a review's finding, the cleanup lane: each is a ticket with edges, and the rule above gives it its lane. A fix link continues the lane whose merge it fixes. The cleanup lane and the whole-goal review are joins on everything merged before them. Add each to the Lanes block before you launch it.
 
 **Write the plan into the run log** as a `## Lanes` block, one line per lane:
 
@@ -46,13 +50,15 @@ Watch for a collision you can only dissolve by pre-deciding a ticket's design fo
 Session: ${CLAUDE_SESSION_ID}
 - [ ] Lane A (one lap rule set): #729
   Files: src/lib/laps/rules.ts, src/lib/laps/rules.test.ts
-- [ ] Lane B (Squad SQL into module): #730 #725 #731 — #731 after Lane A
+- [ ] Lane B (Squad SQL into module): #730 #725
   Files: src/lib/squads/grid.ts, src/lib/db/schema.ts
+- [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
+  Files: src/lib/squads/grid.ts, src/lib/laps/rules.ts
 ```
 
-The objective goes in parentheses (step 4), the tickets in build order, space-separated, and any cross-lane wait after ` — ` as `#<n> after Lane <X>`, comma-separated when there are several. If the `Session:` line shows no id, leave it out. Rewrite the block whenever the plan changes — a ticket added, moved, dropped or reordered, a lane opened. The swarm console reads this block for every lane's queue and waits, and finds the run log by its `Session:` line; a stale block shows the user a plan you are no longer running.
+The objective goes in parentheses (step 4), the tickets in build order, space-separated, and every cross-lane wait after ` — ` as `#<n> after Lane <X>`, comma-separated, one per wait. If the `Session:` line shows no id, leave it out. Rewrite the block whenever the plan changes — a ticket added, moved, dropped or reordered, a lane opened. The swarm console reads this block for every lane's queue and waits, and finds the run log by its `Session:` line; a stale block shows the user a plan you are no longer running.
 
-**Done when** every queued issue sits in exactly one lane, no fenced file appears in two lanes running *at the same time* (every file, in a queue swarm), no two lanes run strictly one after the other, a goal swarm runs as many lanes as its widest frontier, and the run log's Lanes block holds every lane. An unattended run outlives its context window: after a compaction or a resume, re-read the run log, Lanes block first, before you act on any lane's status line.
+**Done when** every queued ticket sits in exactly one lane, every edge in the graph either runs inside one lane in order or appears in the Lanes block as a cross-lane wait, each lane reads as one objective, and no fenced file appears in two lanes whose tickets could run at the same time. An unattended run outlives its context window: after a compaction or a resume, re-read the run log, Lanes block first, before you act on any lane's status line.
 
 ## 3. Pin the profile
 
@@ -80,7 +86,7 @@ From then on the goal branch is the `<base>` in every lane brief: lanes branch o
 
 **A lane runs as a chain of agents, one per ticket.** Each **link** is a fresh `Agent`, `subagent_type: general-purpose`, briefed from [`LANE-BRIEF.md`](LANE-BRIEF.md) with a queue of one ticket (or the tickets that land as one PR). Launch a lane's next link when the last one hands back `queue-done`. Its brief carries what the earlier links left — new modules, helpers, shared components — so it extends their work instead of rebuilding it. One agent working a whole queue runs its late tickets on a compacted memory of its early ones; a fresh link per ticket keeps each one small.
 
-**Make the run legible.** Describe each link `Lane <X>: #<n> (<k>/<total>) <objective>` — its ticket, its place in the lane's queue, and the lane's objective — and give it `name: lane-<x>-<k>`; resume it by that name. The console folds a lane's links into one row. That holds for every link launched mid-run too — fix links, UAT findings, the cleanup lane: it continues its lane's letter, or takes the next unused one. Never reuse another lane's letter, and never drop the ticket number. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the run log — serve it once the lanes are running and give the user its link.
+**Make the run legible.** Describe each link `Lane <X>: #<n> (<k>/<total>) <objective>` — its ticket, its place in the lane's queue, and the lane's objective — and give it `name: lane-<x>-<k>`; resume it by that name. The console folds a lane's links into one row. That holds for every link launched mid-run too — fix links, the owner's findings, the cleanup lane: step 2 gives each its lane, and it continues that lane's letter or, opening a lane, takes the next unused one. Never reuse another lane's letter, and never drop the ticket number. The [`swarm-console`](../swarm-console/SKILL.md) skill reads both, plus each lane's status line, your `gh pr merge` calls and the run log — serve it once the lanes are running and give the user its link.
 
 **Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 (2/4) club admin forms`, not `Lane H: #528`. It is the lane's, so every link carries the same one. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs in the Lanes block, as `#<n> after Lane G`. Write the objective once in step 2, in the lane's line of the Lanes block, and copy it into the description at launch.
 
@@ -102,7 +108,7 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 **Log every incident in the run log.** The skill improves only from what a run records. Append one line under `## Incidents` the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
 
-**Done when** every lane is running, the Lanes block matches what you launched, and the user has the table: which objective, which issues, which files, which order, which model.
+**Done when** every unblocked lane is running, up to the profile's **Lanes at once**, the Lanes block matches what you launched, and the user has the table: which objective, which issues, which files, which order, which model.
 
 ## 5. Verify independently
 
@@ -112,9 +118,9 @@ Lane gate numbers are often measured mid-branch, before the lane's last commits.
 
 When the run changed UI, serve the merged base locally and open every changed page yourself before the owner is asked to look; then give them the link.
 
-**Review the whole, once.** Each lane's review saw only its own diff, so none of them can see what the lanes duplicate or contradict between them: two helpers for one job, two rules for one tiebreak. Once the cleanup lane (step 6) lands, run the profile's **review** verb over the run's whole diff — the goal branch against its base, or for a queue swarm, the base branch from the baseline commit to now. Land its findings as one more link, like any other.
+**Review the whole, once.** Each lane's review saw only its own diff, so none of them can see what the lanes duplicate or contradict between them: two helpers for one job, two rules for one tiebreak. Once the cleanup lane (step 6) lands, run the profile's **review** verb over the run's whole diff — the goal branch against its base, or for a queue swarm, the base branch from the baseline commit to now. Each finding becomes a ticket and enters the dependency graph like any other (step 2).
 
-**Then the owner tries it.** Hand the owner the assembled result in whatever form they judge it — a served page, a command to run, a file to open — and say that their review happens here. Their findings are part of the run, not follow-ups: in a goal swarm each one becomes a ticket on the goal (a `Closes #<n>` line on the goal PR) and runs as the next link, gated and merged like the rest; in a queue swarm each one is a new ticket, queued like any other. Repeat until the owner says they are done.
+**Then the owner tries it.** Hand the owner the assembled result in whatever form they judge it — a served page, a command to run, a file to open — and say that their review happens here. Their findings are part of the run, not follow-ups: in a goal swarm each one becomes a ticket on the goal (a `Closes #<n>` line on the goal PR) and enters the dependency graph (step 2), gated and merged like the rest; in a queue swarm each one is a new ticket, queued like any other. Repeat until the owner says they are done.
 
 A goal swarm verifies the goal branch. When the owner says their review is done, mark the goal PR ready with `gh pr ready`, watch its CI to a result, and put the PR's link in front of the owner. Landing it is the owner's call, through `stone-merge` or by hand; you leave the goal PR unmerged.
 
