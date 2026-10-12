@@ -270,8 +270,12 @@ When the invocation carries the keyword:
 
    Closes #N
    Closes #M
+
+   ## One-way doors
+   - #<pr> — <note>
    EOF
    ```
+   One `## One-way doors` bullet per promoted PR whose body has `**Door:** one-way`, carrying its note; omit the heading when there are none. Information only — it never stops the release.
 4. Section 2 applies to the release PR (watch, one flake rerun, never red). Then merge it **without** `--delete-branch` — `dev` is permanent:
    ```bash
    gh pr merge <release-pr> --merge --subject "Merge dev: <title> (#<release-pr>)"
@@ -290,6 +294,7 @@ One message. It is the only thing the user sees of this run, so it must stand al
 
 - **Lead with any blocker**: a failed check with its excerpt, an unfamiliar conflict, a review finding that needs a human, a denial quoted verbatim with the exact `!` command to finish.
 - Then, briefly: PR(s) merged with SHA and merge subject; how the review gate resolved (`docs-only`, `ci-check`, `reviewer:<name>` with findings applied, `policy-optional`, `waived`); conflicts resolved and how; cleanup state (base branch, deleted, pruned, `git branch -a` clean); issues labelled; promotion result if asked; the log row written.
+- When the merged PR's body has `**Door:** one-way`, one line: `one-way: <note>`. Information, not a stop. A PR with no Merge Danger section gets no mention of it.
 - Say nothing about promotion unless the invocation asked for it.
 
 The dispatching session relays this. Only two items in it call for further action there: a Section 2.0 rung-4 question, and a denied release merge (Section 6 step 4). Everything else is finished.

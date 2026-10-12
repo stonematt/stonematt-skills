@@ -95,7 +95,7 @@ if git ls-files --error-unmatch graphify-out/graph.json >/dev/null 2>&1 \
   fi
 fi
 ```
-   `env -u ANTHROPIC_API_KEY` keeps any `claude` CLI fallback on the Pro/Max plan rather than metered API. Semantic edges (doc↔ADR↔CONTEXT) are *not* refreshed here — that stays an occasional local `graphify . --backend claude-cli` ($0 on Max).
+   `env -u ANTHROPIC_API_KEY` keeps any `claude` CLI fallback on the Pro/Max plan rather than metered API. Semantic edges (doc↔ADR↔GLOSSARY) are *not* refreshed here — that stays an occasional local `graphify . --backend claude-cli` ($0 on Max).
 
    **Default to _not_ tracking the graph**, especially in public repos: committing it obliges every clone to a one-time `git config merge.graphify-graph.driver "graphify merge-driver %O %A %B"`, and an outside contributor without graphify installed gets conflict markers inside a multi-hundred-KB JSON. Ignore `graphify-out/` and let each machine rebuild on demand. Only track it when the semantic pass is expensive enough that collaborators shouldn't re-pay for it — and then also commit the `.gitattributes` line `graphify-out/graph.json merge=graphify-graph` and document the per-clone `git config` in the README (do NOT use `graphify hook install` — it also adds an unwanted per-commit rebuild).
 5. Create PR using heredoc piped to `gh pr create`:
@@ -110,9 +110,17 @@ Closes #32
 
 ## Test plan
 - [ ] <checklist item>
+
+## Merge Danger
+- **Door:** one-way | two-way — <optional one-line note>
+- **Blast radius:** <one word> — <optional: what could break>
 EOF
 ```
 One `Closes #N` line per linked ticket (the example ships two). Omit the whole `Closes` block if no issue is linked.
+
+**Merge Danger** is information for the reader, never a gate (adapted from the upstream `pr` skill).
+- **Door:** `two-way` when reverting the merge fully undoes its effect; otherwise `one-way`. Mark `one-way` whatever your judgement when the diff adds or changes a database migration, changes what gets published (package manifest `version`/`files`/`bin`/`exports`, or a release/publish workflow), changes infrastructure-as-code, or deletes tracked data (seed data, fixtures, data files). Name the triggering path in the note.
+- **Blast radius:** one word — `none`, `local`, `module`, `app-wide`, `consumers`, `data` — with an optional note naming what could break.
 
 **Important:** Never use `--body "$(cat <<'EOF' ... )"` or other command substitution patterns — always use `--body-file -` with heredoc piped to stdin. The `$()` pattern causes shell quoting issues with markdown tables and special characters.
 
