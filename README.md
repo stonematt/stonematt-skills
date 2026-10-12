@@ -120,7 +120,7 @@ a matching section — so the version number, the tag, and the release never dri
 ## Repository conventions
 
 - See [`CLAUDE.md`](./CLAUDE.md) for agent skill configuration (issue tracker, triage labels, domain docs)
-- See [`CONTEXT.md`](./CONTEXT.md) for the project's vocabulary
+- See [`GLOSSARY.md`](./GLOSSARY.md) for the project's vocabulary
 - See [`docs/adr/`](./docs/adr/) for architectural decisions
 
 ## Test

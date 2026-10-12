@@ -10,7 +10,7 @@ Leave the filled copy at `.claude/swarm-profile.md` in the repo. The next swarm 
 
 **Ready label** `<the label that narrows the issue list — or: none, so every open issue takes the finish-alone test>`
 
-**Read before designing** `<AGENTS.md, CONTEXT.md, docs/adr/ — whatever this repo keeps>`
+**Read before designing** `<AGENTS.md, GLOSSARY.md, docs/adr/ — whatever this repo keeps>`
 
 **Dependency sync** `<the command that makes a fresh worktree runnable — e.g. uv sync>`
 
