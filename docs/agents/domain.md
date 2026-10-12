@@ -8,7 +8,7 @@ This repo is a single skill bundle; there are no sub-contexts. Layout:
 
 ```
 /
-├── CONTEXT.md                  ← glossary of domain terms
+├── GLOSSARY.md                  ← glossary of domain terms
 ├── docs/
 │   ├── briefs/                 ← PRDs / scoped initiatives (lazy)
 │   │   └── <name>.md
@@ -23,7 +23,7 @@ This repo is a single skill bundle; there are no sub-contexts. Layout:
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root — the canonical glossary. Use its vocabulary (**Skill**, **Bucket**, **Namespace**, **Central store**, **Surface**, **Bundle**) in any output (issue titles, refactor proposals, hypotheses, test names).
+- **`GLOSSARY.md`** at the repo root — the canonical glossary. Use its vocabulary (**Skill**, **Bucket**, **Namespace**, **Central store**, **Surface**, **Bundle**) in any output (issue titles, refactor proposals, hypotheses, test names).
 - **`docs/adr/`** — ADRs that touch the area you're about to work in. ADR-0002 covers distribution via the `skills` CLI and the `stone-` namespace.
 - **`docs/briefs/<name>.md`** — if the work relates to a current initiative, read the brief for the why and architecture. May not exist yet — created lazily by `/to-prd`.
 
@@ -31,7 +31,7 @@ If any of these files don't exist, **proceed silently**. Don't flag absence; don
 
 ## Use the glossary's vocabulary
 
-When an output names a domain concept, use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids:
+When an output names a domain concept, use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids:
 
 - **Skill** — not "command" or "plugin"
 - **Bucket** — not "category" or "group"
@@ -50,6 +50,6 @@ Only surface when the friction is real enough to warrant revisiting the ADR. Don
 
 ## Resolved ambiguities
 
-Already in `CONTEXT.md` under "Flagged ambiguities" — don't re-litigate:
+Already in `GLOSSARY.md` under "Flagged ambiguities" — don't re-litigate:
 
 - **"skill"** — the directory in this repo containing `SKILL.md` vs the installed copy at `~/.claude/skills/`. Use "skill" for the source-of-truth dir; "installed skill" for the target.
