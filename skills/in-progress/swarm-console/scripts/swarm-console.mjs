@@ -125,9 +125,10 @@ function parseTranscript(file) {
 
 // The run log's "## Lanes" block is the orchestrator's plan, rewritten whenever it changes:
 //   Session: <orchestrator session id>
-//   - [ ] Lane B (Squad SQL into module): #730 #725 #731 — #731 after Lane A
+//   - [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
 //     Files: src/lib/squads/grid.ts, …
-// → { session, lanes: { B: { objective, tickets: [730, 725, 731], after: { 731: 'A' }, files, done } } }. The checkbox,
+// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, done } } }. A join waits on
+// several lanes, so each ticket's waits are a list. The checkbox,
 // objective and Files line are optional. null when the log has no such block (an older log's lane table reads as none).
 function planOf(text) {
   const sec = (text.split(/^## Lanes\s*$/m)[1] ?? '').split(/^## /m)[0];
@@ -135,7 +136,8 @@ function planOf(text) {
   for (const m of sec.matchAll(/^- (?:\[( |x)\] )?Lane\s+([^:\s(]+)\s*(?:\(([^)]*)\))?:\s*(.*)$((?:\n[ \t]+\S.*)*)/gm)) {
     const [head, tail = ''] = m[4].split(/\s+[—–]\s+/);
     const tickets = [...head.matchAll(/#(\d+)/g)].map(x => Number(x[1]));
-    const after = Object.fromEntries([...tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)].map(x => [x[1], x[2]]));
+    const after = {};
+    for (const x of tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)) (after[x[1]] ??= []).includes(x[2]) || after[x[1]].push(x[2]);
     const files = ((m[5].match(/^\s*Files:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*/).map(f => f.replace(/`/g, '').trim()).filter(Boolean);
     if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, done: m[1] === 'x' };
   }
