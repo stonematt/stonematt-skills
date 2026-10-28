@@ -98,11 +98,16 @@ last_entry_date() {
 }
 
 # Newest commit author date (optionally filtered to AUTHORS regex).
+# Excludes the journal branch: an entry for day N is committed on day N+1, so
+# counting it would mark the repo stale forever with nothing to journal.
+# Not --all: it also walks every worktree HEAD, and the .journal worktree's
+# HEAD is the journal branch, which --exclude cannot reach.
 last_commit_date() {
+  local refs=(--exclude=journal --branches --exclude='*/journal' --remotes --tags)
   if [ -n "${AUTHORS:-}" ]; then
-    git -C "$1" log --all --author="$AUTHORS" -1 --format=%ad --date=short 2>/dev/null
+    git -C "$1" log "${refs[@]}" --author="$AUTHORS" -1 --format=%ad --date=short 2>/dev/null
   else
-    git -C "$1" log --all -1 --format=%ad --date=short 2>/dev/null
+    git -C "$1" log "${refs[@]}" -1 --format=%ad --date=short 2>/dev/null
   fi
 }
 
