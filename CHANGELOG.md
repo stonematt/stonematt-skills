@@ -10,6 +10,16 @@ Consumers can check whether their install is current with `scripts/check-latest.
 
 ## [Unreleased]
 
+### Added
+- `product-lead` skill (**preview**, in `skills/in-progress/`). One product lead
+  per product repo, from one shared skill. It infers each initiative's rung on
+  the ask-matt ladder from the GitHub containers and live sessions, names the
+  next move, convenes a per-project panel of reviewer personas, flags an
+  architecture review on git drift, and writes one status page per project to
+  the vault for the director. Setup writes the product brief, the panel and a
+  lessons file, and installs the Graphify `post-merge` hook. Lessons about the
+  skill itself roll up to the standing issue #137.
+
 ## [0.4.0] - 2026-10-05
 
 Four skills in the pack manifest change in this release: `obsidian-quick-capture`

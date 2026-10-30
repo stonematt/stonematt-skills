@@ -1,0 +1,29 @@
+#!/bin/sh
+# graphify: keep the LOCAL knowledge graph fresh on dev merges/pulls.
+# graphify-out/ is gitignored — this NEVER commits anything (see CLAUDE.md "Knowledge Graph").
+#
+# Split of labor:
+#   - code changes  -> AST refresh here (free, deterministic, no LLM)
+#   - doc/ADR changes -> drop a .needs_update flag; Claude runs full /graphify
+#     (semantic doc extraction needs subagents, which a git hook cannot spawn)
+
+[ -f graphify-out/graph.json ] || exit 0
+command -v graphify >/dev/null 2>&1 || exit 0
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+[ "$branch" = "dev" ] || exit 0
+
+# AST-only refresh of code nodes. -u ANTHROPIC_API_KEY keeps any claude CLI
+# fallback off metered API. Over-collapse safeguard may refuse on a large
+# delta; that is non-fatal (leaves graph.json untouched) — exit cleanly.
+env -u ANTHROPIC_API_KEY graphify update . >/dev/null 2>&1 || true
+
+# If this merge touched docs/ADRs, semantic doc nodes are now stale.
+# Flag for Claude to run a full /graphify (force rebuild, cache-warm).
+if git rev-parse --verify -q ORIG_HEAD >/dev/null 2>&1; then
+  if git diff --name-only ORIG_HEAD HEAD 2>/dev/null | grep -qE '\.(md|mdx|pdf)$'; then
+    touch graphify-out/.needs_update
+  fi
+fi
+
+exit 0
