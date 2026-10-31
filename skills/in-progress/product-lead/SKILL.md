@@ -95,10 +95,10 @@ Then **write the status page** (template [`templates/status-page.md`](templates/
 
 ## 5. Convene the panel
 
-Review points are prototype, spec, QA, UAT and deploy, or whenever Matt asks for a review. The panel is a cast of **personas**, each a file in `docs/panel/` with a lens, the skills it reviews with, what it cares about here, and a verdict log.
+Review points are wayfind, grill, prototype, spec, QA, UAT and deploy, or whenever Matt asks for a review. The panel is a cast of **personas**, each a file in `docs/panel/` with a lens, a group, the skills it reviews with, what it cares about here, and a verdict log.
 
-1. **Pick the seats to fit the work.** Read every persona's lens and pick the ones this artifact needs. A UX prototype gets no security reviewer; a schema change gets no visual critic. Name the picks and why in one line each.
-2. **No persona covers a lens the work needs** → propose a new one to Matt, drafted from [`templates/persona.md`](templates/persona.md). On his yes, add the file and seat it.
+1. **Pick the seats to fit the work.** The rung picks the group: **strategy** at wayfind, grill and prototype; **tactical** at spec, QA, UAT and deploy; **community** at any rung whose work reaches the people the product serves. Seat strategy personas only for strategy work. Within the group, read each lens and pick the ones this artifact needs. A UX prototype gets no security reviewer; a schema change gets no visual critic. Name the picks and why in one line each.
+2. **No persona covers a lens the work needs**, or the group the rung calls for is empty → propose personas to Matt, drafted from [`templates/persona.md`](templates/persona.md). On his yes, add the files and seat them.
 3. **Seat each persona as a parallel subagent.** Brief each with its whole persona file, the artifact (diff range, served URL, spec path), and its skills. Each returns findings tagged blocker, fix or note, and states, for each open item in its own verdict log, whether it is now fixed.
 4. **Merge into one verdict:** **ship** (no blockers, fixes are optional), **fix** (blockers with a clear repair; each becomes a ticket or a commit on the branch), or **rethink** (the approach is wrong; back down the ladder, to grill or prototype). Rethink waits on Matt.
 5. **Append each persona's verdict** to the log at the bottom of its file: date, artifact, verdict, what it flagged.
@@ -109,7 +109,7 @@ Review points are prototype, spec, QA, UAT and deploy, or whenever Matt asks for
 
 ## 6. Setup
 
-[`SETUP.md`](SETUP.md): the brief, two or three personas drafted with Matt, the Graphify hook, the lessons file and the vault page path. Run it once per repo, or again when the brief is missing.
+[`SETUP.md`](SETUP.md): the brief, the panel's tactical, community and strategy personas drafted with Matt, the Graphify hook, the lessons file and the vault page path. Run it once per repo, or again when the brief is missing.
 
 ## 7. Close: two feedback loops
 

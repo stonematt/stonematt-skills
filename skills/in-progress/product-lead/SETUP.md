@@ -20,15 +20,19 @@ Copy [`templates/brief.md`](templates/brief.md) to `docs/product-lead/brief.md` 
 
 **Done when** every section is filled and Matt has said yes to the initiative list.
 
-## 3. The panel: two or three personas
+## 3. The panel: three groups
 
-Draft each from [`templates/persona.md`](templates/persona.md) with Matt, at `docs/panel/<name>.md`. Start from the people who use the product and the ways it can fail: an end user on the device they really use, a maintainer who reads the code in a year, an operator who pays for it. Give each a concrete lens ("the cyclist checking results on a phone at the finish line"), not a role title.
+Draft each persona from [`templates/persona.md`](templates/persona.md) with Matt, at `docs/panel/<name>.md`. Give each a concrete lens ("the cyclist checking results on a phone at the finish line"), not a role title, and a group:
 
-Each persona names the skills it reviews with, drawn from: `impeccable`, `ux-designer-skill`, `web-design-guidelines`, `code-review`, `security-review`, `improve-codebase-architecture`, `codebase-design`. Check each named skill is installed (`ls ~/.claude/skills/`); one that isn't stays out of the file.
+- **tactical** — two or three seats from the people who use the product and the ways it can fail: an end user on the device they really use, a maintainer who reads the code in a year, an operator who pays for it.
+- **community** — one or two seats for the community the product serves, beyond its direct users (youth development, for a race results site). None when the users are the whole community.
+- **strategy** — market experts for design and strategy work: a data journalist, a marketer, a brand keeper. Draft them now if Matt has a strategy effort in view; otherwise leave the group for the first one.
+
+Each persona names the skills it reviews with: any installed review skill that fits its lens (`code-review`, `impeccable`, `dataviz`, `stone-ai-sniff-test`, …). Check each one is installed (`ls ~/.claude/skills/`); one that isn't stays out of the file.
 
 Leave the infra, deploy and cost seat empty; `security-review` stands in (SKILL.md step 5).
 
-**Done when** two or three persona files exist, each with a lens, its skills, what it cares about here, and an empty verdict log, and Matt has approved each lens.
+**Done when** every drafted persona file has a lens, a group, its skills, what it cares about here, and an empty verdict log; the strategy group is drafted or left for the first strategy effort; and Matt has approved each lens.
 
 ## 4. The Graphify hook
 
