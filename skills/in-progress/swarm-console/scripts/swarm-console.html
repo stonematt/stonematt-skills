@@ -211,8 +211,8 @@ function at(a,t=T){
   return {n,last,lastT,st};
 }
 let prIssue={},byId={};
-function mergeTool(issue,t=T){for(const tl of S.main?.tools||[]){if(!tl.merge||tl.t>t)continue;if(tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]===issue))return tl}return null}
-const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n]===issue);return n?Number(n):null};
+function mergeTool(issue,t=T){for(const tl of S.main?.tools||[]){if(!tl.merge||tl.t>t)continue;if(tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]?.includes(issue)))return tl}return null}
+const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n].includes(issue));return n?Number(n):null};
 const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
 // Finished lanes sink below active ones so long swarms keep active lanes on screen; each group stays in start order.
 const lanesSorted=()=>S.agents.filter(a=>a.isLane&&at(a)).map(a=>[a,laneAt(a).done?1:0]).sort((a,b)=>a[1]-b[1]||a[0].start-b[0].start).map(([a])=>a);
@@ -320,7 +320,7 @@ async function loadState(keepT){
     // a lane whose description names no issues: take its queue from the branches it created
     if(a.isLane&&!a.queue.length)a.queue=[...new Set(a.tools.filter(t=>/worktree add/.test(t.brief)).flatMap(t=>(t.brief.match(/-b \S*?-(\d+)\b/)||[]).slice(1).map(Number)))]}
   foldChains();
-  prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/)||p.headRefName.match(/\/(\d+)-/);if(m)prIssue[p.number]=Number(m[1])}
+  prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/)||p.headRefName.match(/\/(\d+)-/),c=p.closes?.length?p.closes:m?[Number(m[1])]:[];if(c.length)prIssue[p.number]=c}
   const live=Date.now()-S.last<15*60e3;
   $('live').disabled=!live;
   if(!keepT){graphs.forEach(g=>g.reset());

@@ -172,12 +172,14 @@ function runLogFor(id, start, last, tickets) {
   };
 }
 
+// issue numbers a PR body closes (`Closes #N`, Fixes, Resolved...); closingIssuesReferences is empty for PRs into non-default bases
+const closing = body => [...new Set([...(body ?? '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map(m => Number(m[1])))];
 let prs = { at: 0, list: [] };
 function prsNow() {
   if (Date.now() - prs.at > 60_000) {
     prs.at = Date.now();
-    execFile('gh', ['pr', 'list', '--state', 'all', '--limit', '120', '--json', 'number,state,headRefName,mergedAt,url'], { cwd: ROOT }, (err, out) => {
-      if (!err) try { prs.list = JSON.parse(out); } catch {}
+    execFile('gh', ['pr', 'list', '--state', 'all', '--limit', '120', '--json', 'number,state,headRefName,mergedAt,url,body'], { cwd: ROOT }, (err, out) => {
+      if (!err) try { prs.list = JSON.parse(out).map(({ body, ...p }) => ({ ...p, closes: closing(body) })); } catch {}
     });
   }
   return prs.list;

@@ -10,7 +10,7 @@ The console infers everything from habits the swarm skill already has; each one 
 |---|---|
 | Describes each link `Lane <X>: #<n> (<k>/<total>) <objective>` and names it `lane-<x>-<k>` (swarm step 4) | One board row per lane, every link folded in: its queue, its objective beside the lane name, merged out of `<total>`; resumes and next links on edges and in the lane zoom. In the graph, the lane's links chain off its node in launch order. Older `Lane <X>: #<n>→#<n>` descriptions still read as one lane each. |
 | Opens every lane turn with the status line ([`LANE-BRIEF.md`](../swarm/LANE-BRIEF.md) "Status line") | The **Needs you** bay and the tag on the lane's card. Sessions from before the status line fall back to keywords in the hand-back. |
-| Runs every `gh pr merge` from the orchestrator, on branches ending `-<issue>` | Issues moving to Merged, merge diamonds, PR links |
+| Runs every `gh pr merge` from the orchestrator, on PRs whose body has `Closes #<issue>` lines (or, failing that, branches ending `-<issue>`) | Issues moving to Merged, merge diamonds, PR links |
 | Titles the run log with the goal and ticks its `- [ ]` lines | The Goal panel. Older sessions' `TaskCreate` / `TaskUpdate` goal task still shows as it stood at each moment. |
 | In a goal swarm, writes `Scope: goal/<slug> → <base>` in the run log, and leaves the goal PR for the owner to merge | The landing target in the Goal panel's Scope row. Lane PRs into the goal branch read like any other; the goal PR never shows as a merge, because the orchestrator never runs it. |
 
