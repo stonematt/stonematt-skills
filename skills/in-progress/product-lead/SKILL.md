@@ -17,7 +17,8 @@ An **initiative** is one idea, from spark to deploy. Its containers are GitHub i
 |---|---|
 | Product brief | `docs/product-lead/brief.md` — goals, initiatives, where tickets live, drift record, vault page |
 | Lessons | `docs/product-lead/lessons.md` |
-| Panel | `docs/panel/<persona>.md` — one file per persona, verdict log at the bottom |
+| Panel | `docs/panel/<persona>.md` — one file per persona, strategic or tactical, verdict log at the bottom |
+| Persona library | [`personas/`](personas/) — strategic personas that hold in any repo; setup copies them in |
 | Status page | the vault path the brief names; overwritten each run |
 | Live sessions | `~/.claude/jobs/*/state.json` |
 | Skill feedback | standing issue [stonematt/stonematt-skills#137](https://github.com/stonematt/stonematt-skills/issues/137) |
@@ -95,10 +96,19 @@ Then **write the status page** (template [`templates/status-page.md`](templates/
 
 ## 5. Convene the panel
 
-Review points are prototype, spec, QA, UAT and deploy, or whenever Matt asks for a review. The panel is a cast of **personas**, each a file in `docs/panel/` with a lens, the skills it reviews with, what it cares about here, and a verdict log.
+Review points are wayfind, grill, prototype, spec, QA, UAT and deploy, or whenever Matt asks for a review. The panel is a cast of **personas**, each a file in `docs/panel/` with its half (strategic or tactical), a lens, the skills it reviews with, what it cares about here, and a verdict log.
 
-1. **Pick the seats to fit the work.** Read every persona's lens and pick the ones this artifact needs. A UX prototype gets no security reviewer; a schema change gets no visual critic. Name the picks and why in one line each.
-2. **No persona covers a lens the work needs** → propose a new one to Matt, drafted from [`templates/persona.md`](templates/persona.md). On his yes, add the file and seat it.
+The two halves answer different questions, so the review point decides which one leads:
+
+| Review point | Leads | Asks |
+|---|---|---|
+| wayfind, grill, prototype, spec, strategy work | strategic | Is this the right thing, headed the right way? |
+| QA, UAT, deploy | tactical | Does it work? |
+
+The other half joins only where its lens bears on the artifact: a prototype with a new page gets the tactical user seat, and a release that changes a chart or the brand gets the FT and brand seats.
+
+1. **Pick the seats to fit the work.** Start from the leading half, then add seats from the other half that the artifact needs. A UX prototype gets no security reviewer; a schema change gets no visual critic. Name the picks and why in one line each.
+2. **No persona covers a lens the work needs** → propose a new one to Matt, from the [library](personas/) when one fits, otherwise drafted from [`templates/persona.md`](templates/persona.md). On his yes, add the file and seat it.
 3. **Seat each persona as a parallel subagent.** Brief each with its whole persona file, the artifact (diff range, served URL, spec path), and its skills. Each returns findings tagged blocker, fix or note, and states, for each open item in its own verdict log, whether it is now fixed.
 4. **Merge into one verdict:** **ship** (no blockers, fixes are optional), **fix** (blockers with a clear repair; each becomes a ticket or a commit on the branch), or **rethink** (the approach is wrong; back down the ladder, to grill or prototype). Rethink waits on Matt.
 5. **Append each persona's verdict** to the log at the bottom of its file: date, artifact, verdict, what it flagged.
@@ -109,7 +119,7 @@ Review points are prototype, spec, QA, UAT and deploy, or whenever Matt asks for
 
 ## 6. Setup
 
-[`SETUP.md`](SETUP.md): the brief, two or three personas drafted with Matt, the Graphify hook, the lessons file and the vault page path. Run it once per repo, or again when the brief is missing.
+[`SETUP.md`](SETUP.md): the brief, a strategic and a tactical panel drafted with Matt, the Graphify hook, the lessons file and the vault page path. Run it once per repo, or again when the brief is missing.
 
 ## 7. Close: two feedback loops
 

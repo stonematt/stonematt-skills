@@ -12,7 +12,7 @@ Read `CLAUDE.md` / `AGENTS.md`, `README.md`, `GLOSSARY.md` or `CONTEXT.md`, `PRO
 
 Copy [`templates/brief.md`](templates/brief.md) to `docs/product-lead/brief.md` and fill it with Matt in one exchange per section:
 
-- **Goals**: two or three outcomes, in his words. Point at `PRODUCT.md` or the README rather than restating them.
+- **Goals**: two to four strategic outcomes, in his words: where the product is headed and what it must become to get there, not the features it has. Read the live map's destination and the README's purpose, then ask Matt what comes after them. Point at `PRODUCT.md` or the README for the users rather than restating them.
 - **Initiatives**: one line each, with its containers (map issue, spec, milestone). Draft the list from the open issues and maps, and let Matt cut and rename it.
 - **Where the tickets live**: tracker, labels, milestone convention.
 - **Drift**: the last `improve-codebase-architecture` review's commit, if Matt knows one. Otherwise record the integration branch's current HEAD as the baseline. *(Default: no known review means drift counts from setup.)* Thresholds start at 30 files or 1,500 lines.
@@ -20,15 +20,21 @@ Copy [`templates/brief.md`](templates/brief.md) to `docs/product-lead/brief.md` 
 
 **Done when** every section is filled and Matt has said yes to the initiative list.
 
-## 3. The panel: two or three personas
+## 3. The panel: strategic and tactical
 
-Draft each from [`templates/persona.md`](templates/persona.md) with Matt, at `docs/panel/<name>.md`. Start from the people who use the product and the ways it can fail: an end user on the device they really use, a maintainer who reads the code in a year, an operator who pays for it. Give each a concrete lens ("the cyclist checking results on a phone at the finish line"), not a role title.
+The panel has two halves, and setup drafts both. The **strategic panel** asks whether this is the right thing, headed the right way: the market, the story the product tells, its design language, and the people it serves. The **tactical panel** asks whether it works: for the user in the moment, for the code a year from now, and against the ways it can fail. A panel of only tactical seats checks that the product works but never checks where it is going. Two onboardings drafted only tactical seats, and Matt rejected both as too low level.
 
-Each persona names the skills it reviews with, drawn from: `impeccable`, `ux-designer-skill`, `web-design-guidelines`, `code-review`, `security-review`, `improve-codebase-architecture`, `codebase-design`. Check each named skill is installed (`ls ~/.claude/skills/`); one that isn't stays out of the file.
+Draft every persona with Matt at `docs/panel/<name>.md`, and mark its half in its **Panel** line. Give each a concrete lens ("the cyclist checking results on a phone at the finish line"), not a role title.
+
+1. **Strategic, from the library.** Start from [`personas/`](personas/): the FT data journalist, the brand referee and the marketer. Copy the ones that fit, and fill each one's **What I care about here** for this project. A product with no charts drops the FT seat. Copy `personas/ft-data-storytelling.md` alongside the FT seat.
+2. **Strategic, for this project.** Add one or two seats for the people the product is about, when they differ from its users, such as the community it serves or the people its data describes. These lenses are domain experts (a youth development coach, a clinician, a teacher), not users. Many have no review skill; they read the served page and say so in their **Reviews with** line.
+3. **Tactical.** Draft two or three: an end user on the device they really use, a maintainer who reads the code in a year, and the way the product most often fails here (a skeptic of its numbers, the next customer who must not see another's data).
+
+Each persona names the skills it reviews with. Prefer `impeccable`, `ux-designer-skill`, `web-design-guidelines`, `code-review`, `security-review`, `improve-codebase-architecture`, `codebase-design`, `dataviz` and `stone-ai-sniff-test`; any other installed skill that fits the lens is fine. Check each named skill is installed (`ls ~/.claude/skills/`); one that isn't stays out of the file.
 
 Leave the infra, deploy and cost seat empty; `security-review` stands in (SKILL.md step 5).
 
-**Done when** two or three persona files exist, each with a lens, its skills, what it cares about here, and an empty verdict log, and Matt has approved each lens.
+**Done when** both halves exist (at least two strategic and two tactical persona files), each with a lens, its panel, its skills, what it cares about here and an empty verdict log, and Matt has approved each lens.
 
 ## 4. The Graphify hook
 
