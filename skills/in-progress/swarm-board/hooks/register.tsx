@@ -316,6 +316,8 @@ export const register: Register = on => {
     await $.command.register({
       name: 'swarm-board',
       description: 'Show the active swarms, one line each',
+      argumentHint: '[close|reload]',
+      immediate: true,
     })
     void refresh($)
     $.clock.every(POLL_MS, () => void refresh($))
@@ -325,8 +327,16 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'swarm-board' }, async $ => {
+  // `/swarm-board` opens the pane; `close` closes it; `reload` rescans now.
+  on('command.run', { command: 'swarm-board' }, async ($, e) => {
+    const verb = e.args.trim().toLowerCase()
+    if (verb === 'close') {
+      await $.ui.close({ id: PANE })
+
+      return { text: 'Swarm pane closed.' }
+    }
     await refresh($)
+    if (verb === 'reload') return { text: 'Swarm board reloaded.' }
     await $.ui.open({ id: PANE, title: TITLE, closeOnEscape: true })
 
     return { text: 'Swarm pane opened.' }

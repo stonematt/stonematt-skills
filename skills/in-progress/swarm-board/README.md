@@ -13,7 +13,8 @@ running, then a flag for each lane that needs attention: **needs you** (red) for
 an escalation, **stalled** (yellow) for a running lane silent over 10 minutes.
 The goal is cut first, so the counts and flags always fit. The band is gone when
 no swarm is active. `/swarm-board` opens a pane with the same one line per
-swarm; Escape closes it.
+swarm; Escape or `/swarm-board close` closes it. `/swarm-board reload` rescans
+now instead of waiting for the next 20-second poll. All three run mid-turn.
 
 For the full picture (stages, the graph, replay), use
 [`swarm-console`](../swarm-console/SKILL.md).
