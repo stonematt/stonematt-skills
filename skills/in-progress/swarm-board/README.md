@@ -5,15 +5,15 @@ A Claude Code mod (a plugin with a hooks module, not a skill) that keeps a
 repo. It draws one row per active swarm above the prompt:
 
 ```
-Release-blocking fixes from the goal PR review (spec #66) · 4/5 · 1 running · D stalled 12m
+Release-blocking fixes from the goal PR review (spec #66) · 4/5 done · 1 running · D stalled 12m
 ```
 
 Each row shows the swarm's goal, lanes done out of lanes, how many lanes are
 running, then a flag for each lane that needs attention: **needs you** (red) for
 an escalation, **stalled** (yellow) for a running lane silent over 10 minutes.
 The goal is cut first, so the counts and flags always fit. The band is gone when
-no swarm is active. `/swarm-board` opens a pane with one line per lane, grouped
-by swarm; Escape closes it.
+no swarm is active. `/swarm-board` opens a pane with the same one line per
+swarm; Escape closes it.
 
 For the full picture (stages, the graph, replay), use
 [`swarm-console`](../swarm-console/SKILL.md).

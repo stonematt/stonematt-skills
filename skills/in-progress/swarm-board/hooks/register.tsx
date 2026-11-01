@@ -93,13 +93,13 @@ export const laneText = (s: Summary): string => {
 export type Flag = { text: string; color: 'red' | 'yellow' }
 
 /**
- * One band row as parts: the goal, cut so the rest always fits; `4/5 · 2
+ * One row as parts: the goal, cut so the rest always fits; `4/5 done · 2
  * running`; then a flag for each lane waiting on the owner or stalled.
  */
 export const bandParts = (s: Summary, width: number, now: number) => {
   const done = s.lanes.filter(l => l.state === 'done').length
   const running = s.lanes.filter(l => l.state === 'run' || l.state === 'stall').length
-  const counts = `${done}/${s.lanes.length}${running > 0 ? ` · ${running} running` : ''}`
+  const counts = `${done}/${s.lanes.length} done${running > 0 ? ` · ${running} running` : ''}`
   const flags: Flag[] = []
   for (const l of s.lanes) {
     if (l.state === 'esc') flags.push({ text: `${l.letter} needs you`, color: 'red' })
@@ -289,11 +289,33 @@ async function refresh($: EngineInterface) {
   await update($, swarms, () => next)
 }
 
+/** One swarm as one line: goal dim, counts plain, flags bold in their color. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const row = (Text: any, s: Summary, width: number, now: number, more = 0) => {
+  const p = bandParts(s, width, now)
+
+  return (
+    <Text>
+      {p.goal !== '' && <Text dimColor>{p.goal} · </Text>}
+      <Text>{p.counts}</Text>
+      {p.flags.map(f => (
+        <Text>
+          <Text dimColor> · </Text>
+          <Text bold color={f.color}>
+            {f.text}
+          </Text>
+        </Text>
+      ))}
+      {more > 0 && <Text dimColor> +{more}</Text>}
+    </Text>
+  )
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'swarm-board',
-      description: 'Show the active swarms with one line per lane',
+      description: 'Show the active swarms, one line each',
     })
     void refresh($)
     $.clock.every(POLL_MS, () => void refresh($))
@@ -325,28 +347,14 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {shown.map((s, i) => {
           const isLast = i === rows - 1 && more > 0
-          const p = bandParts(s, width - (isLast ? 6 : 0), now)
 
-          return (
-            <Text>
-              {p.goal !== '' && <Text dimColor>{p.goal} · </Text>}
-              <Text>{p.counts}</Text>
-              {p.flags.map(f => (
-                <Text>
-                  <Text dimColor> · </Text>
-                  <Text bold color={f.color}>
-                    {f.text}
-                  </Text>
-                </Text>
-              ))}
-              {isLast && <Text dimColor> +{more}</Text>}
-            </Text>
-          )
+          return row(Text, s, width - (isLast ? 6 : 0), now, isLast ? more : 0)
         })}
       </Box>
     )
   })
 
+  // The same one line per swarm as the band; lane detail lives in swarm-console.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const list = await read($, swarms)
@@ -354,25 +362,6 @@ export const register: Register = on => {
     if (list.length === 0) return <Text dimColor>No active swarm in this repo.</Text>
     const now = await $.clock.now()
 
-    return (
-      <Box flexDirection="column">
-        {list.map((s, i) => (
-          <Box flexDirection="column" marginTop={i === 0 ? 0 : 1}>
-            <Text bold>{cut(s.goal, width)}</Text>
-            {s.lanes.map(l => {
-              const age = l.state === 'run' || l.state === 'stall' ? ` · ${ago(now - l.lastAt)}` : ''
-              const line = `${l.letter} ${GLYPH[l.state]} ${l.issues.map(n => `#${n}`).join(' ')} ${l.objective}${age}`
-              const color = l.state === 'esc' ? 'red' : l.state === 'stall' || l.state === 'merge' ? 'yellow' : undefined
-
-              return (
-                <Text color={color} dimColor={l.state === 'done'}>
-                  {cut(line, width)}
-                </Text>
-              )
-            })}
-          </Box>
-        ))}
-      </Box>
-    )
+    return <Box flexDirection="column">{list.map(s => row(Text, s, width, now))}</Box>
   })
 }
