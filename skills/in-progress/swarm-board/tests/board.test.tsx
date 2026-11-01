@@ -61,6 +61,6 @@ test('bandLine keeps the counter and flags only lanes that need attention', asyn
   const line = bandLine(s, 80, NOW)
   expect(line.length).toBeLessThanOrEqual(80)
   expect(line.startsWith('Release-blocking')).toBe(true)
-  expect(line.endsWith(' · 1/4 · 2 running · B needs you · D stalled 12m')).toBe(true)
-  expect(bandLine({ ...s, lanes: [lane('A', 'done')] }, 80, NOW)).toBe(`${s.goal} · 1/1`)
+  expect(line.endsWith(' · 1/4 done · 2 running · B needs you · D stalled 12m')).toBe(true)
+  expect(bandLine({ ...s, lanes: [lane('A', 'done')] }, 80, NOW)).toBe(`${s.goal} · 1/1 done`)
 })
