@@ -23,6 +23,7 @@ The user ran this skill so they can stop thinking about the merge. **Unless some
   - the repo path (a subagent does not inherit your `cwd`)
   - the PR number(s), or "the open PR for branch `<branch>`" when the user gave none
   - the base branch if you know it
+  - `Dispatching session: <name>`, this session's name as `ListAgents` reports it, so the agent can check a claim (Section 1)
   - the user's invocation, quoted verbatim: `The user's invocation was: "merge this"`. Do not paraphrase it into permissions ("prod promotion is authorized", "review waived"). The agent applies Section 2.0's bypass rule and Section 6's keyword rule to the quoted words itself.
   - the gates the agent merges under, stated as constraints: `Merge only after the skill's review gate resolves (docs-only skip, a passing code-review CI check, or the repo's recorded reviewer) and every check is green; a red check, an unresolved gate, or an unrecognised conflict stops the run before the merge.` This is what the run does anyway; saying so in the brief is a fact about the run, not a grant.
   - the directive: `Load this merge skill with the Skill tool (the same skill name you loaded it by — normally "stone-merge"), then execute it as the agent: Sections 1 through 6 as they apply, including gh pr merge. Report back once, in the shape Section 7 describes.` Name the skill exactly as you invoked it; if the Skill tool is unavailable to the agent, give the path of this SKILL.md instead.
@@ -76,6 +77,7 @@ git log --merges --oneline -5
   - `REVIEW_REQUIRED` and not approved → **stop** and report.
   - empty → "nothing enforced," not "approved." Solo PR on the user's own branch: proceed. A teammate's PR in a repo with a review-before-merge convention: stop and report.
 - **Default branch vs base**: if base is the default branch, Section 5's staging labels do not apply.
+- **Claims**: `gh pr view <number> --json comments --jq '.comments[].body' | grep -i '^Owned by session'`. If a claim names a session other than the brief's `Dispatching session:`, **stop** and report the claim; the merge belongs to that session. No claim, or a claim naming the dispatching session → proceed.
 
 ### 2. Check readiness
 
