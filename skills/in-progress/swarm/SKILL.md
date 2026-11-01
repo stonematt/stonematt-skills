@@ -41,22 +41,23 @@ Watch for a collision you can only dissolve by pre-deciding a ticket's design fo
 
 **Throttle what runs, not what you plan.** The profile's **Lanes at once** is how many links this host runs at the same time. When more tickets are unblocked than that, launch first the ones with the most tickets waiting behind them; the rest wait as pending lanes, already in the Lanes block.
 
-**Work that arrives mid-run enters the same graph.** A fix link, an owner's finding, a review's finding, the cleanup lane: each is a ticket with edges, and the rule above gives it its lane. A fix link continues the lane whose merge it fixes. The cleanup lane and the whole-goal review are joins on everything merged before them. Add each to the Lanes block before you launch it.
+**Work that arrives mid-run enters the same graph.** A fix link, an owner's finding, a review's finding, the cleanup lane: each is a ticket with edges, and the rule above gives it its lane. A fix link continues the lane whose merge it fixes. The cleanup lane and the whole-goal review are joins on everything merged before them. Every piece of work gets its own issue number: a merged ticket never takes new work under its number, because the console and the board count it done. Add each to the Lanes block before you launch it.
 
 **Write the plan into the run log** as a `## Lanes` block, one line per lane:
 
 ```
 ## Lanes
 Session: ${CLAUDE_SESSION_ID}
-- [ ] Lane A (one lap rule set): #729
+- [x] Lane A (one lap rule set): #729
   Files: src/lib/laps/rules.ts, src/lib/laps/rules.test.ts
+  Merged: #729 → PR 740 ab12cd3
 - [ ] Lane B (Squad SQL into module): #730 #725
   Files: src/lib/squads/grid.ts, src/lib/db/schema.ts
 - [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
   Files: src/lib/squads/grid.ts, src/lib/laps/rules.ts
 ```
 
-The objective goes in parentheses (step 4), the tickets in build order, space-separated, and every cross-lane wait after ` — ` as `#<n> after Lane <X>`, comma-separated, one per wait. If the `Session:` line shows no id, leave it out. Rewrite the block whenever the plan changes — a ticket added, moved, dropped or reordered, a lane opened. The swarm console reads this block for every lane's queue and waits, and finds the run log by its `Session:` line; a stale block shows the user a plan you are no longer running.
+The objective goes in parentheses (step 4), the tickets in build order, space-separated, and every cross-lane wait after ` — ` as `#<n> after Lane <X>`, comma-separated, one per wait. If the `Session:` line shows no id, leave it out. The line's checkbox is the lane's done signal, and its `Merged:` line records each merged ticket as `#<n> → PR <m> <merge sha>`; step 4 writes both, and the ticket list never carries merge notes. Rewrite the block whenever the plan changes — a ticket added, moved, dropped or reordered, a lane opened. A ticket added to a ticked lane un-ticks it. The swarm console reads this block for every lane's queue and waits, and finds the run log by its `Session:` line; a stale block shows the user a plan you are no longer running.
 
 **Done when** every queued ticket sits in exactly one lane, every edge in the graph either runs inside one lane in order or appears in the Lanes block as a cross-lane wait, each lane reads as one objective, and no fenced file appears in two lanes whose tickets could run at the same time. An unattended run outlives its context window: after a compaction or a resume, re-read the run log, Lanes block first, before you act on any lane's status line.
 
@@ -80,7 +81,7 @@ Split servers in two. A server the owner runs — the main checkout's, on its po
 
 ## 4. Launch
 
-**A goal swarm cuts its goal branch first.** If the repo's docs or memory record a decision against goal branches — epics land ticket by ticket, say — ask the owner before you cut one, and run it as a queue swarm if they say no. Branch `goal/<slug>` off the profile's base branch and push it. Make the slug words with no digits: the console reads any `-<digits>` as an issue number. After the first lane merge, open a draft **goal PR** from it into the base branch (GitHub refuses a PR from a branch with no commits): the goal in its title, a `Closes #<n>` line for every queued ticket (`stone-merge` reads them to stage each one when it lands), and a pointer to the spec or milestone. Write `Scope: goal/<slug> → <base branch>` at the top of the run log; the console's Goal panel shows it.
+**A goal swarm cuts its goal branch first.** If the repo's docs or memory record a decision against goal branches — epics land ticket by ticket, say — ask the owner before you cut one, and run it as a queue swarm if they say no. Branch `goal/<slug>` off the profile's base branch and push it. After the first lane merge, open a draft **goal PR** from it into the base branch (GitHub refuses a PR from a branch with no commits): the goal in its title, a `Closes #<n>` line for every queued ticket (`stone-merge` reads them to stage each one when it lands), and a pointer to the spec or milestone. Write `Scope: goal/<slug> → <base branch>` at the top of the run log; the console's Goal panel shows it.
 
 From then on the goal branch is the `<base>` in every lane brief: lanes branch off it, open their PRs into it, and the cleanup lane lands there too. The base branch is untouched until the owner lands the goal PR. A queue swarm skips all this; its lanes' `<base>` is the base branch itself.
 
@@ -90,7 +91,7 @@ From then on the goal branch is the `<base>` in every lane brief: lanes branch o
 
 **Declare every lane's objective.** The objective is two to four words saying what the lane changes: `Lane H: #528 (2/4) club admin forms`, not `Lane H: #528`. It is the lane's, so every link carries the same one. The console prints it beside the lane name; without it the user sees a letter and an issue number, and has to open the issue to learn what the lane is doing. Name the change, not the order — `after G` belongs in the Lanes block, as `#<n> after Lane G`. Write the objective once in step 2, in the lane's line of the Lanes block, and copy it into the description at launch.
 
-**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → verify the link's merge, then launch the lane's next ticket from the Lanes block as its next link.
+**Act on each lane's status line**, the first line of every lane turn ([`LANE-BRIEF.md`](LANE-BRIEF.md) "Status line"): `ready-to-merge` → run the merge, below; `escalation` → relay it, per **Escalation**; `queue-done` → the link is done, not the lane. Verify the link's merge with `gh pr view`, and add it to the lane's `Merged:` line. When every ticket on the lane's line has merged, tick the lane `[x]`; that tick is the one signal of a lane done, and the console and the board read it ([`CONTRACT.md`](../swarm-console/CONTRACT.md) "Done"). Otherwise launch the lane's next ticket as its next link. A ticket that closes with no PR, such as a review-only one, counts as merged once you have checked its output.
 
 **Where you sit decides the worktree recipe.** From the main checkout, lanes build sibling worktrees (`LANE-BRIEF.md` step a). When you yourself run inside a worktree, a guard refuses that recipe for you and every subagent alike; launch each link with `isolation: "worktree"` and brief it the isolated variant.
 
@@ -104,7 +105,7 @@ Wrong-way errors are not symmetric. A `sonnet` lane that needed `opus` surfaces 
 
 **Key every merge on `gh pr view` state, never on the latest message.** A resume can show "queued" instead of "Resuming", and a stale or duplicate hand-back then arrives after the merge it asked for. When a resume shows "queued", check the remote branch for progress before you resend.
 
-**On a goal branch, run the gates after every merge.** Each lane's gates ran on its own branch, before the merge. Two lanes can each be green and still break each other: one lane's new constraint fails a test in another lane's file, and git merges both clean. Run the profile's gates on the goal branch at the new merge commit, in a scratch worktree made with `git worktree add --detach`, before you resume the lane. Green → resume it. Red → hold every other `ready-to-merge` and launch one **fix link** off the goal branch: the next link of the lane whose merge went red, carrying that lane's ticket number in its description and branch so the console folds it into the lane, fenced to the files the failure names, with the failing output as its ticket. It lands like any link, and the held merges follow it. Log each red one as an incident. A goal branch is often CI-dark (the profile's **CI** row), so these runs are the only check the merged whole gets before the goal PR.
+**On a goal branch, run the gates after every merge.** Each lane's gates ran on its own branch, before the merge. Two lanes can each be green and still break each other: one lane's new constraint fails a test in another lane's file, and git merges both clean. Run the profile's gates on the goal branch at the new merge commit, in a scratch worktree made with `git worktree add --detach`, before you resume the lane. Green → resume it. Red → hold every other `ready-to-merge`, file an issue with the failing output as its body, and add it to the lane whose merge went red, which un-ticks that lane (step 2). On a goal swarm, add a `Closes #<n>` line for it to the goal PR. Then launch one **fix link** for that issue off the goal branch, as the lane's next link, fenced to the files the failure names. It lands like any link, and the held merges follow it. Log each red one as an incident. A goal branch is often CI-dark (the profile's **CI** row), so these runs are the only check the merged whole gets before the goal PR.
 
 **Log every incident in the run log.** The skill improves only from what a run records. Append one line under `## Incidents` the moment each **incident** happens: a human had to act (merge, permission prompt, re-spec), a classifier denial (verbatim command), a stall and its salvage, an escalation, a merge conflict, a lane redone at step 5. Each lane completion notification carries `subagent_tokens`, `tool_uses` and `duration_ms` — copy them into the log when it lands, with the lane's model.
 
@@ -124,7 +125,7 @@ When the run changed UI, serve the merged base locally and open every changed pa
 
 A goal swarm verifies the goal branch. When the owner says their review is done, mark the goal PR ready with `gh pr ready`, watch its CI to a result, and put the PR's link in front of the owner. Landing it is the owner's call, through `stone-merge` or by hand; you leave the goal PR unmerged.
 
-**Done when** you have personally confirmed: gates green at a named commit, no open PRs except a goal swarm's goal PR, no leftover `fix/*` branches **local or remote**, worktrees back to baseline, changed pages seen on a local server, and every issue named beside its PR number and merge commit. Tick each lane `[x]` in the Lanes block as its merges pass this check.
+**Done when** you have personally confirmed: gates green at a named commit, no open PRs except a goal swarm's goal PR, no leftover `fix/*` branches **local or remote**, worktrees back to baseline, changed pages seen on a local server, and every lane ticked in the Lanes block with each of its tickets on its `Merged:` line (step 4).
 
 ## 6. Clear the debris, then file the rest
 

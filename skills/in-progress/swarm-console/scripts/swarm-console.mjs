@@ -36,7 +36,9 @@ const inProject = dir => dir === PROJECT || dir.startsWith(PROJECT + '--claude-w
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }
 
-// This repo's sessions that spawned subagents, newest first.
+// A lane link is described "Lane <X>: #<n> ..." (swarm step 4); a subagent that only mentions lanes is not one.
+const RX_LANE = /^\s*Lane\s+[^:\s]+\s*:/i;
+// This repo's swarm sessions (ones that spawned lanes), newest first.
 function listSessions() {
   const out = [];
   for (const p of fs.readdirSync(PROJECTS).filter(inProject)) {
@@ -47,8 +49,9 @@ function listSessions() {
       if (!fs.existsSync(sub)) continue;
       const metas = fs.readdirSync(sub).filter(n => n.endsWith('.meta.json')).map(n => readJson(path.join(sub, n)));
       // A lane may run as a chain of agents; count each lane letter once.
-      const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && /lane/i.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
-      out.push({ id: s, dir: path.join(pd, s), project: p.startsWith(HOME_SLUG) ? p.slice(HOME_SLUG.length) : p, mtime: fs.statSync(sub).mtimeMs, agents: metas.length, lanes });
+      const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && RX_LANE.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
+      // Only swarms: a session whose subagents include no lane is not one.
+      if (lanes.length) out.push({ id: s, dir: path.join(pd, s), project: p.startsWith(HOME_SLUG) ? p.slice(HOME_SLUG.length) : p, mtime: fs.statSync(sub).mtimeMs, agents: metas.length, lanes });
     }
   }
   return out.sort((a, b) => b.mtime - a.mtime);
@@ -127,7 +130,8 @@ function parseTranscript(file) {
 //   Session: <orchestrator session id>
 //   - [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
 //     Files: src/lib/squads/grid.ts, …
-// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, done } } }. A join waits on
+//     Merged: #731 → PR 740 ab12cd3
+// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, merged: [{ issue, pr, sha }], done } } }. A join waits on
 // several lanes, so each ticket's waits are a list. The checkbox,
 // objective and Files line are optional. null when the log has no such block (an older log's lane table reads as none).
 function planOf(text) {
@@ -135,11 +139,15 @@ function planOf(text) {
   const lanes = {};
   for (const m of sec.matchAll(/^- (?:\[( |x)\] )?Lane\s+([^:\s(]+)\s*(?:\(([^)]*)\))?:\s*(.*)$((?:\n[ \t]+\S.*)*)/gm)) {
     const [head, tail = ''] = m[4].split(/\s+[—–]\s+/);
-    const tickets = [...head.matchAll(/#(\d+)/g)].map(x => Number(x[1]));
+    // Parenthesised notes on the line, like "(#203 → c751746)", name PRs, not tickets.
+    const tickets = [...head.replace(/\([^)]*\)/g, ' ').matchAll(/#(\d+)/g)].map(x => Number(x[1]));
     const after = {};
     for (const x of tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)) (after[x[1]] ??= []).includes(x[2]) || after[x[1]].push(x[2]);
     const files = ((m[5].match(/^\s*Files:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*/).map(f => f.replace(/`/g, '').trim()).filter(Boolean);
-    if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, done: m[1] === 'x' };
+    // "Merged: #180 → PR 203 c751746, #182 → PR 205 2e50f60": each merged ticket's PR and merge commit, written by the orchestrator.
+    const merged = [...((m[5].match(/^\s*Merged:\s*(.*)$/im) ?? [])[1] ?? '').matchAll(/#(\d+)\s*(?:→|->)\s*PR\s*#?(\d+)(?:\s+([0-9a-f]{7,40}))?/gi)]
+      .map(x => ({ issue: Number(x[1]), pr: Number(x[2]), sha: x[3] ?? null }));
+    if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, merged, done: m[1] === 'x' };
   }
   const session = (sec.match(/^Session:\s*([\w-]+)/m) ?? [])[1] ?? null;
   return Object.keys(lanes).length ? { session, lanes } : null;
@@ -199,7 +207,7 @@ function state(id) {
     const aid = n.replace(/^agent-|\.jsonl$/g, '');
     const meta = readJson(path.join(sub, `agent-${aid}.meta.json`));
     const desc = meta.description ?? aid;
-    const isLane = (meta.spawnDepth ?? 1) === 1 && /lane/i.test(desc);
+    const isLane = (meta.spawnDepth ?? 1) === 1 && RX_LANE.test(desc);
     return { id: aid, useId: meta.toolUseId, desc, model: meta.model ?? '?', parent: meta.parentAgentId ?? null, depth: meta.spawnDepth ?? 1,
       isLane, queue: isLane ? [...desc.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : [], ...parseTranscript(path.join(sub, n)) };
   });

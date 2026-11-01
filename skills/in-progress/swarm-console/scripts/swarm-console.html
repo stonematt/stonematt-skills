@@ -237,7 +237,10 @@ function laneAt(lane){
   let cur=null;
   for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>own.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
   if(cur==null&&!allMerged&&a.st!=='done')cur=own.find(i=>!merged.has(i))??(own.length?null:'—');
-  const done=allMerged||(a.st==='done'&&cur==null&&queue.every(i=>merged.has(i)||own.includes(i)));
+  // Lane done (CONTRACT.md "Done"): every ticket merged; or the orchestrator ticked the lane and its last link ended
+  // queue-done, which covers a ticket that closes with no PR. The plan is read as it is now, so the hand-back dates the tick.
+  const ticked=planLanes()[short(lane.desc)]?.done&&(a.st==='hand'||a.st==='done')&&statusLine(handbacks(lane).at(-1)?.text)?.kind==='queue-done';
+  const done=allMerged||ticked||(!plan&&a.st==='done'&&cur==null&&queue.every(i=>merged.has(i)||own.includes(i)));
   let stage='setup',stageT=lane.start;
   if(cur!=null&&!done){
     let from=tools.findIndex(x=>x.refs.includes(cur)); if(from<0)from=0; stageT=tools[from]?.t??lane.start;
@@ -307,7 +310,7 @@ async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error(r.stat
 async function loadSessions(){
   const [list,who]=await Promise.all([getJSON('/sessions'),getJSON('/whoami')]);
   document.title=who.root.split('/').pop()+' · Swarm console';$('h1').textContent=who.root.split('/').pop();
-  if(!list.length){$('conn').textContent='No sessions with subagents in this repo yet';throw new Error('empty')}
+  if(!list.length){$('conn').textContent='No swarm sessions in this repo yet';throw new Error('empty')}
   $('session').innerHTML=list.map(s=>'<option value="'+s.id+'">'+esc(new Date(s.mtime).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(s.lanes.length?s.lanes.length+' lanes':s.agents+' agents')+' · '+s.project.slice(-26))+'</option>').join('');
   if(qs.get('session'))$('session').value=qs.get('session');
 }
@@ -320,7 +323,13 @@ async function loadState(keepT){
     // a lane whose description names no issues: take its queue from the branches it created
     if(a.isLane&&!a.queue.length)a.queue=[...new Set(a.tools.filter(t=>/worktree add/.test(t.brief)).flatMap(t=>(t.brief.match(/-b \S*?-(\d+)\b/)||[]).slice(1).map(Number)))]}
   foldChains();
-  prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/)||p.headRefName.match(/\/(\d+)-/),c=p.closes?.length?p.closes:m?[Number(m[1])]:[];if(c.length)prIssue[p.number]=c}
+  // Which issues each PR lands (CONTRACT.md "Ticket and PR"): lane status lines ("swarm: ready-to-merge issue=182 pr=205"),
+  // the Lanes block's Merged lines, PR Closes lines; a branch's -<n> suffix only for a PR none of those name.
+  prIssue={};const pair=(pr,i)=>{if(pr&&i&&!(prIssue[pr]||=[]).includes(i))prIssue[pr].push(i)};
+  for(const a of S.agents)if(a.isLane)for(const tl of a.tools){if(!isHandback(tl))continue;const sl=statusLine(tl.text||tl.brief);pair(Number(sl?.pr),Number(sl?.issue))}
+  for(const p of Object.values(S.runLog?.plan?.lanes||{}))for(const m of p.merged||[])pair(m.pr,m.issue);
+  for(const p of S.prs)for(const i of p.closes||[])pair(p.number,i);
+  for(const p of S.prs){if(prIssue[p.number])continue;const m=p.headRefName.match(/-(\d+)$/)||p.headRefName.match(/\/(\d+)-/);if(m)pair(p.number,Number(m[1]))}
   const live=Date.now()-S.last<15*60e3;
   $('live').disabled=!live;
   if(!keepT){graphs.forEach(g=>g.reset());
@@ -611,9 +620,9 @@ function frame(now){
       $('clock').textContent=new Date(T).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'})+'  +'+ago(T-S.start);
       $('conn').textContent=connErr?'Server unreachable · last update '+ago(Date.now()-lastOk)+' ago':'';
       const all=S.agents.filter(a=>a.isLane),live=S.agents.filter(a=>at(a)?.st==='live').length;
-      // Running: a lane with a link that has not finished. Pending: a planned lane no link has started.
+      // Running: a started lane that is not done (CONTRACT.md "Done"). Pending: a planned lane no link has started.
       const lanesN=new Set([...all.map(a=>short(a.desc)),...Object.keys(planLanes())]).size;
-      const running=new Set(all.filter(a=>{const s=at(a);return s&&s.st!=='done'}).map(a=>short(a.desc))).size,pending=plannedOnly().length;
+      const running=lanesSorted().filter(l=>!laneAt(l).done).length,pending=plannedOnly().length;
       $('summary').innerHTML='<span class="num">'+running+'</span> running · <span class="num">'+pending+'</span> pending of <span class="num">'+lanesN+'</span> lanes · <span class="num">'+live+'</span> agents working';
       const notices=noticesAt();
       if(view==='board'){focusLane?renderTimeline(focusLane):renderBoard(notices);miniGraph.render(notices);renderBay(notices);renderGoal()}
