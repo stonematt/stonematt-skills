@@ -127,7 +127,7 @@ swarm: escalation issue=<n> reason=<fence | unsatisfiable | red-gate | denied>
 swarm: queue-done
 ```
 
-`ready-to-merge` ends step **f**. `escalation` ends every stop and every denied command. `queue-done` ends your last item, after its step **g**.
+`ready-to-merge` ends step **f**. `escalation` ends every stop and every denied command. `queue-done` ends your last item, after its step **g**. It says this link is done; whether the lane is done is the orchestrator's call, made in the run log.
 
 ## Report
 

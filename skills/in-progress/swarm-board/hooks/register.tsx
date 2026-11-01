@@ -61,7 +61,13 @@ export type AgentFile = { meta: Meta; tail: string; mtimeMs: number }
 const cut = (text: string, width: number): string =>
   text.length <= width ? text : text.slice(0, Math.max(1, width - 1)) + '…'
 
-export const summarize = (agents: AgentFile[], now: number): LaneView[] => {
+/**
+ * Lane done, per swarm-console CONTRACT.md "Done": with a Lanes block (`ticked`
+ * given), only a lane the orchestrator ticked is done; a finished link of an
+ * unticked lane is between links, so the lane still runs. Without one, a
+ * finished link with no pending status line is done.
+ */
+export const summarize = (agents: AgentFile[], now: number, ticked?: Set<string>): LaneView[] => {
   const latest = new Map<string, LaneView>()
   for (const a of agents) {
     if ((a.meta.spawnDepth ?? 1) !== 1) continue
@@ -72,6 +78,7 @@ export const summarize = (agents: AgentFile[], now: number): LaneView[] => {
     if (!a.meta.finished) state = now - a.mtimeMs > STALL_MS ? 'stall' : 'run'
     else if (status === 'escalation') state = 'esc'
     else if (status === 'ready-to-merge') state = 'merge'
+    else if (ticked && !ticked.has(link.letter)) state = 'run'
     else state = 'done'
     const view: LaneView = { ...link, state, lastAt: a.mtimeMs }
     const old = latest.get(link.letter)
@@ -127,6 +134,15 @@ export const goalOf = (log: string, sessionId: string): string | undefined => {
   const m = /^#\s+(.+)$/m.exec(log)
 
   return m?.[1]?.trim()
+}
+
+/** The lane letters ticked `- [x] Lane <X>` in a run log's `## Lanes` block; undefined when it has none. */
+export const ticksOf = (log: string): Set<string> | undefined => {
+  const sec = (log.split(/^## Lanes\s*$/m)[1] ?? '').split(/^## /m)[0] ?? ''
+  const lines = [...sec.matchAll(/^- (?:\[( |x)\] )?Lane\s+([A-Za-z]+)\b/gm)]
+  if (lines.length === 0) return undefined
+
+  return new Set(lines.filter(m => m[1] === 'x').map(m => (m[2] ?? '').toUpperCase()))
 }
 
 const ago = (ms: number): string => {
@@ -201,11 +217,12 @@ async function titleOf($: EngineInterface, path: string, size: number) {
 async function runGoals($: EngineInterface, now: number) {
   const dir = `${home}/.claude/skill-workbench/swarm/runs`
   const goals = new Map<string, string>()
+  const ticks = new Map<string, Set<string>>()
   let entries
   try {
     entries = await $.fs.list(dir)
   } catch {
-    return goals
+    return { goals, ticks }
   }
   for (const e of entries) {
     if (e.kind !== 'file' || !e.name.endsWith('.md') || now - e.mtimeMs > RECENT_MS) continue
@@ -218,9 +235,11 @@ async function runGoals($: EngineInterface, now: number) {
     const id = /^Session:\s*(\S+)/m.exec(hit.text)?.[1]
     const goal = id ? goalOf(hit.text, id) : undefined
     if (id && goal) goals.set(id, goal)
+    const t = id ? ticksOf(hit.text) : undefined
+    if (id && t) ticks.set(id, t)
   }
 
-  return goals
+  return { goals, ticks }
 }
 
 /** Every swarm in this repo with a lane active in the last 30 minutes. */
@@ -243,7 +262,7 @@ async function scan($: EngineInterface): Promise<Summary[]> {
   }
   candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)
 
-  const goals = await runGoals($, now)
+  const { goals, ticks } = await runGoals($, now)
   const found: Summary[] = []
   for (const c of candidates.slice(0, 16)) {
     const sub = `${c.dir}/subagents`
@@ -265,7 +284,7 @@ async function scan($: EngineInterface): Promise<Summary[]> {
       agents.push({ meta, tail, mtimeMs })
     }
     if (agents.length === 0) continue
-    const lanes = summarize(agents, now)
+    const lanes = summarize(agents, now, ticks.get(c.id))
     const lastAt = Math.max(...lanes.map(l => l.lastAt))
     const isLive = lanes.some(l => l.state === 'run' || l.state === 'stall')
     if (!isLive && now - lastAt > ACTIVE_MS) continue

@@ -130,7 +130,8 @@ function parseTranscript(file) {
 //   Session: <orchestrator session id>
 //   - [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
 //     Files: src/lib/squads/grid.ts, …
-// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, done } } }. A join waits on
+//     Merged: #731 → PR 740 ab12cd3
+// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, merged: [{ issue, pr, sha }], done } } }. A join waits on
 // several lanes, so each ticket's waits are a list. The checkbox,
 // objective and Files line are optional. null when the log has no such block (an older log's lane table reads as none).
 function planOf(text) {
@@ -143,7 +144,10 @@ function planOf(text) {
     const after = {};
     for (const x of tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)) (after[x[1]] ??= []).includes(x[2]) || after[x[1]].push(x[2]);
     const files = ((m[5].match(/^\s*Files:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*/).map(f => f.replace(/`/g, '').trim()).filter(Boolean);
-    if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, done: m[1] === 'x' };
+    // "Merged: #180 → PR 203 c751746, #182 → PR 205 2e50f60": each merged ticket's PR and merge commit, written by the orchestrator.
+    const merged = [...((m[5].match(/^\s*Merged:\s*(.*)$/im) ?? [])[1] ?? '').matchAll(/#(\d+)\s*(?:→|->)\s*PR\s*#?(\d+)(?:\s+([0-9a-f]{7,40}))?/gi)]
+      .map(x => ({ issue: Number(x[1]), pr: Number(x[2]), sha: x[3] ?? null }));
+    if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, merged, done: m[1] === 'x' };
   }
   const session = (sec.match(/^Session:\s*([\w-]+)/m) ?? [])[1] ?? null;
   return Object.keys(lanes).length ? { session, lanes } : null;

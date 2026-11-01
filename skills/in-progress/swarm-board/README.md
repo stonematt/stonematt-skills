@@ -29,7 +29,9 @@ It reads files only, every 20 seconds, and writes nothing:
 - The last 64 KB of a finished lane's transcript, for its `swarm:` status line.
 - The run log in `~/.claude/skill-workbench/swarm/runs/` whose `Session:` line
   names the session: its `# ` title is the goal. Without one, the session's own
-  title, then its ticket numbers.
+  title, then its ticket numbers. Its `## Lanes` block's ticks say which lanes
+  are done: with a block, a lane is done only once the orchestrator ticks it
+  `- [x]`, and a finished link of an unticked lane still counts as running.
 
 These are the habits [`swarm-console/CONTRACT.md`](../swarm-console/CONTRACT.md)
 records. A change to them in the `swarm` skill reaches this mod too.

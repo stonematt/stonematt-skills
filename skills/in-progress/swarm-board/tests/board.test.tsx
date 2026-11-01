@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bandLine, goalOf, lastStatus, laneText, parseLink, summarize } from '../hooks/register'
+import { bandLine, goalOf, lastStatus, laneText, parseLink, summarize, ticksOf } from '../hooks/register'
 
 const NOW = 1_000_000_000
 
@@ -40,6 +40,22 @@ test('summarize folds links into one state per lane', async () => {
     'E:merge:1',
   ])
   expect(laneText({ sessionId: 's', goal: 'g', lanes, lastAt: NOW })).toBe('0/4 A▸ B! D… E◆')
+})
+
+test('with a Lanes block, only a ticked lane is done', async () => {
+  const log = '# g\n\n## Lanes\nSession: s\n- [x] Lane A (safety): #160\n  Merged: #160 → PR 9 abc1234\n- [ ] Lane B (query): #161 #163\n\n## Baseline\n- [x] Lane Z: #1\n'
+  const ticked = ticksOf(log)
+  expect(ticked && [...ticked]).toEqual(['A'])
+  expect(ticksOf('# no plan\n')).toBe(undefined)
+  const lanes = summarize(
+    [
+      { meta: { description: 'Lane A: #160 (1/1) safety', spawnDepth: 1, finished: true }, tail: 'swarm: queue-done', mtimeMs: NOW },
+      { meta: { description: 'Lane B: #161 (1/2) query', spawnDepth: 1, finished: true }, tail: 'swarm: queue-done', mtimeMs: NOW },
+    ],
+    NOW,
+    ticked,
+  )
+  expect(lanes.map(l => `${l.letter}:${l.state}`)).toEqual(['A:done', 'B:run'])
 })
 
 test('goalOf takes the run log title only for its own session', async () => {
