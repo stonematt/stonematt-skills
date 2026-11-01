@@ -3,7 +3,7 @@ name: swarm-console
 description: "Open, stop, or replay the swarm console — a local browser view of a swarm's lanes. Use when the user wants to see swarm progress or a past run, or when the swarm skill has launched its lanes."
 ---
 
-The console reads what a swarm already writes — session transcripts, subagent metadata, the run log, the repo's PRs — and serves one page over it for one repo. It writes nothing. A swarm in flight shows live; any past session of the repo replays on a time scrubber.
+The console reads what a swarm already writes — session transcripts, subagent metadata, the run log, the repo's PRs — and serves one page over it for one repo. It writes nothing. A swarm in flight shows live; any past session of the repo replays on a time scrubber. For a one-row summary above the prompt instead, the [`swarm-board`](../swarm-board/README.md) mod reads the same files.
 
 ## 1. Start it, or find it
 

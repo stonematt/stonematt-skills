@@ -1,6 +1,6 @@
 # Swarm console data contract
 
-What the console reads, and what each part of the page comes from. Read it before you change what the [`swarm`](../swarm/SKILL.md) skill writes or what the console draws: a change on one side that the other does not read is a page that quietly goes blank.
+What the console reads, and what each part of the page comes from. Read it before you change what the [`swarm`](../swarm/SKILL.md) skill writes or what the console draws: a change on one side that the other does not read is a page that quietly goes blank. The [`swarm-board`](../swarm-board/README.md) mod reads the same link descriptions, status lines and run-log `Session:` line, plus the run log's title as the goal: keep it in step too.
 
 ## What the swarm writes
 
