@@ -1,0 +1,2 @@
+# Written by the engine at each load: the API types the editor and tsc read.
+.claude-plugin/types/

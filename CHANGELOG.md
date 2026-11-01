@@ -11,6 +11,13 @@ Consumers can check whether their install is current with `scripts/check-latest.
 ## [Unreleased]
 
 ### Added
+- `swarm-board` mod (**preview**, in `skills/in-progress/`). A Claude Code
+  plugin with a hooks module, not a skill: one row per active swarm above the
+  prompt of any session in the repo, with the swarm's goal, lanes done, lanes
+  running, and a flag for each lane that needs you or has stalled.
+  `/swarm-board` opens a pane with one line per lane. It reads the files the
+  swarm console reads and writes nothing. Linked into `~/.claude/skills/` by
+  hand, like the other previews.
 - `product-lead` skill (**preview**, in `skills/in-progress/`). One product lead
   per product repo, from one shared skill. It infers each initiative's rung on
   the ask-matt ladder from the GitHub containers and live sessions, names the
