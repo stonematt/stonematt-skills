@@ -2,7 +2,9 @@
 
 **Lens:** <one concrete person in one concrete moment — "the cyclist checking results on a phone at the finish line">
 
-**Reviews with:** <skills from: impeccable, ux-designer-skill, web-design-guidelines, code-review, security-review, improve-codebase-architecture, codebase-design>
+**Group:** <tactical | community | strategy>
+
+**Reviews with:** <installed skills that fit the lens: code-review, security-review, impeccable, codebase-design, dataviz, stone-ai-sniff-test, …>
 
 **Seat when:** <the kind of work this lens bears on — UI changes, schema changes, anything a race-day user touches>
 
