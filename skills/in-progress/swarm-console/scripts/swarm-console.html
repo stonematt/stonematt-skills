@@ -307,7 +307,7 @@ async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error(r.stat
 async function loadSessions(){
   const [list,who]=await Promise.all([getJSON('/sessions'),getJSON('/whoami')]);
   document.title=who.root.split('/').pop()+' · Swarm console';$('h1').textContent=who.root.split('/').pop();
-  if(!list.length){$('conn').textContent='No sessions with subagents in this repo yet';throw new Error('empty')}
+  if(!list.length){$('conn').textContent='No swarm sessions in this repo yet';throw new Error('empty')}
   $('session').innerHTML=list.map(s=>'<option value="'+s.id+'">'+esc(new Date(s.mtime).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' · '+(s.lanes.length?s.lanes.length+' lanes':s.agents+' agents')+' · '+s.project.slice(-26))+'</option>').join('');
   if(qs.get('session'))$('session').value=qs.get('session');
 }
@@ -321,6 +321,9 @@ async function loadState(keepT){
     if(a.isLane&&!a.queue.length)a.queue=[...new Set(a.tools.filter(t=>/worktree add/.test(t.brief)).flatMap(t=>(t.brief.match(/-b \S*?-(\d+)\b/)||[]).slice(1).map(Number)))]}
   foldChains();
   prIssue={};for(const p of S.prs){const m=p.headRefName.match(/-(\d+)$/)||p.headRefName.match(/\/(\d+)-/),c=p.closes?.length?p.closes:m?[Number(m[1])]:[];if(c.length)prIssue[p.number]=c}
+  // A lane's status line names its PR and issue ("swarm: ready-to-merge issue=182 pr=205"); that pairs them when the PR body has no Closes line.
+  for(const a of S.agents)if(a.isLane)for(const tl of a.tools){if(!isHandback(tl))continue;const sl=statusLine(tl.text||tl.brief),pr=Number(sl?.pr),i=Number(sl?.issue);
+    if(pr&&i&&!(prIssue[pr]||=[]).includes(i))prIssue[pr].push(i)}
   const live=Date.now()-S.last<15*60e3;
   $('live').disabled=!live;
   if(!keepT){graphs.forEach(g=>g.reset());
