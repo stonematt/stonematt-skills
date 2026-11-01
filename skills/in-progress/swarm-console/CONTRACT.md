@@ -27,3 +27,15 @@ Without the block, the board shows only what link descriptions name.
 Stage is inferred from each lane's tool calls: edits and test, lint, type and build commands are **Build**; reviewer subagents, browser tools and dev servers are **Review**; `gh pr create`, `gh pr checks` and `git push` are **PR / CI**. A hand-back keeps the stage it interrupted.
 
 A **notice** sits across stages: a lane handed back with no resume since, or silent for over 10 minutes. It clears on a resume, a merge, or the lane moving again.
+
+## Where the files are
+
+The habits above land in Claude Code's own session files, plus the swarm's run log. Both readers, the console and the [`swarm-board`](../swarm-board/README.md) mod, find a swarm here. Claude Code owns every file but the run log, and a release can change its layout: when a reader goes blank after an upgrade, check this section against the disk first.
+
+| File | What a reader takes from it |
+|---|---|
+| `~/.claude/projects/<slug>/` | One folder per checkout. `<slug>` is the main checkout's absolute path with every character that is not a letter or digit turned into `-`. A session started in a worktree of it sits in `<slug>--claude-worktrees-<name>/`. |
+| `<slug>/<session>.jsonl` | The orchestrator's transcript: its `gh pr merge` calls, and the session's title in its last `custom-title` row (`customTitle`). |
+| `<slug>/<session>/subagents/agent-<id>.meta.json` | One per agent the session started: `description` (the link description, `Lane <X>: #<n> (<k>/<total>) <objective>`), `name` (`lane-<x>-<k>`), `spawnDepth` (1 for a lane link; 2 for an agent a lane started, which names it in `parentAgentId`), and `finished`, true once the agent stopped and absent while it runs. |
+| `<slug>/<session>/subagents/agent-<id>.jsonl` | That agent's transcript: its tool calls, which give the stage, and its turns, whose first line is the status line. |
+| `~/.claude/skill-workbench/swarm/runs/<date>-<repo>[-<topic>].md` | The run log. Its `# ` title is the goal; its `Session:` line names the orchestrator's `<session>`. |
