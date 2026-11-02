@@ -64,7 +64,9 @@ const cut = (text: string, width: number): string =>
 /**
  * Lane done, per swarm-console CONTRACT.md "Done": with a Lanes block (`ticked`
  * given), only a lane the orchestrator ticked is done; a finished link of an
- * unticked lane is between links, so the lane still runs. Without one, a
+ * unticked lane is between links, so the lane still runs. The tick beats the
+ * link's last status line: the orchestrator ticks after it has handled an
+ * escalation, such as a ticket it closed with no PR. Without a Lanes block, a
  * finished link with no pending status line is done.
  */
 export const summarize = (agents: AgentFile[], now: number, ticked?: Set<string>): LaneView[] => {
@@ -76,6 +78,7 @@ export const summarize = (agents: AgentFile[], now: number, ticked?: Set<string>
     const status = lastStatus(a.tail)
     let state: LaneState
     if (!a.meta.finished) state = now - a.mtimeMs > STALL_MS ? 'stall' : 'run'
+    else if (ticked?.has(link.letter)) state = 'done'
     else if (status === 'escalation') state = 'esc'
     else if (status === 'ready-to-merge') state = 'merge'
     else if (ticked && !ticked.has(link.letter)) state = 'run'

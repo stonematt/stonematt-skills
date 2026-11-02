@@ -212,6 +212,10 @@ function at(a,t=T){
 }
 let prIssue={},byId={};
 function mergeTool(issue,t=T){for(const tl of S.main?.tools||[]){if(!tl.merge||tl.t>t)continue;if(tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]?.includes(issue)))return tl}return null}
+// A ticket the orchestrator closed with no PR: its "#<n> → closed: <why>" entry on a Merged line (CONTRACT.md "Done").
+const closedNote=issue=>{for(const p of Object.values(S.runLog?.plan?.lanes||{}))for(const m of p.merged||[])if(m.issue===issue&&m.closed)return m.closed;return null};
+// Landed: merged, or closed with no PR. For a lane no link has started, where no hand-back dates the close.
+const landed=issue=>mergeTool(issue)||closedNote(issue);
 const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n].includes(issue));return n?Number(n):null};
 const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
 // Finished lanes sink below active ones so long swarms keep active lanes on screen; each group stays in start order.
@@ -232,13 +236,15 @@ function laneAt(lane){
   // queue puts the plan's tickets first, so ones no link has reached yet wait in Queued; the plan also sets the total.
   const plan=planLanes()[short(lane.desc)]?.tickets;
   const tools=lane.tools.slice(0,a.n), own=lane.queue, queue=[...new Set([...(plan||[]),...own])], total=plan?queue.length:Math.max(lane.total||0,queue.length);
-  const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t]).filter(([,m])=>m!=null));
+  // merged: each landed ticket and when. A ticket closed with no PR lands when the lane's link ends, since the plan is read as it is now.
+  const ended=a.st==='hand'||a.st==='done', endT=handbacks(lane).at(-1)?.t??a.lastT;
+  const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t??(ended&&closedNote(i)?endT:null)]).filter(([,m])=>m!=null));
   const allMerged=queue.length>0&&merged.size===queue.length&&merged.size>=total;
   let cur=null;
   for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>own.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
   if(cur==null&&!allMerged&&a.st!=='done')cur=own.find(i=>!merged.has(i))??(own.length?null:'—');
-  // Lane done (CONTRACT.md "Done"): every ticket merged; or the orchestrator ticked the lane and its last link ended
-  // queue-done, which covers a ticket that closes with no PR. The plan is read as it is now, so the hand-back dates the tick.
+  // Lane done (CONTRACT.md "Done"): every ticket merged or closed; or the orchestrator ticked the lane and its last link ended
+  // queue-done, which covers a review-only lane. The plan is read as it is now, so the hand-back dates the tick.
   const ticked=planLanes()[short(lane.desc)]?.done&&(a.st==='hand'||a.st==='done')&&statusLine(handbacks(lane).at(-1)?.text)?.kind==='queue-done';
   const done=allMerged||ticked||(!plan&&a.st==='done'&&cur==null&&queue.every(i=>merged.has(i)||own.includes(i)));
   let stage='setup',stageT=lane.start;
@@ -250,10 +256,10 @@ function laneAt(lane){
   return {a,cur,stage,stageT,merged,queue,total,done};
 }
 // What a lane no link has started waits on: the lanes its first unmerged ticket waits on, or '' when it can start.
-const waitOf=p=>{const i=p.tickets.find(i=>!mergeTool(i));return i==null?'':afterTxt(i)};
+const waitOf=p=>{const i=p.tickets.find(i=>!landed(i));return i==null?'':afterTxt(i)};
 // Lanes the plan names that no link has started by T, with tickets still to merge.
 const plannedOnly=()=>{const started=new Set(lanesSorted().map(l=>short(l.desc)));
-  return Object.entries(planLanes()).filter(([k,p])=>!started.has(k)&&!p.done&&!p.tickets.every(i=>mergeTool(i)))};
+  return Object.entries(planLanes()).filter(([k,p])=>!started.has(k)&&!p.done&&!p.tickets.every(i=>landed(i)))};
 // Needs-you notices sit across stages. A notice clears when the orchestrator resumes the lane, merges, or the lane moves again.
 const RX_ESC=/escalat|\bblocked\b|\bheld\b|needs? (an? )?(owner|human|decision|re-?spec)|re-?spec|cannot proceed|can't proceed|stop(ped|ping)? rather/i;
 const RX_MERGE=/ready to merge|ready for merge|gh pr merge|merge command/i;
@@ -446,9 +452,9 @@ function makeGraph(el,compact){
     for(const [X,p] of plannedOnly()){const id='p'+X;hub[X]=id;
       nodes.push(Object.assign(node(id),{kind:'lane',ghost:true,r:11*k,st:'done',ripple:Infinity,letter:X.slice(0,2)}));
       if(S.main)links.push({source:id,target:'main',kind:'plan',w:1});
-      planned(id,X,null,p.tickets.filter(i=>!mergeTool(i)))}
+      planned(id,X,null,p.tickets.filter(i=>!landed(i)))}
     for(const p of Object.values(planLanes()))for(const [i,Xs] of Object.entries(p.after||{}))for(const X of [].concat(Xs))
-      if(tnode[i]&&hub[X]&&!mergeTool(Number(i)))links.push({source:tnode[i],target:hub[X],kind:'after',w:1});
+      if(tnode[i]&&hub[X]&&!landed(Number(i)))links.push({source:tnode[i],target:hub[X],kind:'after',w:1});
     const stable=links.map(l=>{const key=l.source+'>'+l.target;let o=G.lm.get(key);if(!o){o={...l};G.lm.set(key,o)}else Object.assign(o,{kind:l.kind,w:l.w,running:l.running});return o});
     const sig=nodes.map(n=>n.id).join(',');
     if(sig!==G.sig){G.sim.nodes(nodes);G.sim.force('link').links(stable);G.sim.alpha(.5).restart();G.sig=sig}
@@ -545,7 +551,7 @@ function renderBoard(notices){
     const cls='row'+(selLane===l.id?' sel':'')+(k?(k.red?' attn-red':' attn')+(k.cord?' cord':''):'');
     const st=x.done?'done':x.a.st;
     const ob=objective(l.desc)||planLanes()[short(l.desc)]?.objective;
-    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+(ob?'<span class="obj" title="'+esc(ob)+'">— '+esc(ob)+'</span>':'')+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(x.total||'?')+'</span> merged'+(l.links?.length>1?' · <span class="num">'+l.links.length+'</span> agents':'')+'</div></div></div>';
+    h+='<div class="'+cls+'"><div class="lanecell" data-lane="'+l.id+'" tabindex="0" role="button" aria-label="Lane '+esc(short(l.desc))+', '+st+(n?', '+esc(n.what):'')+'. Enter to zoom."><span class="blk st-'+st+'">'+esc(short(l.desc).slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(short(l.desc))+(ob?'<span class="obj" title="'+esc(ob)+'">— '+esc(ob)+'</span>':'')+' <span class="mdl" title="'+l.model+'">'+mdl(l.model)+'</span></div>'+heartbeat(l,st)+'<div class="meta"><span class="num">'+x.a.n+'</span> calls · <span class="num">'+x.merged.size+'/'+(x.total||'?')+'</span> '+([...x.merged.keys()].some(i=>!mergeTool(i))?'landed':'merged')+(l.links?.length>1?' · <span class="num">'+l.links.length+'</span> agents':'')+'</div></div></div>';
     const queued=x.queue.filter(i=>i!==x.cur&&!x.merged.has(i));
     h+='<div class="cell"><div class="chips">'+queued.map(i=>chip(i,false)).join('')+'</div></div>';
     if(x.done)h+='<div class="donecell">Queue done'+(x.a.st==='hand'?' · handed back '+ago(T-x.a.lastT)+' ago':'')+'</div>';
@@ -564,7 +570,7 @@ function renderBoard(notices){
   const planned=plannedOnly();
   for(const [k,p] of planned)
     h+='<div class="row"><div class="lanecell planned"><span class="blk st-plan">'+esc(k.slice(0,2))+'</span><div style="min-width:0"><div class="ln">Lane '+esc(k)+(p.objective?'<span class="obj" title="'+esc(p.objective)+'">— '+esc(p.objective)+'</span>':'')+'</div><div class="meta">'+(waitOf(p)?'pending':'not started')+' · <span class="num">'+p.tickets.length+'</span> planned</div></div></div>'+
-      '<div class="cell"><div class="chips">'+p.tickets.filter(i=>!mergeTool(i)).map(i=>chip(i,false)).join('')+'</div></div><div class="donecell">'+(waitOf(p)?'Waiting on '+esc(waitOf(p)):'Not started')+'</div><div class="cell"></div></div>';
+      '<div class="cell"><div class="chips">'+p.tickets.filter(i=>!landed(i)).map(i=>chip(i,false)).join('')+'</div></div><div class="donecell">'+(waitOf(p)?'Waiting on '+esc(waitOf(p)):'Not started')+'</div><div class="cell"></div></div>';
   h+='</div>'+(lanes.length||planned.length?'':'<p class="calm" style="padding:16px">No lanes yet at this moment. Lanes are depth-1 agents whose description starts with "Lane".</p>')+
     '<div class="legend"><span><i style="background:var(--live)"></i>working</span><span><i style="background:var(--quiet)"></i>quiet over 2 min</span><span><i style="background:var(--stall)"></i>silent over 10 min</span><span><i style="background:var(--hand)"></i>handed back</span><span><i style="background:var(--done)"></i>finished</span><span>Trace: tool calls per 2 min over the last hour, reviewers in grey</span><span>O / S: opus / sonnet</span><span>Press ? for keys</span></div>';
   const sig=lanes.map(([l,x])=>l.id+x.cur+x.stage+x.merged.size+x.done).join('|')+'|'+planned.map(([k])=>k).join(',');
@@ -576,7 +582,8 @@ function renderBoard(notices){
   lastKbSig=sig;
 }
 function chip(i,merged){
-  const pr=merged?prOf(i):null,url=pr?ghPr(pr):ghIssue(i),t=merged?'merged '+hhmm(mergeTool(i)?.t)+(pr?' · PR '+pr:''):'queued'+(afterOf(i).length?' · after '+afterTxt(i):'');
+  const mt=merged&&mergeTool(i),note=merged&&!mt&&closedNote(i),pr=mt?prOf(i):null,url=pr?ghPr(pr):ghIssue(i);
+  const t=mt?'merged '+hhmm(mt.t)+(pr?' · PR '+pr:''):note?'closed, no PR · '+note:'queued'+(afterOf(i).length?' · after '+afterTxt(i):'');
   return url?'<a class="chip'+(merged?' m':'')+'" href="'+url+'" target="_blank" rel="noopener" title="#'+i+' · '+t+'">#'+i+'</a>':'<span class="chip'+(merged?' m':'')+'" title="'+t+'">#'+i+'</span>';
 }
 

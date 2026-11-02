@@ -114,6 +114,7 @@ Stop and report when:
 - A fix needs a file outside your fence.
 - A ticket's acceptance criteria turn out to be unsatisfiable as written.
 - A gate goes red for a reason you did not introduce.
+- The ticket is already done on the baseline, or duplicates another ticket. Prove it: a passing test or a commit that names the fix. Do not close the issue; the orchestrator does.
 
 Stop by ending your turn with an `escalation` status line, then the report below, the stop reason first. The orchestrator reads only what your final turn says.
 
@@ -123,7 +124,7 @@ The **first line** of every turn you end — whether you end it with `SubagentHa
 
 ```
 swarm: ready-to-merge issue=<n> pr=<n> head=<sha>
-swarm: escalation issue=<n> reason=<fence | unsatisfiable | red-gate | denied>
+swarm: escalation issue=<n> reason=<fence | unsatisfiable | red-gate | already-done | denied>
 swarm: queue-done
 ```
 
@@ -148,7 +149,7 @@ items:
 left: <what the next link can build on: new modules, helpers, components, with paths; or none>
 incidents:   # anything that cost a repair loop or a human: denial, permission prompt, lock retry, fence pressure
   - <kind>: <one line, verbatim command where there was one>
-stop_reason: <queue-done | fence | unsatisfiable | red-gate | denied>   # the status line's values
+stop_reason: <queue-done | fence | unsatisfiable | red-gate | already-done | denied>   # the status line's values
 ```
 
 Then, separately, every **held finding** — what you found already broken and deliberately left alone, because it sat outside your fence or outside the ticket. A sibling bug, a test that proves less than it claims, a doc your change made incomplete. Name each with its file and line, and say which. That list is the handoff, not an afterthought — and it should not contain anything you could have fixed yourself.
