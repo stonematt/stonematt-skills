@@ -21,6 +21,7 @@ Check before you recommend. When a recommendation turns on a fact you can read (
 - **Know the agents in flight.** At each status run, list the live sessions and swarm lanes for each initiative, and what each one touches: files, branches, and stored data. Two agents that touch the same file or the same stored data collide. Say so before either one acts, and hold the irreversible one (a data write, a merge) until the other lands or is shown not to overlap. A session gated on Matt for an irreversible act needs his answer in that session: relay the facts to it, never the approval. When a thread moves to its own session, post a claim on its PR or issue first: `Owned by session <name> from <date>; other sessions read-only.` Then stop acting on that thread. The owner closes the claim with its result comment.
 - **Judge the scope.** Bugs and data problems that the work uncovers often belong in it; a large initiative with uncertainty flexes. Ask of each new ticket whether the initiative is wrong or unsafe to release without it. If yes, it is in scope. If no, say you would defer it, and why.
 - **Gate new threads.** Before a new initiative, session or swarm starts, name what is in flight, what the new thread delays, and which agent it could collide with. Recommend one of three: defer it, start it because it does not compete for the same files or Matt's attention, or reset priorities and park something named. A reset is a fine answer; drifting into one is not.
+- **Keep this session on Matt's rungs.** This session holds the rungs that wait on Matt (wayfind, grill, prototype, UAT, deploy), the `/to-spec` and `/to-tickets` steps that close a grill in the same window, and decisions. Build rungs run in their own session or a swarm: when an initiative reaches tickets or build, hand Matt a launch line instead of running `/implement`, `/implement-spec` or `swarm` here. One case stays: work that `ask-matt` routes to `/implement` in the same window (not a multi-session build) runs here.
 - **Drive to the next release.** Rank next moves by what gets an initiative to deploy soonest, not by what is newest or most interesting. Push back when Matt reaches for a new thing while a near-done one waits on him.
 
 ## Where things live
@@ -32,6 +33,7 @@ Check before you recommend. When a recommendation turns on a fact you can read (
 | Panel | `docs/panel/<persona>.md` — one file per persona, verdict log at the bottom |
 | Status page | the vault path the brief names; overwritten each run |
 | Live sessions | `~/.claude/jobs/*/state.json` |
+| Swarms | the `swarm-board` mod's sources ([README](../swarm-board/README.md), "What it reads") |
 | Skill feedback | standing issue [stonematt/stonematt-skills#137](https://github.com/stonematt/stonematt-skills/issues/137) |
 
 Templates for each file are in [`templates/`](templates/).
@@ -68,9 +70,11 @@ Gather the evidence with `gh` (`gh issue list`, `gh pr list --state all`, `gh ap
 
 **Live sessions.** Read every `~/.claude/jobs/*/state.json`. A session is live when `state` is `working` or `blocked`, and it belongs to this project when its `cwd` is the repo root or one of its worktrees (`git worktree list`). Tie it to an initiative through its `children` (issue and PR links), then its `name` and `intent`. A `blocked` session's `needs` field is a question for Matt: the initiative waits on him, whatever its rung.
 
+**Swarms.** The [`swarm-board`](../swarm-board/README.md) mod is the authoritative swarm view; Matt sees it as the band above his prompt. Read the files its README lists under "What it reads", and report each swarm in the band's terms: goal, lanes done of total, lanes running, and each lane flagged **needs you** or **stalled**. Tie a swarm to an initiative through its ticket numbers. A **needs you** lane is a question for Matt, like a `blocked` session. When your reading and the band disagree, the band wins: say so and name the file that differs.
+
 **Matt overrides a wrong rung.** Take his word, set it in the brief's initiative line as `rung: <rung> (Matt, YYYY-MM-DD)`, and write a lesson (step 7) naming the evidence you misread. The override holds until the containers move past it.
 
-**Done when** every initiative in the brief has a rung, a next move with its skill, a live session or `none`, and a waits-on-Matt call, and any initiative the tracker shows that the brief lacks is named to Matt as a candidate.
+**Done when** every initiative in the brief has a rung, a next move with its skill, its live sessions and swarms or `none`, and a waits-on-Matt call, and any initiative the tracker shows that the brief lacks is named to Matt as a candidate.
 
 ## 3. Check architecture drift
 
@@ -91,7 +95,7 @@ If `graphify-out/.needs_update` exists, the last merge changed docs: add a line 
 
 ## 4. Report
 
-**To Matt, in the session.** Answer what he asked. "What's next?" gets the initiatives that do not wait on him, ranked by how close each is to deploy, then the ones that do, each with the move he has to make, then the agents in flight with any collision, and what you would defer. "Where are we with X?" gets that initiative's rung, the evidence, and the next move. When he says go, run the next skill here or hand him a launch line for a fresh session; long builds and swarms belong in their own session.
+**To Matt, in the session.** Answer what he asked. "What's next?" gets the initiatives that do not wait on him, ranked by how close each is to deploy, then the ones that do, each with the move he has to make, then the agents in flight with any collision, and what you would defer. "Where are we with X?" gets that initiative's rung, the evidence, and the next move. When he says go, run the next skill here if its rung belongs to this session (Stance: keep this session on Matt's rungs). Otherwise hand him a **launch line**: the folder, a session name, and a paste-ready opening prompt that names the skill and links the spec or tickets. Post the thread's claim before he starts it.
 
 **To the director** (when it dispatched you, or Matt asks for the roll-up): at most five lines, one per active initiative.
 
