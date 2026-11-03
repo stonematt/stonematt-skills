@@ -62,7 +62,7 @@ The ladder: wayfind → grill → prototype → spec → tickets → build → Q
 | build | some tickets closed or in flight, some open | same as tickets | no |
 | QA | every ticket closed, or the goal PR open; no review verdict yet | `/code-review` + panel (step 5) | no |
 | UAT | merged to the integration branch, not on the release branch | Matt tries it: hand him the served page or command | yes |
-| deploy | UAT passed, promotion pending | `/stone-merge` promotion | yes, release is his call |
+| deploy | UAT passed, promotion pending | hand the release to `release-manager` in its own session | yes, release is his call |
 
 *(Default: the evidence and waits-on-Matt columns are a starting rule, not settled design. Tune them by lesson.)*
 

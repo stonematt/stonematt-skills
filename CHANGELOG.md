@@ -11,6 +11,13 @@ Consumers can check whether their install is current with `scripts/check-latest.
 ## [Unreleased]
 
 ### Added
+- `release-manager` skill (**preview**, in `skills/in-progress/`). Takes one
+  release from the product lead at the deploy rung and carries it to production
+  verified and the spec closed. It keeps a ledger issue that it reads again on
+  every wake, dispatches each thread of work as its own session from one brief
+  template, keeps the merges and the release-head check in its own session,
+  hands expected denials to Matt as `!` commands, and ends on a retro whose
+  lessons go to the product lead's lessons file.
 - `swarm-board` mod (**preview**, in `skills/in-progress/`). A Claude Code
   plugin with a hooks module, not a skill: one row per active swarm above the
   prompt of any session in the repo, with the swarm's goal, lanes done, lanes
