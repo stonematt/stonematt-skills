@@ -145,7 +145,27 @@ if [ "${#shipped_skill_dirs[@]}" -gt 0 ]; then
   ln -s "$tmp_home/outside" "$tmp_home/.claude/skills/foreign-link"
   mkdir -p "$tmp_home/.claude/skills/real-skill"
 
+  in_progress_skill=""
+  for skill_md in "${skill_paths[@]}"; do
+    case "$skill_md" in
+      "$repo/skills/in-progress/"*) in_progress_skill="$(dirname "$skill_md")"; break ;;
+    esac
+  done
+  if [ -n "$in_progress_skill" ]; then
+    ln -s "$in_progress_skill" "$tmp_home/.claude/skills/$(basename "$in_progress_skill")"
+  fi
+  ln -s "$repo/skills/in-progress/stone-gone" "$tmp_home/.claude/skills/stone-gone"
+
   if HOME="$tmp_home" "$repo/scripts/link-skills.sh" >/dev/null; then
+    if [ -n "$in_progress_skill" ]; then
+      if [ -L "$tmp_home/.claude/skills/$(basename "$in_progress_skill")" ] \
+        && [ ! -L "$tmp_home/.claude/skills/stone-gone" ]; then
+        ok "link-skills keeps hand-made in-progress links"
+      else
+        bad "link-skills keeps hand-made in-progress links" "expected live in-progress link kept and dangling one removed"
+      fi
+    fi
+
     first_skill="$(basename "${shipped_skill_dirs[0]}")"
 
     if [ ! -L "$tmp_home/.claude/skills/stone-stale" ] \
