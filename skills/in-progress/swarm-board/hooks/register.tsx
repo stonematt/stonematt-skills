@@ -161,18 +161,48 @@ const metas = new Map<string, { mtimeMs: number; meta: Meta }>()
 const logs = new Map<string, { mtimeMs: number; text: string }>()
 const titles = new Map<string, { size: number; title?: string }>()
 let home: string | undefined
-let slug: string | undefined
+let root: string | undefined
+let slugs: string[] = []
+let slugsAt = 0
+const SLUGS_MS = 30_000
 
-async function locate($: EngineInterface) {
-  if (home && slug) return true
-  home = await $.env.get('HOME')
-  const cwd = await $.session.cwd()
-  const git = await $.process.run([
-    'git', '-C', cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir',
-  ])
-  const common = git.exitCode === 0 ? git.stdout.trim() : ''
-  const root = common ? common.replace(/\/\.git\/?$/, '') : cwd
-  slug = root.replace(/[^a-zA-Z0-9]/g, '-')
+const slugOf = (path: string) => path.replace(/[^a-zA-Z0-9]/g, '-')
+
+/**
+ * The project-folder slugs of a repo's checkouts: the main one plus every path
+ * `git worktree list --porcelain` names, so a sibling worktree like ../repo-ops
+ * counts as the repo.
+ */
+export function checkoutSlugs(main: string, porcelain: string): string[] {
+  const paths = porcelain
+    .split('\n')
+    .filter(l => l.startsWith('worktree '))
+    .map(l => l.slice('worktree '.length).trim())
+
+  return [...new Set([main, ...paths].map(slugOf))]
+}
+
+/** A project folder belongs to the repo: a checkout, or a session in one's .claude/worktrees. */
+export function inRepo(name: string, repoSlugs: string[]): boolean {
+  return repoSlugs.some(s => name === s || name.startsWith(`${s}--claude-worktrees-`))
+}
+
+async function locate($: EngineInterface, now: number) {
+  if (!home || !root) {
+    home = await $.env.get('HOME')
+    const cwd = await $.session.cwd()
+    const git = await $.process.run([
+      'git', '-C', cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir',
+    ])
+    const common = git.exitCode === 0 ? git.stdout.trim() : ''
+    root = common ? common.replace(/\/\.git\/?$/, '') : cwd
+  }
+  // Re-read the worktree list now and then, so one added mid-run shows up.
+  if (now - slugsAt > SLUGS_MS) {
+    const list = await $.process.run(['git', '-C', root, 'worktree', 'list', '--porcelain'])
+    slugs = checkoutSlugs(root, list.exitCode === 0 ? list.stdout : '')
+    slugsAt = now
+  }
 
   return Boolean(home)
 }
@@ -244,11 +274,11 @@ async function runGoals($: EngineInterface, now: number) {
 
 /** Every swarm in this repo with a lane active in the last 30 minutes. */
 async function scan($: EngineInterface): Promise<Summary[]> {
-  if (!(await locate($)) || !home || !slug) return []
-  const projectsDir = `${home}/.claude/projects`
   const now = await $.clock.now()
+  if (!(await locate($, now)) || !home || !slugs.length) return []
+  const projectsDir = `${home}/.claude/projects`
   const projects = (await $.fs.list(projectsDir)).filter(
-    d => d.kind === 'dir' && (d.name === slug || d.name.startsWith(`${slug}--claude-worktrees-`)),
+    d => d.kind === 'dir' && inRepo(d.name, slugs),
   )
   const candidates: { dir: string; id: string; mtimeMs: number; size: number }[] = []
   for (const p of projects) {

@@ -1,6 +1,16 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bandLine, goalOf, lastStatus, laneText, parseLink, summarize, ticksOf } from '../hooks/register'
+import {
+  bandLine,
+  checkoutSlugs,
+  goalOf,
+  inRepo,
+  lastStatus,
+  laneText,
+  parseLink,
+  summarize,
+  ticksOf,
+} from '../hooks/register'
 
 const NOW = 1_000_000_000
 
@@ -79,4 +89,24 @@ test('bandLine keeps the counter and flags only lanes that need attention', asyn
   expect(line.startsWith('Release-blocking')).toBe(true)
   expect(line.endsWith(' · 1/4 done · 2 running · B needs you · D stalled 12m')).toBe(true)
   expect(bandLine({ ...s, lanes: [lane('A', 'done')] }, 80, NOW)).toBe(`${s.goal} · 1/1 done`)
+})
+
+test('checkoutSlugs names the main checkout and every git worktree', async () => {
+  const porcelain = [
+    'worktree /u/src/app', 'HEAD 1', 'branch refs/heads/dev', '',
+    'worktree /u/src/app-ops', 'HEAD 2', 'detached', '',
+    'worktree /u/src/app/.claude/worktrees/fix', 'HEAD 3', '',
+  ].join('\n')
+  expect(checkoutSlugs('/u/src/app', porcelain)).toEqual([
+    '-u-src-app', '-u-src-app-ops', '-u-src-app--claude-worktrees-fix',
+  ])
+  expect(checkoutSlugs('/u/src/app', '')).toEqual(['-u-src-app'])
+})
+
+test('inRepo takes a sibling worktree and agent worktrees, not a lookalike repo', async () => {
+  const slugs = ['-u-src-app', '-u-src-app-ops']
+  expect(inRepo('-u-src-app', slugs)).toBe(true)
+  expect(inRepo('-u-src-app-ops', slugs)).toBe(true)
+  expect(inRepo('-u-src-app-ops--claude-worktrees-gone', slugs)).toBe(true)
+  expect(inRepo('-u-src-app-other', slugs)).toBe(false)
 })
