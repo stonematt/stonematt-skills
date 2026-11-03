@@ -61,6 +61,14 @@ for dest in "${DESTS[@]}"; do
     resolved="$(resolve_link "$target")"
     name="$(basename "$target")"
     case "$resolved" in
+      "$REPO"/skills/in-progress/*)
+        # In-progress skills are not shipped, so this script never links them.
+        # Keep links made by hand for dogfooding; drop them once the skill is gone.
+        if [ ! -f "$resolved/SKILL.md" ]; then
+          rm "$target"
+          echo "removed stale $name -> $target"
+        fi
+        ;;
       "$REPO"|"$REPO"/*)
         if ! is_shipped_skill "$name"; then
           rm "$target"
