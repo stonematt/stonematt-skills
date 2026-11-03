@@ -8,6 +8,7 @@ import {
   lastStatus,
   laneText,
   parseLink,
+  plannedOf,
   summarize,
   ticksOf,
 } from '../hooks/register'
@@ -109,4 +110,38 @@ test('inRepo takes a sibling worktree and agent worktrees, not a lookalike repo'
   expect(inRepo('-u-src-app-ops', slugs)).toBe(true)
   expect(inRepo('-u-src-app-ops--claude-worktrees-gone', slugs)).toBe(true)
   expect(inRepo('-u-src-app-other', slugs)).toBe(false)
+})
+
+test('plannedOf reads each lane the Lanes block plans', async () => {
+  const log = [
+    '# Run', '## Lanes', 'Session: s',
+    '- [ ] Lane A (cron run and writer lock): #235 #244 — #244 after Lane D',
+    '  Files: a.py',
+    '- [x] Lane D (CI on PRs into main): #267',
+    '- [ ] Lane E (catchup next-fetch log): #292 — #292 after Lane A',
+    '## Notes', '- Lane Z (not a lane): #1',
+  ].join('\n')
+  expect(plannedOf(log)).toEqual([
+    { letter: 'A', issues: [235, 244], objective: 'cron run and writer lock' },
+    { letter: 'D', issues: [267], objective: 'CI on PRs into main' },
+    { letter: 'E', issues: [292], objective: 'catchup next-fetch log' },
+  ])
+  expect(plannedOf('# Run\nno block')).toEqual([])
+})
+
+test('a planned lane with no link counts as pending', async () => {
+  const agents = [
+    { meta: { description: 'Lane A: #235 (1/2) cron', spawnDepth: 1 }, tail: '', mtimeMs: NOW },
+    { meta: { description: 'Lane D: #267 (1/1) CI', spawnDepth: 1, finished: true }, tail: '', mtimeMs: NOW },
+  ]
+  const planned = [
+    { letter: 'A', issues: [235, 244], objective: 'cron' },
+    { letter: 'C', issues: [280, 268], objective: 'memory' },
+    { letter: 'D', issues: [267], objective: 'CI' },
+    { letter: 'E', issues: [292], objective: 'catchup' },
+  ]
+  const lanes = summarize(agents, NOW, new Set(['D']), planned)
+  expect(lanes.map(l => `${l.letter}:${l.state}`)).toEqual(['A:run', 'C:wait', 'D:done', 'E:wait'])
+  const line = bandLine({ sessionId: 's', goal: 'g', lastAt: NOW, lanes }, 80, NOW)
+  expect(line).toBe('g · 1/4 done · 1 running · 2 pending')
 })
