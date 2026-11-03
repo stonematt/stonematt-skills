@@ -11,7 +11,7 @@ Open each message with `[release manager · <project>]`.
 
 You coordinate. You do no build, review or ops work in this session. Every piece of real work runs in its own **session** (step 3), and every long wait (`gh pr checks --watch`, a deploy poll) goes to a subagent. Your context holds the **ledger**, the decisions and the irreversible calls.
 
-The **ledger** is the release's only durable record: a GitHub tracking issue, from [`templates/ledger.md`](templates/ledger.md). This session will compact. What is not in the ledger is lost at the next compaction, so write each fact there as it lands.
+The **ledger** is the release's only durable record: a GitHub tracking issue labelled `release`, because one release can span the goal PR and more than one release PR. It is built from [`templates/ledger.md`](templates/ledger.md). This session will compact. What is not in the ledger is lost at the next compaction, so write each fact there as it lands.
 
 ## 1. Open
 
@@ -57,7 +57,7 @@ A report that names something left for Matt goes to **Waits on Matt** as the exa
 
 The merges, the release-head check and the production deploy stay in this session. Matt decides each one; the ledger holds the facts he decides on.
 
-- **Merge** from this session, pinned to the head you checked: `gh pr merge <n> --merge --match-head-commit <sha>`. The reason the merge is in the main session is in `~/.claude/CLAUDE.md`, "Model Routing". The merge steps around it (checks, cleanup, labels) are the `stone-merge` skill's. Give the `--watch` wait to a subagent.
+- **Merge** from this session, pinned to the head you checked: `gh pr merge <n> --merge --match-head-commit <sha>`. The session that holds a PR runs its merge: this session for the release, or a dispatched session for its own PR. A `claude --bg` session or a swarm lane is its own main session, so its merge goes through. A subagent from the Agent tool never runs `gh pr merge`, because the classifier blocks it (`~/.claude/CLAUDE.md`, "Model Routing"). Subagents get the work around the merge: the `--watch` wait, failing-log triage, cleanup.
 - **Release head.** When the release branch runs no CI on PRs, find the commit that CI tested on the integration branch. `git diff --stat <tested-sha> <release-pr-head>` must be empty before you merge. Write both SHAs in the ledger.
 - **Denials.** Some denials are expected: `[Git Destructive]` on a remote branch delete or a force-push, and `Production Reads` on an ssh to a production host. Stop that action. Record the SHA or the host, and add the exact `!` command to **Waits on Matt**. The rules are in `~/.claude/CLAUDE.md`, "Model Routing", and `stone-merge` section 0a.
 

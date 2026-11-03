@@ -40,6 +40,6 @@ Report back once with SendMessage to "<project> · <manager session name>": <the
 - **Backup first, then check each step.** The ops sessions that worked backed up before they changed anything and checked each step before the next.
 - **Rollback.** A step that changes production names its exact rollback, so the session does not improvise one under a 5xx.
 - **A bar for reviews.** "Blocker = <what stops the release>" keeps a panel from holding the release on polish.
-- **Merge no PR.** Merges are the manager's call (SKILL.md step 5).
+- **Merge no PR.** Merges are the manager's call (SKILL.md step 5). When the manager gives a session its own PR to merge, the brief says so, and the session runs `gh pr merge` itself, never from an Agent-tool subagent.
 - **The report address.** `<project> · <name>` as `ListAgents` prints it. The bare name fails.
 - **A short report.** One report, with the links and SHAs the manager needs to check it cheaply.
