@@ -25,6 +25,7 @@ const GLYPH: Record<LaneState, string> = {
   esc: '!',
   stall: '…',
   done: '✓',
+  wait: '○',
 }
 
 /** `Lane <X>: #<n> [#<m>…] (<k>/<total>) <objective>`, per swarm step 4. */
@@ -67,7 +68,12 @@ const cut = (text: string, width: number): string =>
  * unticked lane is between links, so the lane still runs. Without one, a
  * finished link with no pending status line is done.
  */
-export const summarize = (agents: AgentFile[], now: number, ticked?: Set<string>): LaneView[] => {
+export const summarize = (
+  agents: AgentFile[],
+  now: number,
+  ticked?: Set<string>,
+  planned: PlannedLane[] = [],
+): LaneView[] => {
   const latest = new Map<string, LaneView>()
   for (const a of agents) {
     if ((a.meta.spawnDepth ?? 1) !== 1) continue
@@ -85,6 +91,12 @@ export const summarize = (agents: AgentFile[], now: number, ticked?: Set<string>
     if (!old || view.k > old.k || (view.k === old.k && view.lastAt > old.lastAt)) {
       latest.set(link.letter, view)
     }
+  }
+  // A planned lane no link has reached yet still counts, as pending (CONTRACT.md "Lanes").
+  for (const p of planned) {
+    if (latest.has(p.letter)) continue
+    const state: LaneState = ticked?.has(p.letter) ? 'done' : 'wait'
+    latest.set(p.letter, { ...p, k: 0, total: p.issues.length, state, lastAt: 0 })
   }
 
   return [...latest.values()].sort((x, y) => x.letter.localeCompare(y.letter))
@@ -106,7 +118,11 @@ export type Flag = { text: string; color: 'red' | 'yellow' }
 export const bandParts = (s: Summary, width: number, now: number) => {
   const done = s.lanes.filter(l => l.state === 'done').length
   const running = s.lanes.filter(l => l.state === 'run' || l.state === 'stall').length
-  const counts = `${done}/${s.lanes.length} done${running > 0 ? ` · ${running} running` : ''}`
+  const pending = s.lanes.filter(l => l.state === 'wait').length
+  const counts =
+    `${done}/${s.lanes.length} done` +
+    (running > 0 ? ` · ${running} running` : '') +
+    (pending > 0 ? ` · ${pending} pending` : '')
   const flags: Flag[] = []
   for (const l of s.lanes) {
     if (l.state === 'esc') flags.push({ text: `${l.letter} needs you`, color: 'red' })
@@ -143,6 +159,27 @@ export const ticksOf = (log: string): Set<string> | undefined => {
   if (lines.length === 0) return undefined
 
   return new Set(lines.filter(m => m[1] === 'x').map(m => (m[2] ?? '').toUpperCase()))
+}
+
+export type PlannedLane = { letter: string; issues: number[]; objective: string }
+
+/**
+ * The lanes a run log's `## Lanes` block plans: `- [ ] Lane <X> (<objective>):
+ * #<n> [#<m>…] [— <joins>]`. Empty when it has none.
+ */
+export const plannedOf = (log: string): PlannedLane[] => {
+  const sec = (log.split(/^## Lanes\s*$/m)[1] ?? '').split(/^## /m)[0] ?? ''
+  const out: PlannedLane[] = []
+  for (const m of sec.matchAll(/^- (?:\[[ x]\] )?Lane\s+([A-Za-z]+)\b\s*(?:\(([^)]*)\))?:?\s*(.*)$/gm)) {
+    const head = (m[3] ?? '').split(/\s+—\s+/)[0] ?? ''
+    out.push({
+      letter: (m[1] ?? '').toUpperCase(),
+      issues: [...head.matchAll(/#(\d+)/g)].map(x => Number(x[1])),
+      objective: (m[2] ?? '').trim(),
+    })
+  }
+
+  return out
 }
 
 const ago = (ms: number): string => {
@@ -248,11 +285,12 @@ async function runGoals($: EngineInterface, now: number) {
   const dir = `${home}/.claude/skill-workbench/swarm/runs`
   const goals = new Map<string, string>()
   const ticks = new Map<string, Set<string>>()
+  const plans = new Map<string, PlannedLane[]>()
   let entries
   try {
     entries = await $.fs.list(dir)
   } catch {
-    return { goals, ticks }
+    return { goals, ticks, plans }
   }
   for (const e of entries) {
     if (e.kind !== 'file' || !e.name.endsWith('.md') || now - e.mtimeMs > RECENT_MS) continue
@@ -267,9 +305,11 @@ async function runGoals($: EngineInterface, now: number) {
     if (id && goal) goals.set(id, goal)
     const t = id ? ticksOf(hit.text) : undefined
     if (id && t) ticks.set(id, t)
+    const plan = id ? plannedOf(hit.text) : []
+    if (id && plan.length) plans.set(id, plan)
   }
 
-  return { goals, ticks }
+  return { goals, ticks, plans }
 }
 
 /** Every swarm in this repo with a lane active in the last 30 minutes. */
@@ -292,7 +332,7 @@ async function scan($: EngineInterface): Promise<Summary[]> {
   }
   candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)
 
-  const { goals, ticks } = await runGoals($, now)
+  const { goals, ticks, plans } = await runGoals($, now)
   const found: Summary[] = []
   for (const c of candidates.slice(0, 16)) {
     const sub = `${c.dir}/subagents`
@@ -314,7 +354,7 @@ async function scan($: EngineInterface): Promise<Summary[]> {
       agents.push({ meta, tail, mtimeMs })
     }
     if (agents.length === 0) continue
-    const lanes = summarize(agents, now, ticks.get(c.id))
+    const lanes = summarize(agents, now, ticks.get(c.id), plans.get(c.id))
     const lastAt = Math.max(...lanes.map(l => l.lastAt))
     const isLive = lanes.some(l => l.state === 'run' || l.state === 'stall')
     if (!isLive && now - lastAt > ACTIVE_MS) continue

@@ -3,8 +3,9 @@
  * run: its agent is working. merge: it handed back ready to merge.
  * esc: it escalated. stall: running but silent over 10 minutes.
  * done: its agent finished with nothing pending.
+ * wait: planned in the run log's Lanes block, with no link started yet.
  */
-export type LaneState = 'run' | 'merge' | 'esc' | 'stall' | 'done'
+export type LaneState = 'run' | 'merge' | 'esc' | 'stall' | 'done' | 'wait'
 
 export type LaneView = {
   letter: string
