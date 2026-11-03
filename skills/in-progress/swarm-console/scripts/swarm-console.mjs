@@ -31,8 +31,21 @@ function repoRoot(dir) {
 }
 const ROOT = repoRoot((argv.match(/--project (\S+)/) ?? [])[1] ?? process.cwd());
 const PROJECT = slugOf(ROOT);
-// The main checkout's folder, or a session started inside one of its .claude/worktrees.
-const inProject = dir => dir === PROJECT || dir.startsWith(PROJECT + '--claude-worktrees-');
+// The repo's checkouts: the main one and every git worktree, wherever it sits (a sibling like ../repo-ops
+// is one too). Re-read at most every 30 s, so a worktree added mid-run shows up.
+let checkouts = { at: 0, slugs: [PROJECT] };
+function checkoutSlugs() {
+  if (Date.now() - checkouts.at < 30000) return checkouts.slugs;
+  let slugs = [PROJECT];
+  try {
+    const out = execFileSync('git', ['-C', ROOT, 'worktree', 'list', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    slugs = [...new Set([PROJECT, ...out.split('\n').filter(l => l.startsWith('worktree ')).map(l => slugOf(l.slice(9).trim()))])];
+  } catch {}
+  checkouts = { at: Date.now(), slugs };
+  return slugs;
+}
+// A checkout's folder, or a session started inside one of its .claude/worktrees (removed ones included).
+const inProject = dir => checkoutSlugs().some(s => dir === s || dir.startsWith(s + '--claude-worktrees-'));
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }
 
