@@ -130,8 +130,8 @@ function parseTranscript(file) {
 //   Session: <orchestrator session id>
 //   - [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
 //     Files: src/lib/squads/grid.ts, …
-//     Merged: #731 → PR 740 ab12cd3
-// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, merged: [{ issue, pr, sha }], done } } }. A join waits on
+//     Merged: #731 → PR 740 ab12cd3            (or "#731 → closed: <why>" for a ticket closed with no PR)
+// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, merged: [{ issue, pr, sha, closed? }], done } } }. A join waits on
 // several lanes, so each ticket's waits are a list. The checkbox,
 // objective and Files line are optional. null when the log has no such block (an older log's lane table reads as none).
 function planOf(text) {
@@ -144,9 +144,14 @@ function planOf(text) {
     const after = {};
     for (const x of tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)) (after[x[1]] ??= []).includes(x[2]) || after[x[1]].push(x[2]);
     const files = ((m[5].match(/^\s*Files:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*/).map(f => f.replace(/`/g, '').trim()).filter(Boolean);
-    // "Merged: #180 → PR 203 c751746, #182 → PR 205 2e50f60": each merged ticket's PR and merge commit, written by the orchestrator.
-    const merged = [...((m[5].match(/^\s*Merged:\s*(.*)$/im) ?? [])[1] ?? '').matchAll(/#(\d+)\s*(?:→|->)\s*PR\s*#?(\d+)(?:\s+([0-9a-f]{7,40}))?/gi)]
-      .map(x => ({ issue: Number(x[1]), pr: Number(x[2]), sha: x[3] ?? null }));
+    // "Merged: #180 → PR 203 c751746, #229 → closed: fixed by #182": each ticket's PR and merge commit, or, for a ticket
+    // the orchestrator closed with no PR, its reason. An entry runs to the next "#<n> →", so a reason may hold commas.
+    const merged = ((m[5].match(/^\s*Merged:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*(?=#\d+\s*(?:→|->))/).flatMap(e => {
+      const pr = e.match(/^\s*#(\d+)\s*(?:→|->)\s*PR\s*#?(\d+)(?:\s+([0-9a-f]{7,40}))?/i);
+      if (pr) return [{ issue: Number(pr[1]), pr: Number(pr[2]), sha: pr[3] ?? null }];
+      const cl = e.match(/^\s*#(\d+)\s*(?:→|->)\s*(?:no PR\W*)?closed\b[\s:;,]*(.*)$/i);
+      return cl ? [{ issue: Number(cl[1]), pr: null, sha: null, closed: cl[2].trim() || 'closed with no PR' }] : [];
+    });
     if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, merged, done: m[1] === 'x' };
   }
   const session = (sec.match(/^Session:\s*([\w-]+)/m) ?? [])[1] ?? null;

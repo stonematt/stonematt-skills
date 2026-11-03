@@ -58,6 +58,19 @@ test('with a Lanes block, only a ticked lane is done', async () => {
   expect(lanes.map(l => `${l.letter}:${l.state}`)).toEqual(['A:done', 'B:run'])
 })
 
+test('a ticked lane is done even when its link ended on an escalation', async () => {
+  const log = '# g\n\n## Lanes\nSession: s\n- [x] Lane A (curves): #229\n  Merged: #229 → closed: already fixed by #182 1df1749\n- [ ] Lane B (query): #230\n'
+  const lanes = summarize(
+    [
+      { meta: { description: 'Lane A: #229 (1/1) curves', spawnDepth: 1, finished: true }, tail: 'swarm: escalation issue=229 reason=fence', mtimeMs: NOW },
+      { meta: { description: 'Lane B: #230 (1/1) query', spawnDepth: 1, finished: true }, tail: 'swarm: escalation issue=230 reason=fence', mtimeMs: NOW },
+    ],
+    NOW,
+    ticksOf(log),
+  )
+  expect(lanes.map(l => `${l.letter}:${l.state}`)).toEqual(['A:done', 'B:esc'])
+})
+
 test('goalOf takes the run log title only for its own session', async () => {
   const log = '# Release-blocking fixes (spec #66)\n\n## Lanes\nSession: abc-1\n'
   expect(goalOf(log, 'abc-1')).toBe('Release-blocking fixes (spec #66)')

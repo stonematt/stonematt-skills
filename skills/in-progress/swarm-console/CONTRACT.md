@@ -8,14 +8,16 @@ Four things finish in a swarm, and each one has one signal. The swarm writes the
 
 | What | Done when | Signal |
 |---|---|---|
-| **Ticket** | Its PR merges, by the orchestrator's `gh pr merge`, into the run's `<base>` | The merge call, paired to the ticket (below) |
+| **Ticket** | Its PR merges, by the orchestrator's `gh pr merge`, into the run's `<base>`; or the orchestrator closes it with no PR | The merge call, paired to the ticket (below); or a `#<n> → closed: <why>` entry on the lane's `Merged:` line |
 | **Link** | Its one ticket merged (or closed with no PR) and it cleaned up (lane brief step g) | The link's `swarm: queue-done` status line |
 | **Lane** | Every ticket on its Lanes-block line is done | The orchestrator ticks the line `- [x]` |
 | **Run** | Swarm step 5 passes and the owner says their review is done | The run log's closing totals (swarm step 7) |
 
 A lane is done the way a merged ticket is: true now, and changed only by adding a ticket. A UAT finding, a review finding or a red gate becomes a new ticket on some lane's line. That un-ticks the lane, and the lane runs again until the new ticket merges. Every piece of work has its own ticket. A merged ticket never takes new work under its number.
 
-The console shows a lane done when every ticket on its line has merged by the moment on screen. It also shows it done when the line is ticked and the lane's last link ended `queue-done`. That second case covers a ticket that closes with no PR, such as a review-only ticket. The plan is read as it is now, so in a replay the hand-back dates the tick. The board shows a lane done only when its line is ticked. A finished link of an unticked lane is between links, so the lane still counts as running. Without a Lanes block, both fall back to the link's own state.
+A ticket closes with no PR when the work turns out already done on `<base>`, the ticket duplicates another, or it is review-only. The link often finds this and ends with an `escalation`. The orchestrator checks the claim, closes the issue with the proof, and writes `#<n> → closed: <why>` on the lane's `Merged:` line. That entry is the only record of the close. A closed issue with no entry still counts as open work.
+
+The console shows a lane done when every ticket on its line has merged or closed by the moment on screen. A closed ticket counts once the lane's link has ended, because the plan is read as it is now and the last hand-back dates the close. The console also shows a lane done when the line is ticked and the lane's last link ended `queue-done`, which covers a review-only lane with no ticket to close. A done lane raises no notice, so a resolved escalation leaves Needs you. The board shows a lane done only when its line is ticked, and the tick beats the link's last status line. A finished link of an unticked lane is between links, so the lane still counts as running. Without a Lanes block, both fall back to the link's own state.
 
 ## Ticket and PR
 
@@ -40,10 +42,10 @@ The swarm keeps its plan in the run log's `## Lanes` block, with a `Session:` li
 ```
 - [x] Lane A (storage reads tell outcomes): #180 #182 — #182 after Lane C
   Files: lookout/storage/storj.py, tests/test_storage_storj.py
-  Merged: #180 → PR 203 c751746, #182 → PR 205 2e50f60
+  Merged: #180 → PR 203 c751746, #182 → closed: fixed on dev by #176 9e01b2c
 ```
 
-A lane line's tickets are the `#<n>` before its ` — `. Numbers inside parentheses are never read as tickets, so older logs that put merge notes there still parse. The indented `Merged:` line records each merged ticket's PR and merge commit.
+A lane line's tickets are the `#<n>` before its ` — `. Numbers inside parentheses are never read as tickets, so older logs that put merge notes there still parse. The indented `Merged:` line has one entry for each landed ticket: `#<n> → PR <m> <sha>` for a merge, or `#<n> → closed: <why>` for a ticket closed with no PR. An entry runs to the next `#<n> →`, so a reason may hold commas.
 
 From the block, tickets no link has reached sit in **Queued**, and trail the lane's chain in the graph as dashed squares. A planned lane with no link yet is a **Not started** row, or a **pending** one that names the lanes it waits on. Each `#<n> after Lane <X>` is a faint edge to lane X, so a join draws one edge for each lane it waits on. The header counts lanes running (started and not done) and pending, out of the total.
 
