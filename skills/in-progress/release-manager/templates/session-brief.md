@@ -42,4 +42,6 @@ Report back once with SendMessage to "<project> · <manager session name>": <the
 - **A bar for reviews.** "Blocker = <what stops the release>" keeps a panel from holding the release on polish.
 - **Merge no PR.** Merges are the manager's call (SKILL.md step 5). When the manager gives a session its own PR to merge, the brief says so, and the session runs `gh pr merge` itself, never from an Agent-tool subagent.
 - **The report address.** `<project> · <name>` as `ListAgents` prints it. The bare name fails.
+- **A UAT session.** Matt talks to it directly, so it holds his pass and acts on it. Its brief says: walk the checklist one item at a time, each with its URL, width, tap path and one question; route scope calls to the product-lead session, named by address; when Matt passes UAT, merge the goal PR into the integration branch pinned to its checked head, then report. A go relayed into the manager's session is denied (SKILL.md step 5).
+- **A close-out.** Its brief names the retro over the ledger, the lessons file, and the roll-up of each `[skill]` lesson to stonematt-skills#137.
 - **A short report.** One report, with the links and SHAs the manager needs to check it cheaply.
