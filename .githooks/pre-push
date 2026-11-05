@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Runs the test suite before a push, the mod checks included (CI skips those:
+# it has no claude CLI). Enable once per clone: git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/scripts/test.sh"
