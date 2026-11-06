@@ -31,10 +31,10 @@ svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.75;str
 /* header */
 header{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line)}
 #session{max-width:100%;min-width:0}header h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.01em}
-.tabs{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
-.tabs button{border:0;border-radius:0;background:transparent;padding:3px 10px;color:var(--muted)}
+.tabs{display:flex;gap:2px;padding:4px;border:1px solid var(--line);border-radius:5px}
+.tabs button{border:0;border-radius:3px;background:transparent;padding:3px 10px;color:var(--muted)}
 .tabs button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
-.tabs kbd{font:11px var(--mono);opacity:.6;margin-left:4px}
+.tabs kbd{font:11px var(--mono);margin-left:4px}
 .play{display:flex;gap:8px;align-items:center;flex:1 1 auto}
 #scrub{flex:1;min-width:120px}#clock{font-size:12px;color:var(--muted);flex:none;white-space:nowrap}
 #live[aria-pressed=true]{border-color:var(--live);color:var(--live)}
