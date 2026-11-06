@@ -29,7 +29,9 @@ At the start of each turn, after a compaction, and before you answer "where are 
 
 A recommendation older than the last ledger update is stale. Check its facts again before you repeat it.
 
-When Matt answers a **Waits on Matt** line, tick it with his words in the same turn. A Waits line left open after its answer reads as still waiting on him.
+When Matt answers a **Waits on Matt** line, tick it with his words in the same turn, and update every line his answer changes, header included, in the same `gh issue edit`. A Waits line left open after its answer reads as still waiting on him.
+
+When Matt's go overrides a recorded **Gate** line, tick it as `waived by Matt: "<his words>"`. Then add to the next verification step what that gate would have covered.
 
 **Done when** each ledger line matches GitHub and the latest report from each session.
 
