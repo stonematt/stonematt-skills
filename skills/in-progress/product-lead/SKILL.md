@@ -61,10 +61,12 @@ The ladder: wayfind → grill → prototype → spec → tickets → build → Q
 | tickets | child tickets exist, none has a branch or PR | `/implement`, `/implement-spec` or `swarm` | no |
 | build | some tickets closed or in flight, some open | same as tickets | no |
 | QA | every ticket closed, or the goal PR open; no review verdict yet | `/code-review` + panel (step 5) | no |
-| UAT | merged to the integration branch, not on the release branch | Matt tries it: hand him the served page or command | yes |
-| deploy | UAT passed, promotion pending | hand the release to `release-manager` in its own session | yes, release is his call |
+| UAT | review verdict in; goal PR not yet merged into the integration branch | Matt tries the goal branch preview, while fixes can still land there; on his pass the goal PR merges | yes |
+| deploy | UAT passed and merged to the integration branch, promotion pending | hand the release to `release-manager` in its own session | yes, release is his call |
 
 *(Default: the evidence and waits-on-Matt columns are a starting rule, not settled design. Tune them by lesson.)*
+
+When a release ledger is open (an issue labelled `release`), read its Sessions table before you start an audit or a review: a session that already holds the job has the answer, so read its result. Log a scope recommendation in the ledger as pending Matt; do not iterate it with the release manager.
 
 Gather the evidence with `gh` (`gh issue list`, `gh pr list --state all`, `gh api repos/<owner>/<repo>/issues/<n>/sub_issues`, `git branch -r`), from the tracker the brief names. An initiative whose evidence spans two rungs sits on the lower one. A rung with no evidence at all is a gap: say so rather than guessing.
 
