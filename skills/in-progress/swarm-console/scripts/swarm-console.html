@@ -215,8 +215,10 @@ function at(a,t=T){
 let prIssue={},byId={};
 // The merge call that landed an issue: tl.merge is the PR number the call merged (CONTRACT.md "Ticket and PR" pairs it to
 // issues). A PR nothing pairs falls back to the issues the command text names, for sessions from before the status line.
-function mergeTool(issue,t=T){for(const tl of S.main?.tools||[]){if(!tl.merge||tl.t>t)continue;const pr=typeof tl.merge==='number'?tl.merge:null;
-  if(pr&&prIssue[pr]){if(prIssue[pr].includes(issue))return tl}else if(tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]?.includes(issue)))return tl}return null}
+function mergesIssue(tl,issue){if(!tl.merge)return false;const pr=typeof tl.merge==='number'?tl.merge:null;
+  if(pr&&prIssue[pr])return prIssue[pr].includes(issue);return tl.refs.includes(issue)||tl.refs.some(r=>prIssue[r]?.includes(issue))}
+// The latest merge of an issue by time t: an issue reopened by a later link (UAT feedback) merges again.
+function mergeTool(issue,t=T){let m=null;for(const tl of S.main?.tools||[]){if(tl.t>t)continue;if(mergesIssue(tl,issue))m=tl}return m}
 const prOf=issue=>{const n=Object.keys(prIssue).find(n=>prIssue[n].includes(issue));return n?Number(n):null};
 const kidsOf=p=>S.agents.filter(k=>k.parent===p.id);
 // Finished lanes sink below active ones so long swarms keep active lanes on screen; each group stays in start order.
@@ -237,7 +239,9 @@ function laneAt(lane){
   // queue puts the plan's tickets first, so ones no link has reached yet wait in Queued; the plan also sets the total.
   const plan=planLanes()[short(lane.desc)]?.tickets;
   const tools=lane.tools.slice(0,a.n), own=lane.queue, queue=[...new Set([...(plan||[]),...own])], total=plan?queue.length:Math.max(lane.total||0,queue.length);
-  const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t]).filter(([,m])=>m!=null));
+  // A link spawned for an issue after its merge reopens it: the issue is back in flight until it merges again.
+  const reopened=(i,m)=>(lane.links||[lane]).some(l=>l.start>m&&l.start<=T&&l.queue.includes(i));
+  const merged=new Map(queue.map(i=>[i,mergeTool(i)?.t]).filter(([i,m])=>m!=null&&!reopened(i,m)));
   const allMerged=queue.length>0&&merged.size===queue.length&&merged.size>=total;
   let cur=null;
   for(let i=tools.length-1;i>=0;i--){const r=tools[i].refs.find(x=>own.includes(x)&&!merged.has(x));if(r!=null){cur=r;break}}
@@ -527,7 +531,7 @@ function renderTimeline(laneId){
     return '<div class="trow'+(kid?' kid':'')+'"'+(a.isLane&&!lane?' data-lane="'+a.id+'" tabindex="0" role="button"':'')+'><div class="lab" title="'+esc(a.desc||'')+'"><span class="sq st-'+s.st+'"></span>'+lab+'<div class="sub">'+sub(s)+'</div></div><div class="track">'+h+'<div class="cursor" style="left:'+x(T)+'"></div></div></div>'};
   let g='';
   if(lane){
-    const touch=(S.main?.tools||[]).filter(tl=>tl.t<=T&&(tl===lane.spawn||lane.spawns?.has(tl)||(tl.name==='SendMessage'&&(tl.to===lane.name||tl.to===lane.id||lane.keys?.has(tl.to)))||(tl.merge&&lane.queue.some(i=>mergeTool(i)===tl))));
+    const touch=(S.main?.tools||[]).filter(tl=>tl.t<=T&&(tl===lane.spawn||lane.spawns?.has(tl)||(tl.name==='SendMessage'&&(tl.to===lane.name||tl.to===lane.id||lane.keys?.has(tl.to)))||(tl.merge&&lane.queue.some(i=>mergesIssue(tl,i)))));
     // Link the current ticket; once every ticket is merged there is none, so link each ticket the lane worked
     const x0=laneAt(lane),cur=x0?.cur,shown=ghIssue(cur)?[cur]:(x0?.queue||[]).filter(i=>ghIssue(i));
     const links=shown.map(i=>{const pr=prOf(i);return '<a href="'+ghIssue(i)+'" target="_blank" rel="noopener">'+ICON.gh+' #'+i+'</a>'+(pr?'<a href="'+ghPr(pr)+'" target="_blank" rel="noopener">'+ICON.pr+' PR '+pr+'</a>':'')}).join('');
