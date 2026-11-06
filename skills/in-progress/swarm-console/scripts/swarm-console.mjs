@@ -91,6 +91,12 @@ function toolSummary(input = {}) {
 }
 // Issue and PR numbers a call names: #n, issues/n, pull/n, `gh issue|pr <verb> n`, and branch or folder suffixes like feat/x-422.
 // Temp paths are dropped first: their numbers (/tmp/claude-501/) are user ids, not issues.
+// The PR a command merges: `gh pr merge <n>` at the start of the command or after a separator. The phrase inside quoted
+// text (an issue comment, a heredoc) is not a merge. Returns the PR number, or undefined.
+function mergePr(command) {
+  const m = String(command ?? '').match(/(?:^|[;&|(]\s*|\bthen\s+|\bdo\s+)gh pr merge\s+(\d+)\b/m);
+  return m ? Number(m[1]) : undefined;
+}
 function refsOf(input = {}) {
   const s = [input.command, input.file_path, input.description, input.subject].filter(Boolean).join(' ').slice(0, 3000).replace(/\/(private\/)?tmp\/\S*/g, ' ');
   const rx = /#(\d+)\b|\b(?:issues|pull)\/(\d+)\b|\bgh (?:issue|pr) [a-z-]+ (\d+)\b|[A-Za-z]-(\d+)\b/g;
@@ -126,7 +132,7 @@ function parseTranscript(file) {
     }
     for (const c of uses) {
       const inp = c.input ?? {};
-      const tool = { t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: /gh pr merge/.test(String(inp.command ?? '')) || undefined };
+      const tool = { t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: mergePr(inp.command) };
       // extras the page uses for edge annotations and the goal panel
       if (c.name === 'Agent' || c.name === 'Task') Object.assign(tool, { useId: c.id, agentName: inp.name, promptLen: String(inp.prompt ?? '').length });
       if (c.name === 'SendMessage') Object.assign(tool, { to: inp.to, summary: inp.summary ?? String(inp.message ?? '').slice(0, 120) });
