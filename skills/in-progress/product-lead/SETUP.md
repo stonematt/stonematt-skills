@@ -12,7 +12,7 @@ Read `CLAUDE.md` / `AGENTS.md`, `README.md`, `GLOSSARY.md` or `CONTEXT.md`, `PRO
 
 Copy [`templates/brief.md`](templates/brief.md) to `docs/product-lead/brief.md` and fill it with Matt in one exchange per section:
 
-- **Goals**: two or three outcomes, in his words. Point at `PRODUCT.md` or the README rather than restating them.
+- **Goals**: two to four strategic outcomes, in his words: where the product is headed and what it must become to get there, not the features it has. Read the live map's destination and the README's purpose, then ask Matt what comes after them. Point at `PRODUCT.md` or the README for the users rather than restating them.
 - **Initiatives**: one line each, with its containers (map issue, spec, milestone). Draft the list from the open issues and maps, and let Matt cut and rename it.
 - **Where the tickets live**: tracker, labels, milestone convention.
 - **Drift**: the last `improve-codebase-architecture` review's commit, if Matt knows one. Otherwise record the integration branch's current HEAD as the baseline. *(Default: no known review means drift counts from setup.)* Thresholds start at 30 files or 1,500 lines.
@@ -26,7 +26,7 @@ Draft each persona from [`templates/persona.md`](templates/persona.md) with Matt
 
 - **Tactical**: the people who use the product and the ways it can fail. An end user on the device they really use, a maintainer who reads the code in a year, an operator who pays for it. Two or three seats.
 - **Community**: the people the product is about or serves, when they differ from its users ("the parent of a junior rider whose name is in the results"). Draft it when the product has such a community.
-- **Strategy**: market and craft experts for larger design and strategy efforts (a data journalist, a marketer, a brand keeper). Propose the seats; Matt may defer this group to the first strategy effort.
+- **Strategy**: market and craft experts for larger design and strategy efforts (a data journalist, a marketer, a brand keeper). Propose the seats; Matt may defer this group to the first strategy effort. Start from the library in [`personas/`](personas/): the FT data journalist, the brand referee and the marketer. Copy the ones that fit and fill each one's **What I care about here** for this project. A product with no charts drops the FT seat; copy `personas/ft-data-storytelling.md` alongside the FT seat.
 
 Give each a concrete lens ("the cyclist checking results on a phone at the finish line"), not a role title.
 
