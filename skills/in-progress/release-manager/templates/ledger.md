@@ -19,6 +19,8 @@ Each check that must pass before the release merge.
 - [ ] Goal PR checks green at `<sha>`
 - [ ] Review panel verdict: <ship | fix | rethink> — <comment link>
 - [ ] Blocker <link> closed
+- [ ] Matt's UAT on the goal branch preview passed: "<his words>", <date> (before the goal PR merges into the integration branch)
+- [ ] Goal PR merged into `<dev>` at `<sha>` (by the UAT session, on Matt's pass)
 - [ ] Release head equals a tested tree: `git diff --stat <tested-sha> <release-head>` empty
 - [ ] Matt says go: "<his words>", <date>
 
