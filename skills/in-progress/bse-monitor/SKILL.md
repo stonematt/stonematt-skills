@@ -4,7 +4,7 @@ description: Watch a repo for BSE issues that become ready for an agent, and lan
 disable-model-invocation: true
 ---
 
-A **ready BSE** is an open issue labelled `bse` and `ready-for-agent`, with no `owner: build` label. If the user's arguments name other labels, use those. The repo is the current checkout's GitHub repo unless the user names one.
+A **ready BSE** is an open issue labelled `bse` and `ready-for-agent`, with no assignee. A BSE is a bug or small enhancement that can be built and released on its own, with no significant dependencies. If the user's arguments name other labels, use those. The repo is the current checkout's GitHub repo unless the user names one.
 
 The watch runs until the user stops it. Each ready BSE gets its own subagent in its own worktree, so several BSEs, and several watching sessions, can be in flight at once. The main session holds only claims, merge calls and short reports. Invoking this skill authorizes every merge it makes; the user is not asked again.
 
@@ -16,7 +16,7 @@ The **dispatch notes** are a memory note named `bse-monitor` in the project's au
 - **integration branch:** the base that PRs target (the GitHub default branch unless the repo's docs name another).
 - **gates:** every check command the repo defines, from its agent docs, profile or `package.json` scripts.
 - **lifecycle doc:** the repo's doc for merge method, merge subject and cleanup, or `none`.
-- **labels:** the three label names in use, each one present in the repo (`gh label list --repo <owner/repo> --json name --jq '.[].name'`). A missing label makes the watch match nothing, silently. Ask the user to create the missing ones; on a yes, create each with `gh label create`. On a no, stop before arming.
+- **labels:** the two label names in use, each one present in the repo (`gh label list --repo <owner/repo> --json name --jq '.[].name'`). A missing label makes the watch match nothing, silently. Ask the user to create the missing ones; on a yes, create each with `gh label create`. On a no, stop before arming.
 
 Write the note with this body under the memory frontmatter (`type: reference`), and add its one-line pointer to `MEMORY.md` on first write:
 
@@ -27,7 +27,7 @@ implement: <path> (sha256 <12 chars>) | fallback
 integration branch: <branch>
 gates: <command>; <command>; …
 lifecycle doc: <path> | none
-labels: <bse>, <ready-for-agent>, <owner: build>
+labels: <bse>, <ready-for-agent>
 ```
 
 When the implement hash differs from the previous note, tell the user the implement skill changed since the last check.
@@ -43,8 +43,8 @@ repo=<owner/repo>
 skip=" "
 while true; do
   nums=$(gh issue list --repo "$repo" --label bse --label ready-for-agent --state open \
-    --json number,labels \
-    --jq '.[] | select([.labels[].name] | index("owner: build") | not) | .number' 2>/dev/null || true)
+    --json number,assignees \
+    --jq '.[] | select(.assignees | length == 0) | .number' 2>/dev/null || true)
   for n in $nums; do
     case "$skip" in *" $n "*) ;; *) echo "new ready BSE #$n"; skip="$skip$n " ;; esac
   done
@@ -62,13 +62,13 @@ An event can name several issues. Take each one through these steps in order.
 
 **a. Read the brief.** Read the issue body and every comment. Skip the issue if the brief says it is blocked, if it needs a path the repo freezes for agents, or if it needs a device, a credential or a human eye. A skipped issue goes on the skip list (step 3). Tell the user why, with the issue URL, and send a `PushNotification`, because a skip waits on them.
 
-**b. Claim it, race-checked.** Other sessions claim BSEs at the same time. Re-read the labels immediately before you claim. If `owner: build` is there, another session holds the issue; skip it without a notification. Otherwise add the label, then confirm that your edit is the one that made the claim:
+**b. Claim it, race-checked.** Other sessions claim BSEs at the same time. A claim is an assignment; it adds no label. Re-read the assignees immediately before you claim. If the issue has one, someone holds it; skip it without a notification. Otherwise run `gh issue edit <n> --repo <owner/repo> --add-assignee @me`, then confirm that your edit is the one that made the claim:
 
 ```bash
-gh api --paginate repos/<owner/repo>/issues/<n>/timeline --jq '.[] | select(.event=="labeled" and .label.name=="owner: build") | .created_at' | tail -1
+gh api --paginate repos/<owner/repo>/issues/<n>/timeline --jq '.[] | select(.event=="assigned") | .created_at' | tail -1
 ```
 
-The timestamp must be less than a minute old. An older one means another session claimed the issue first and your label edit changed nothing. Skip the issue and leave the label in place.
+The timestamp must be less than a minute old. An older one means another session claimed the issue first and your assignment changed nothing. Skip the issue and leave the assignee in place.
 
 **c. Dispatch one fresh subagent.** Use `model: sonnet` and `isolation: "worktree"`. The brief carries the issue URL, the dispatch notes, and this task:
 1. Create a descriptive task branch for the issue from the tip of the integration branch.

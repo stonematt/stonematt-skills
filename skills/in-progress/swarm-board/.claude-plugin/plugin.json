@@ -1,0 +1,10 @@
+{
+  "name": "swarm-board",
+  "version": "0.1.0",
+  "description": "One row per active swarm above the prompt: its goal, lanes done, lanes running, and the lanes that need you or have stalled",
+  "author": { "name": "Matt Stone" },
+  "homepage": "https://github.com/stonematt/stonematt-skills",
+  "repository": "https://github.com/stonematt/stonematt-skills",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,48 @@
+# Session brief template
+
+One brief per dispatched session. The session starts cold: the brief is all it knows. Write facts the release manager has checked, not instructions to go and find them.
+
+Fill each section. Cut a section only when it does not apply (a read-only review has no rollback).
+
+```markdown
+You are <the job, in one line: what and for which release>. Repo: <path>. You start in the <project>-ops worktree, detached at origin/<branch> = <sha>. <Make your own worktree or branch for code. | Read-only: do not edit, commit or push.>
+
+Matt's words: "<his exact words that started this thread>". <What he was answering, in one line.>
+
+Read <the runbook, e.g. docs/agents/operations.md> first, and <the issue, PR section or comment that defines the job, with links>.
+
+Known state (facts):
+- <what is deployed where, at which SHA>
+- <hosts, the exact ssh form, the backups that exist>
+- <what other sessions already did, and the lines that must stay unchanged>
+- <earlier failures to avoid, and why>
+
+Steps:
+1. <Back up before you change anything: name the backup path.>
+2. <One action, then how to check it.>
+3. <Only if step 2 passes, the next one.>
+4. <Tick the done boxes on <issue>, and post a short comment.>
+
+<For a review: the seats or areas, the bar ("blocker = <what stops the release>"), and the tags blocker / fix / note.>
+
+Leave for Matt, and list each as an exact step in your report: <the dashboard steps and the denied commands, with the SHA each needs>.
+
+Hard rules: <the systems this session must not write to>. Never print secret values. <If production answers 5xx after the change, roll back with <command>, then stop and report.> Merge no PR. Stop every server you started before you report, and only those. If an action is denied, stop that action and report it; do not route around it. No AI attribution in any commit, PR or comment.
+
+Report back once with SendMessage to "<project> · <manager session name>": <the facts the manager needs to check your claims: links, SHAs, check results, diffs, what is left>. Keep it under <8–12> lines. If that address does not resolve, post the same report as a comment on the ledger issue, <ledger URL>.
+```
+
+## Why each part is there
+
+- **Start point and SHA.** Two sessions on one checkout collide. The ops worktree is detached, so each session makes its own branch.
+- **Matt's words.** The session acts on his intent. Quote it; do not turn it into a permission ("prod is authorized"). A brief that grants authority for an irreversible act can be denied at dispatch (`~/.claude/CLAUDE.md`, "Model Routing").
+- **Known state.** The manager already holds these facts. A session that finds them again spends time, and can find a different answer.
+- **Backup first, then check each step.** The ops sessions that worked backed up before they changed anything and checked each step before the next.
+- **Rollback.** A step that changes production names its exact rollback, so the session does not improvise one under a 5xx.
+- **A bar for reviews.** "Blocker = <what stops the release>" keeps a panel from holding the release on polish.
+- **Merge no PR.** Merges are the manager's call (SKILL.md step 5). When the manager gives a session its own PR to merge, the brief says so, and the session runs `gh pr merge` itself, never from an Agent-tool subagent.
+- **The report address.** `<project> · <name>` as `ListAgents` prints it. The bare name fails.
+- **A UAT session.** Matt talks to it directly, so it holds his pass and acts on it. Its brief says: check every mechanical item itself in a browser, before Matt sees anything. Mechanical items are done-when lines, an element present or absent, the layout holding, and other tabs matching production. Each check keeps evidence: a screenshot or URL, and the width. Then send Matt one short list, in one message, of only the items that need his judgement: taste, product trade-offs, "good enough for now". Each item has its URL or screenshot, the width, and one question. List the mechanical results under it as already checked. Do not walk him through items one at a time. Matt, 2026-11-12: "drive UAT in an agent session an only escalate to me a short list that requires human judgement." A mechanical check that fails is a defect for the manager, not a question for Matt. Route scope calls to the product-lead session, named by address; when Matt passes UAT, merge the goal PR into the integration branch pinned to its checked head, then report. A go relayed into the manager's session is denied (SKILL.md step 5).
+- **A ticket to close.** Before a brief tells a session to close a ticket, check each acceptance line against the brief's hard rules. A line the session cannot meet under them is split into its own ticket, named in the brief.
+- **A close-out.** Its brief names the retro over the ledger, the lessons file, and the report of each `[skill]` lesson to its skill's workbench ledger, `~/.claude/skill-workbench/<skill>/feedback.md`.
+- **A short report.** One report, with the links and SHAs the manager needs to check it cheaply.

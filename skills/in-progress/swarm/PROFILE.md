@@ -10,16 +10,20 @@ Leave the filled copy at `.claude/swarm-profile.md` in the repo. The next swarm 
 
 **Ready label** `<the label that narrows the issue list — or: none, so every open issue takes the finish-alone test>`
 
-**Read before designing** `<AGENTS.md, CONTEXT.md, docs/adr/ — whatever this repo keeps>`
+**Read before designing** `<AGENTS.md, GLOSSARY.md, docs/adr/ — whatever this repo keeps>`
 
 **Dependency sync** `<the command that makes a fresh worktree runnable — e.g. uv sync>`
 
+**Lanes at once** `<how many links run at the same time — start at 3, and raise it only while the gate set, run with that many lanes live, still finishes near its baseline time>`
+
 **Gates**, in this order, all green before anything opens:
 
-| gate | command | baseline at `<commit>` |
-| --- | --- | --- |
-| `<tests>` | `<uv run pytest>` | `<561 passed, 26 deselected>` |
-| `<types>` | `<uv run mypy>` | `<Success, 22 source files>` |
+| gate | command | baseline at `<commit>` | time |
+| --- | --- | --- | --- |
+| `<tests>` | `<uv run pytest>` | `<561 passed, 26 deselected>` | `<2m10s>` |
+| `<types>` | `<uv run mypy>` | `<Success, 22 source files>` | `<20s>` |
+
+**CI** `<which PR bases trigger checks, read from the workflow triggers — e.g. PRs into dev and main only, so a lane PR into a goal branch gets none>`. Where a lane's PR base gets no CI, the gates above are its only check.
 
 **Blast radius** — probes planted at `<the temp root, the home config dir, any live data dir>`, gate set run at `<commit>`: `<which markers died, which survived>`. A lane's own new tests hold that line: `<what a new test pins, and to what>`.
 
