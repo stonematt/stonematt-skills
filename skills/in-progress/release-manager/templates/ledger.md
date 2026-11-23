@@ -43,7 +43,7 @@ Each step from the release merge to production verified. A step that changes pro
 
 Each item is the exact step or `!` command, with the SHA or host it needs.
 
-- [ ] `! git push origin --delete <branch>` (branch at `<sha>`)
+- [ ] `! git push origin --delete <branch> <branch> …` (one line for every merged head: `<branch>` at `<sha>`, …)
 - [ ] <dashboard step, in his words>
 
 ## Decisions

@@ -20,6 +20,7 @@ The **ledger** is the release's only durable record: a GitHub tracking issue lab
 3. Fill the ledger. **Gate** gets each check that must pass before the release merge: CI, review verdicts, open blockers, and Matt's **UAT**. UAT runs on the goal branch preview, after the panel and before the goal PR merges into the integration branch, while a fix can still land on the goal branch. UAT after the merge is not UAT. **Go-live** gets each step from merge to production verified, with a rollback for each step that changes production. **Close** gets the exit items in step 6. Write the date and Matt's words that started the release.
 4. Make an **ops worktree** for dispatch: `git worktree add --detach <repo>-ops origin/<integration-branch>`. Sessions start here and make their own branches.
 5. Post a claim on the goal PR: `Owned by session <name> from <date>; other sessions read-only.`
+6. When the release will run overnight (the first dispatch is after 20:00), keep the host awake: start `caffeinate -i` as a background command and note it in the ledger. A sleeping host stalls every session until morning.
 
 **Done when** the ledger exists, every open ticket of the spec is a Gate line or a named deferral, and the claim is posted.
 
@@ -28,6 +29,8 @@ The **ledger** is the release's only durable record: a GitHub tracking issue lab
 At the start of each turn, after a compaction, and before you answer "where are we?", read the ledger issue again. Then read what changed since: peer reports, PR checks, issue state. Update the ledger before you act on any of it.
 
 A recommendation older than the last ledger update is stale. Check its facts again before you repeat it.
+
+**Before you go idle, leave the ledger complete.** This session can be gone when a report arrives. Every fact, wait and next step goes in the ledger first, and every brief's report line falls back to a comment on the ledger issue when the manager's address does not resolve (template, report line).
 
 When Matt answers a **Waits on Matt** line, tick it with his words in the same turn, and update every line his answer changes, header included, in the same `gh issue edit`. A Waits line left open after its answer reads as still waiting on him.
 
@@ -40,7 +43,7 @@ When Matt's go overrides a recorded **Gate** line, tick it as `waived by Matt: "
 One thread of real work is one session: a review panel, a code change, the go-live, an ops change, a close-out. Matt must be able to switch to it.
 
 1. Write the brief from [`templates/session-brief.md`](templates/session-brief.md) to `$CLAUDE_JOB_DIR/tmp/<name>-brief.md`.
-2. From the ops worktree: `claude --bg -n <name> "$(cat <brief path>)"`.
+2. Check the brief is non-empty with `test -s <brief path>`, then dispatch from the ops worktree: `claude --bg -n <name> "$(cat <brief path>)"`. The same check goes before every `--body-file`: an empty file blanks the issue it edits. Pass `-R <owner>/<repo>` on every `gh` call.
 3. Add a row to the ledger's **Sessions** table: name, address, brief path, what it touches (files, branches, stored data, hosts), state.
 
 Dispatch a session only for a decided scope. An idea Matt raises in passing goes to the product lead as a scope question first. Before you dispatch, read the Sessions table: when a session already holds the job, send it the new facts instead.
@@ -55,7 +58,7 @@ The address of a session is `<project> · <name>`, the form `ListAgents` prints.
 
 Sessions report once, in a few lines. Before you relay a claim to Matt or mark a ledger item done, check it the cheapest way: `curl` the site, read the issue, `gh pr view` the checks. Write the result in the ledger, not only the claim.
 
-A report that names something left for Matt goes to **Waits on Matt** as the exact step or `!` command.
+A report that names something left for Matt goes to **Waits on Matt** as the exact step or `!` command. A report that puts a remaining Gate line at risk goes there too, with your recommended default and the date it takes effect if he does not answer.
 
 **Done when** the report's claims are checked and every item in it is a ledger update.
 
@@ -79,7 +82,8 @@ The release ends when every Close line is ticked:
 - The product brief's initiative line shows the release.
 - The status page is written (product-lead skill, step 4).
 - Every open ledger item is done, filed as an issue, or a Waits-on-Matt line. Nothing is left in the session only.
-- A retro is run over the whole ledger, not over this session's context. Its corrections go to `docs/product-lead/lessons.md` as lessons, tagged `[project]` or `[skill]`. A `[skill]` lesson names the skill it is about: `release-manager`, `product-lead` or another one, and is rolled up to stonematt-skills#137 (product-lead skill, "Lessons"). A close-out brief names both steps.
+- Merged head branches are gone. List every PR head of the release still on the remote and hand Matt one `!` command that deletes them all, each SHA recorded beside it. When the repo does not auto-delete head branches on merge, ask him once whether to turn that on.
+- A retro is run over the whole ledger, not over this session's context. Its corrections go to `docs/product-lead/lessons.md` as lessons, tagged `[project]` or `[skill]`. A `[skill]` lesson names the skill it is about — `release-manager`, `product-lead` or another one — and is reported to that skill's workbench ledger, `~/.claude/skill-workbench/<skill>/feedback.md`, as the product-lead skill's step 7 describes. A close-out brief names both steps.
 
 Then close the ledger issue with a one-paragraph result, close the claim, and hand back to the product lead.
 
