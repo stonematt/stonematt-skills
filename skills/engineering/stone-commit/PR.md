@@ -21,14 +21,16 @@ Resolve a conflict only when it has one of these shapes:
 - **List-add**: both sides added entries to the same list, set, dict or import block → keep both, in the file's ordering.
 - **Counter-bump**: both sides bumped the same number → take the higher.
 
-Any other conflict is a logic conflict: stop and report the file and hunk.
+Any other conflict is a logic conflict: copy the conflicted hunk, undo the attempt (`git rebase --abort` or `git merge --abort`) so the tree is clean, then stop and report the file and hunk.
+
+Done when the count is 0 and the branch is on the remote: `git push -u origin HEAD`. A PR request is a request to push.
 
 ### 2. Link the issues
 
 One branch can ship several tickets. Collect every match from these sources, then union and dedupe:
 
 - **Tickets named this session** as the branch's work ("implement #31 and #32"). Authoritative.
-- **Commit messages**: `git log <base>..HEAD --grep '#[0-9]\+'` for refs and `Closes #N` / `Refs #N` trailers.
+- **Commit messages**: `git log origin/<base>..HEAD --grep '#[0-9]\+'` for refs and `Closes #N` / `Refs #N` trailers.
 - **Branch name**: `^[a-z]+/(\d+)[-/_]` or `^issue[-/_](\d+)`. Legacy branches only; a miss is expected.
 - **A brief named in the commits** (`docs/briefs/<slug>.md`): `gh issue list --search "<slug>" --state open`.
 
@@ -56,7 +58,7 @@ fi
 
 ### 4. Create the PR
 
-Write the title and body from the whole branch (`git log --oneline <base>..HEAD`), and pass the body on stdin:
+Write the title and body from the whole branch: its commits (`git log --oneline origin/<base>..HEAD`) and its diff (`git diff origin/<base>...HEAD`). A one-commit branch takes that commit's title. Pass the body on stdin:
 
 ```bash
 gh pr create --base <base> --title "<title>" --body-file - <<'EOF'
