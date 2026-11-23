@@ -23,6 +23,7 @@ The user ran this skill so they can stop thinking about the merge. **Unless some
   - the repo path (a subagent does not inherit your `cwd`)
   - the PR number(s), or "the open PR for branch `<branch>`" when the user gave none
   - the base branch if you know it
+  - `Dispatching session: <name>`, this session's name as `ListAgents` reports it, so the agent can check a claim (Section 1)
   - the user's invocation, quoted verbatim: `The user's invocation was: "merge this"`. Do not paraphrase it into permissions ("prod promotion is authorized", "review waived"). The agent applies Section 2.0's bypass rule and Section 6's keyword rule to the quoted words itself.
   - the gates the agent merges under, stated as constraints: `Merge only after the skill's review gate resolves (docs-only skip, a passing code-review CI check, or the repo's recorded reviewer) and every check is green; a red check, an unresolved gate, or an unrecognised conflict stops the run before the merge.` This is what the run does anyway; saying so in the brief is a fact about the run, not a grant.
   - the directive: `Load this merge skill with the Skill tool (the same skill name you loaded it by — normally "stone-merge"), then execute it as the agent: Sections 1 through 6 as they apply, including gh pr merge. Report back once, in the shape Section 7 describes.` Name the skill exactly as you invoked it; if the Skill tool is unavailable to the agent, give the path of this SKILL.md instead.
@@ -76,6 +77,7 @@ git log --merges --oneline -5
   - `REVIEW_REQUIRED` and not approved → **stop** and report.
   - empty → "nothing enforced," not "approved." Solo PR on the user's own branch: proceed. A teammate's PR in a repo with a review-before-merge convention: stop and report.
 - **Default branch vs base**: if base is the default branch, Section 5's staging labels do not apply.
+- **Claims**: `gh pr view <number> --json comments --jq '.comments[].body' | grep -i '^Owned by session'`. If a claim names a session other than the brief's `Dispatching session:`, **stop** and report the claim; the merge belongs to that session. No claim, or a claim naming the dispatching session → proceed.
 
 ### 2. Check readiness
 
@@ -256,6 +258,12 @@ When the invocation carries the keyword:
    RELEASE=$(git show-ref --verify --quiet refs/remotes/origin/main && echo main || echo master)
    ```
 2. `git log origin/<release>..origin/dev --oneline` — what is being promoted.
+2a. **The version rides the release PR.** A release is not done until its tag exists and names what is deployed. When the repo versions its releases (a `version` in its manifest, a `CHANGELOG.md`, or `vX.Y.Z` tags):
+   - Compute the next version from the Conventional Commits in step 2's range, including branch commits under merge commits: `!` or `BREAKING CHANGE` → major, any `feat` → minor, otherwise patch. A `Release-As: X.Y.Z` footer wins.
+   - Cut `release/vX.Y.Z` from `origin/dev`, commit the version bump and the new CHANGELOG section there (`chore(release): vX.Y.Z`), and push. That branch, not `dev`, is the release PR's head in step 3, so one merge carries the code and its version.
+   - After step 4's merge: `gh release create vX.Y.Z --target <merge-sha> --title vX.Y.Z --notes-file <the CHANGELOG section>`. Then merge `release/vX.Y.Z` into `dev` (a PR, same merge rules) so `dev` carries the version, and delete the branch.
+   - A repo on release-please: point it at `dev` (`target-branch: dev`, `skip-github-release: true`) and let a job on the release branch tag the manifest's version at the release PR's head, then relabel the version PR `autorelease: tagged`. The release-please PR into `dev` replaces the `release/vX.Y.Z` branch: merge it into `dev` last, then open the release PR from `dev`. Reference: `stonematt/bike_race_results` `.github/workflows/release-please.yml` and `scripts/tag-release.ts`.
+   - A repo whose release-please still targets the release branch: merge its version PR right after the release PR, never before. Merged first, it cuts off the commits the release PR brings, and the tag and changelog skip them.
 3. Create the release PR. The body must carry a `Closes #N` line for **every** issue staged by the commits being promoted (Section 5's labels are how you find them: `gh issue list --label "status: staged" --json number`):
    ```bash
    gh pr create --base <release> --head dev --title "<title>" --body-file - <<'EOF'
@@ -264,8 +272,12 @@ When the invocation carries the keyword:
 
    Closes #N
    Closes #M
+
+   ## One-way doors
+   - #<pr> — <note>
    EOF
    ```
+   One `## One-way doors` bullet per promoted PR whose body has `**Door:** one-way`, carrying its note; omit the heading when there are none. Information only — it never stops the release.
 4. Section 2 applies to the release PR (watch, one flake rerun, never red). Then merge it **without** `--delete-branch` — `dev` is permanent:
    ```bash
    gh pr merge <release-pr> --merge --subject "Merge dev: <title> (#<release-pr>)"
@@ -284,6 +296,7 @@ One message. It is the only thing the user sees of this run, so it must stand al
 
 - **Lead with any blocker**: a failed check with its excerpt, an unfamiliar conflict, a review finding that needs a human, a denial quoted verbatim with the exact `!` command to finish.
 - Then, briefly: PR(s) merged with SHA and merge subject; how the review gate resolved (`docs-only`, `ci-check`, `reviewer:<name>` with findings applied, `policy-optional`, `waived`); conflicts resolved and how; cleanup state (base branch, deleted, pruned, `git branch -a` clean); issues labelled; promotion result if asked; the log row written.
+- When the merged PR's body has `**Door:** one-way`, one line: `one-way: <note>`. Information, not a stop. A PR with no Merge Danger section gets no mention of it.
 - Say nothing about promotion unless the invocation asked for it.
 
 The dispatching session relays this. Only two items in it call for further action there: a Section 2.0 rung-4 question, and a denied release merge (Section 6 step 4). Everything else is finished.

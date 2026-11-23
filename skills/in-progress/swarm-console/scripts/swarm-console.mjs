@@ -31,11 +31,26 @@ function repoRoot(dir) {
 }
 const ROOT = repoRoot((argv.match(/--project (\S+)/) ?? [])[1] ?? process.cwd());
 const PROJECT = slugOf(ROOT);
-// The main checkout's folder, or a session started inside one of its .claude/worktrees.
-const inProject = dir => dir === PROJECT || dir.startsWith(PROJECT + '--claude-worktrees-');
+// The repo's checkouts: the main one and every git worktree, wherever it sits (a sibling like ../repo-ops
+// is one too). Re-read at most every 30 s, so a worktree added mid-run shows up.
+let checkouts = { at: 0, slugs: [PROJECT] };
+function checkoutSlugs() {
+  if (Date.now() - checkouts.at < 30000) return checkouts.slugs;
+  let slugs = [PROJECT];
+  try {
+    const out = execFileSync('git', ['-C', ROOT, 'worktree', 'list', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    slugs = [...new Set([PROJECT, ...out.split('\n').filter(l => l.startsWith('worktree ')).map(l => slugOf(l.slice(9).trim()))])];
+  } catch {}
+  checkouts = { at: Date.now(), slugs };
+  return slugs;
+}
+// A checkout's folder, or a session started inside one of its .claude/worktrees (removed ones included).
+const inProject = dir => checkoutSlugs().some(s => dir === s || dir.startsWith(s + '--claude-worktrees-'));
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }
 
+// A lane link is described "Lane <X>: #<n> ..." (swarm step 4); a subagent that only mentions lanes is not one.
+const RX_LANE = /^\s*Lane\s+[^:\s]+\s*:/i;
 // A resumed session is a new transcript that starts with a copy of the old one, message uuids and all.
 // The first uuid is the run's key: every session that shares it is the same run.
 const roots = new Map();
@@ -51,8 +66,8 @@ function rootOf(file) {
   return r;
 }
 
-// This repo's runs that spawned subagents, newest first. A run resumed into new sessions is one entry,
-// named by its newest session; `members` holds every session folder of the run, oldest first.
+// This repo's swarm runs (ones that spawned lanes), newest first. A run resumed into new sessions is one entry,
+// named by its newest session; `ids` and `members` hold every session of the run, oldest first.
 function listSessions() {
   const runs = new Map();
   for (const p of fs.readdirSync(PROJECTS).filter(inProject)) {
@@ -71,11 +86,13 @@ function listSessions() {
   }
   const out = [];
   for (const run of runs.values()) {
-    if (!run.metas.size) continue;
-    run.members.sort((a, b) => a.mtime - b.mtime);
-    const metas = [...run.metas.values()], newest = run.members.at(-1);
+    const metas = [...run.metas.values()];
     // A lane may run as a chain of agents; count each lane letter once.
-    const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && /lane/i.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
+    const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && RX_LANE.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
+    // Only swarms: a run whose subagents include no lane is not one.
+    if (!lanes.length) continue;
+    run.members.sort((a, b) => a.mtime - b.mtime);
+    const newest = run.members.at(-1);
     out.push({ id: newest.id, dir: newest.dir, members: run.members.map(m => m.dir), ids: run.members.map(m => m.id), project: run.project, mtime: newest.mtime, agents: metas.length, lanes });
   }
   return out.sort((a, b) => b.mtime - a.mtime);
@@ -102,6 +119,12 @@ function toolSummary(input = {}) {
 }
 // Issue and PR numbers a call names: #n, issues/n, pull/n, `gh issue|pr <verb> n`, and branch or folder suffixes like feat/x-422.
 // Temp paths are dropped first: their numbers (/tmp/claude-501/) are user ids, not issues.
+// The PR a command merges: `gh pr merge <n>` at the start of the command or after a separator. The phrase inside quoted
+// text (an issue comment, a heredoc) is not a merge. Returns the PR number, or undefined.
+function mergePr(command) {
+  const m = String(command ?? '').match(/(?:^|[;&|(]\s*|\bthen\s+|\bdo\s+)gh pr merge\s+(\d+)\b/m);
+  return m ? Number(m[1]) : undefined;
+}
 function refsOf(input = {}) {
   const s = [input.command, input.file_path, input.description, input.subject].filter(Boolean).join(' ').slice(0, 3000).replace(/\/(private\/)?tmp\/\S*/g, ' ');
   const rx = /#(\d+)\b|\b(?:issues|pull)\/(\d+)\b|\bgh (?:issue|pr) [a-z-]+ (\d+)\b|[A-Za-z]-(\d+)\b/g;
@@ -137,7 +160,7 @@ function parseTranscript(file) {
     }
     for (const c of uses) {
       const inp = c.input ?? {};
-      const tool = { key: c.id, t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: /gh pr merge/.test(String(inp.command ?? '')) || undefined };
+      const tool = { key: c.id, t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: mergePr(inp.command) };
       // extras the page uses for edge annotations and the goal panel
       if (c.name === 'Agent' || c.name === 'Task') Object.assign(tool, { useId: c.id, agentName: inp.name, promptLen: String(inp.prompt ?? '').length });
       if (c.name === 'SendMessage') Object.assign(tool, { to: inp.to, summary: inp.summary ?? String(inp.message ?? '').slice(0, 120) });
@@ -150,30 +173,70 @@ function parseTranscript(file) {
   return v;
 }
 
-// The swarm skill names run logs <date>-<repo>[-n].md; take this repo's newest one written during the session.
-function runLogFor(start, last) {
+// The run log's "## Lanes" block is the orchestrator's plan, rewritten whenever it changes:
+//   Session: <orchestrator session id>
+//   - [ ] Lane C (lap rules on the squad grid): #731 — #731 after Lane A, #731 after Lane B
+//     Files: src/lib/squads/grid.ts, …
+//     Merged: #731 → PR 740 ab12cd3
+// → { session, lanes: { C: { objective, tickets: [731], after: { 731: ['A', 'B'] }, files, merged: [{ issue, pr, sha }], done } } }. A join waits on
+// several lanes, so each ticket's waits are a list. The checkbox,
+// objective and Files line are optional. null when the log has no such block (an older log's lane table reads as none).
+function planOf(text) {
+  const sec = (text.split(/^## Lanes\s*$/m)[1] ?? '').split(/^## /m)[0];
+  const lanes = {};
+  for (const m of sec.matchAll(/^- (?:\[( |x)\] )?Lane\s+([^:\s(]+)\s*(?:\(([^)]*)\))?:\s*(.*)$((?:\n[ \t]+\S.*)*)/gm)) {
+    const [head, tail = ''] = m[4].split(/\s+[—–]\s+/);
+    // Parenthesised notes on the line, like "(#203 → c751746)", name PRs, not tickets.
+    const tickets = [...head.replace(/\([^)]*\)/g, ' ').matchAll(/#(\d+)/g)].map(x => Number(x[1]));
+    const after = {};
+    for (const x of tail.matchAll(/#(\d+) after Lane\s+([^\s,;]+)/gi)) (after[x[1]] ??= []).includes(x[2]) || after[x[1]].push(x[2]);
+    const files = ((m[5].match(/^\s*Files:\s*(.*)$/im) ?? [])[1] ?? '').split(/,\s*/).map(f => f.replace(/`/g, '').trim()).filter(Boolean);
+    // "Merged: #180 → PR 203 c751746, #182 → PR 205 2e50f60": each merged ticket's PR and merge commit, written by the orchestrator.
+    const merged = [...((m[5].match(/^\s*Merged:\s*(.*)$/im) ?? [])[1] ?? '').matchAll(/#(\d+)\s*(?:→|->)\s*PR\s*#?(\d+)(?:\s+([0-9a-f]{7,40}))?/gi)]
+      .map(x => ({ issue: Number(x[1]), pr: Number(x[2]), sha: x[3] ?? null }));
+    if (tickets.length) lanes[m[2]] = { objective: m[3]?.trim() || null, tickets, after, files, merged, done: m[1] === 'x' };
+  }
+  const session = (sec.match(/^Session:\s*([\w-]+)/m) ?? [])[1] ?? null;
+  return Object.keys(lanes).length ? { session, lanes } : null;
+}
+// The swarm skill names run logs <date>-<repo>[-n].md. Which one is this run's: the one whose plan names
+// any of the run's sessions (a resumed run's Session: line may name the old session or the new one); else one whose plan shares a ticket with the session's lanes; else the newest written during
+// the session, skipping a planned log that shares no ticket with lanes already running. A log whose plan names
+// another session is never this one's.
+function runLogFor(ids, start, last, tickets) {
   if (!fs.existsSync(RUNS)) return null;
   const name = path.basename(ROOT);
-  const f = fs.readdirSync(RUNS).filter(n => n.includes('-' + name)).map(n => path.join(RUNS, n))
-    .map(f => [f, fs.statSync(f).mtimeMs]).filter(([, m]) => m >= start && m <= last + 3600e3).sort((a, b) => b[1] - a[1])[0]?.[0];
-  if (!f) return null;
-  const text = fs.readFileSync(f, 'utf8');
+  const logs = fs.readdirSync(RUNS).filter(n => n.includes('-' + name)).map(n => path.join(RUNS, n)).map(f => {
+    const text = fs.readFileSync(f, 'utf8');
+    return { f, m: fs.statSync(f).mtimeMs, text, plan: planOf(text) };
+  }).filter(l => !l.plan?.session || ids.includes(l.plan.session)).sort((a, b) => b.m - a.m);
+  const during = l => l.m >= start && l.m <= last + 3600e3;
+  const l = logs.find(l => ids.includes(l.plan?.session))
+    ?? logs.find(l => l.m >= start && Object.values(l.plan?.lanes ?? {}).some(p => p.tickets.some(t => tickets.has(t))))
+    ?? logs.find(l => during(l) && (!l.plan || !tickets.size));
+  if (!l) return null;
+  const { f, text, plan } = l;
   return {
     file: path.basename(f),
     title: (text.match(/^# (.*)$/m) ?? [])[1],
-    // `Key: value` lines between the title and the first section name the goal: Shape, Scope, Queue, Frontier.
-    lines: [...text.split(/^## /m)[0].matchAll(/^([A-Z][A-Za-z -]{1,30}): (.+)$/gm)].map(m => ({ key: m[1], value: m[2] })),
+    // a goal swarm's landing target, "Scope: goal/<slug> → <base>", on its own line or inside the goal line
+    scope: (text.match(/\bScope:\s*`?([^\s`]+`?\s*(?:→|->)\s*`?[^\s`.,;]+)/) ?? [])[1]?.replace(/`/g, '') ?? null,
+    // open questions only the owner can answer: one "Waiting on owner: <question>" line each, deleted once answered
+    waiting: [...text.matchAll(/^Waiting on owner:[ \t]*(.*?)[ \t]*$/gm)].map(m => m[1] || '(no question given)'),
     tasks: [...text.matchAll(/^- \[( |x)\] (.*)$/gm)].map(m => ({ done: m[1] === 'x', text: m[2] })),
     incidents: (text.split(/^## Incidents\s*$/m)[1] ?? '').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2)),
+    plan,
   };
 }
 
+// issue numbers a PR body closes (`Closes #N`, Fixes, Resolved...); closingIssuesReferences is empty for PRs into non-default bases
+const closing = body => [...new Set([...(body ?? '').matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi)].map(m => Number(m[1])))];
 let prs = { at: 0, list: [] };
 function prsNow() {
   if (Date.now() - prs.at > 60_000) {
     prs.at = Date.now();
-    execFile('gh', ['pr', 'list', '--state', 'all', '--limit', '120', '--json', 'number,state,headRefName,mergedAt,url'], { cwd: ROOT }, (err, out) => {
-      if (!err) try { prs.list = JSON.parse(out); } catch {}
+    execFile('gh', ['pr', 'list', '--state', 'all', '--limit', '120', '--json', 'number,state,headRefName,mergedAt,url,body'], { cwd: ROOT }, (err, out) => {
+      if (!err) try { prs.list = JSON.parse(out).map(({ body, ...p }) => ({ ...p, closes: closing(body) })); } catch {}
     });
   }
   return prs.list;
@@ -213,14 +276,15 @@ function state(id) {
   const agents = [...files].map(([aid, sub]) => {
     const meta = readJson(path.join(sub, `agent-${aid}.meta.json`));
     const desc = meta.description ?? aid;
-    const isLane = (meta.spawnDepth ?? 1) === 1 && /lane/i.test(desc);
+    const isLane = (meta.spawnDepth ?? 1) === 1 && RX_LANE.test(desc);
     return { id: aid, useId: meta.toolUseId, desc, model: meta.model ?? '?', parent: meta.parentAgentId ?? null, depth: meta.spawnDepth ?? 1,
       isLane, queue: isLane ? [...desc.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : [], ...parseTranscript(path.join(sub, `agent-${aid}.jsonl`)) };
   });
   const main = mergeMains(s.members.map(d => d + '.jsonl').filter(f => fs.existsSync(f)).map(parseTranscript));
   const start = Math.min(...agents.map(a => a.start).filter(Boolean), main?.start ?? Infinity);
   const last = Math.max(...agents.map(a => a.last ?? 0), main?.last ?? 0);
-  return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(start, last), prs: prsNow(), repo: REPO };
+  const tickets = new Set(agents.flatMap(a => a.queue));
+  return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(s.ids, start, last, tickets), prs: prsNow(), repo: REPO };
 }
 
 const server = http.createServer((req, res) => {

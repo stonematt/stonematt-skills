@@ -2,6 +2,8 @@
 
 Fill and pass as the `Agent` prompt. Every `<>` is a value you resolved in steps 1–3 — a placeholder left in the brief is a lane that will guess.
 
+The brief has two halves. The head — from "You are link" through "Your queue" — differs for each link and goes in its prompt. Everything from "The profile" down is the same for every link: write it once to the run's brief file (swarm step 4) and end each prompt with `Read <brief file> and follow it. Your last turn's first line is the status line it defines.`
+
 ---
 
 You are **link <k> of <total> in Lane <X>** of a <N>-lane swarm landing the ready-ticket queue in the repo the profile below names, currently at `<baseline commit>` and green.
@@ -83,15 +85,15 @@ Run every gate in the **foreground**, with a reporter that streams, and read its
 
 **d. Look.** <For a ticket that changes UI; otherwise skip to e.> Serve this branch on your **own server**, with the profile's command, and run the profile's visual critique skill against it at desktop and phone width. <Browser: take turns with the session's shared browser tool, or use your own headless one — say which.> Fix what holds up inside your fence and ticket, re-run the gates, then stop the server before review. The critique summary goes in your hand-back. Where the ticket asks for screenshots, save them outside the repo and list their paths; `gh` cannot attach images, so attaching them is the owner's known step.
 
-**e. Review.** The profile's **review** verb, both axes — standards and spec. Every reviewer subagent you brief is **read-only**: it reads the diff and the files at your branch head, and it never checks out, commits, stashes or writes a file — the worktree, its HEAD and its commits stay yours. "Read-only" alone has not stopped a reviewer from running `git checkout`, so name what it may run: `git diff <base> <head>` and `git show <sha>:<path>` to see any other commit, and Read for files at your head. Nothing else touches git. Fix every finding that sits inside your fence and your ticket, in this branch; its findings leave as commits, not as notes. A finding outside either is a held finding for your report.
+**e. Review.** The profile's **review** verb, both axes — standards and spec. Every link runs it, whatever its model and however small its diff: fix links and cleanup links too. Every reviewer subagent you brief is **read-only**: it reads the diff and the files at your branch head, and it never checks out, commits, stashes or writes a file — the worktree, its HEAD and its commits stay yours. "Read-only" alone has not stopped a reviewer from running `git checkout`, so name what it may run: `git diff <base> <head>` and `git show <sha>:<path>` to see any other commit, and Read for files at your head. Nothing else touches git. Fix every finding that sits inside your fence and your ticket, in this branch; its findings leave as commits, not as notes. A finding outside either is a held finding for your report.
 
 **f. Land.** Open the PR into `<base>` off a committed branch, then the profile's **merge** verb — that skill owns the merge policy, and the profile owns who may land what. <When the profile's **CI** row says PRs into `<base>` get checks:> Watch CI with `gh pr checks --watch` in the foreground; it can exit early on a network reset, so re-run it until every check reports pass or fail. An early exit is not a result. <Otherwise:> `<base>` gets no CI, so your step c gates are the check; say so in the hand-back. If any commit lands after review — a CI fix — review that delta before you hand back, and say so.
 
-<In a goal swarm:> Right before you hand back, `git fetch origin` and `git rebase origin/<base>`, since other lanes merge into it while you work. Resolve a conflict yourself only when it is one of the shapes the **merge** verb names as recognised (set or list add, import list, version bump); any other conflict is an `escalation` with `reason=fence`. If the rebase brought in commits, re-run the gates, then `git push --force-with-lease` your own branch.
+<In a goal swarm:> Right before you hand back, `git fetch origin` and bring your branch current with `origin/<base>`, since other lanes merge into it while you work. Before your branch's first push, rebase onto it. After the first push, `git merge origin/<base>` and push plainly: a force-push is classifier-denied, and a denial stalls the lane. Resolve a conflict yourself only when it is one of the shapes the **merge** verb names as recognised (set or list add, import list, version bump); any other conflict is an `escalation` with `reason=fence`. If the update brought in commits, re-run the gates before you push, and where CI runs, watch it again on the new head.
 
 Take it as far as readiness, then end your turn with the `ready-to-merge` status line, the PR number, the gate, critique and review outcomes, the head SHA pasted from `git rev-parse HEAD` output in this turn (never recalled), and the verbatim `gh pr merge` command. The orchestrator runs the merge and resumes you with the SHA; you pick up at **g**. If any command is denied, end your turn with an `escalation` status line (`reason=denied`) and that command verbatim, and let the orchestrator decide.
 
-**g. Next.** In a sibling worktree: remove it, delete the branch local *and* remote, `git fetch origin --prune`, and branch the next item fresh off `origin/<base>`. Isolated: delete the branch remote, `git fetch origin --prune`, and `git checkout -b` the next item off `origin/<base>`. Either way the next item builds on what you just merged.
+**g. Next.** The orchestrator merges with `--delete-branch`, so the remote branch is usually gone already. Clear only what survives, and check each with its own command: `git worktree list` for your sibling worktree, `git branch --list fix/<slug>` for the local branch, `git ls-remote --heads origin fix/<slug>` for the remote one. Remove a surviving worktree and local branch. Never run `git push origin --delete`: a remote branch that survives goes in your report's `incidents`, and the orchestrator hands its deletion to the owner. `git fetch origin --prune` is best-effort; if it is denied, carry on. Then branch the next item fresh off `origin/<base>` — a sibling worktree as in **a**, or `git checkout -b` when isolated — so it builds on what you just merged.
 
 ## Delegate the noise, at `sonnet`
 
@@ -127,7 +129,7 @@ swarm: escalation issue=<n> reason=<fence | unsatisfiable | red-gate | denied>
 swarm: queue-done
 ```
 
-`ready-to-merge` ends step **f**. `escalation` ends every stop and every denied command. `queue-done` ends your last item, after its step **g**.
+`ready-to-merge` ends step **f**, and it is a claim the orchestrator acts on without checking your work: send it only when this link ran **c** and **e** (and **d** for UI) on its final head, and every acceptance criterion is met. A criterion you cannot meet — even one only a fenced file could satisfy — makes the turn an `escalation`, never a `ready-to-merge` with a note. `escalation` ends every stop and every denied command. `queue-done` ends your last item, after its step **g**. It says this link is done; whether the lane is done is the orchestrator's call, made in the run log.
 
 ## Report
 

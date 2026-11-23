@@ -8,7 +8,7 @@ Per [`docs/agents/issue-tracker.md`](agents/issue-tracker.md), roadmap is the to
 
 ## code-explorer agent (global default, repo-local override)
 
-**Status:** sketch, not yet grilled. Out of current `Scope (locked)` in [`CONTEXT.md`](../CONTEXT.md) — this repo currently ships 7 Skills and no Agents. Agents would need a scope-expansion decision before this graduates.
+**Status:** sketch, not yet grilled. Out of current `Scope (locked)` in [`GLOSSARY.md`](../GLOSSARY.md) — this repo currently ships 7 Skills and no Agents. Agents would need a scope-expansion decision before this graduates.
 
 **Premise.** Read-only code exploration is generic across repos. A global `~/.claude/agents/code-explorer.md` running on Sonnet handles "where is X defined", "find callers of Y", "grep for symbol K" for ~80% of repos at a fraction of Opus cost. Repo-local overrides handle the 20% where conventions, domain glossary, or hot-file deny rules matter.
 
