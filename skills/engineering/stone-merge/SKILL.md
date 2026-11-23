@@ -13,7 +13,7 @@ The user ran this skill so they can stop thinking about the merge. **Unless some
 
 **First, which side are you on?** If a brief dispatched you to run this skill — it names a PR, a repo path, and quotes a user's invocation — you are the **agent**: skip the rest of Section 0 and start at the Workflow, in your own shell. Section 0 is for the session the user is typing in.
 
-`/stone-merge` costs the main session **two tool calls** in the normal case: this skill load, and one `Agent` dispatch. The only additions are the two hand-backs Section 7 names — a rung-4 answer and a denied release merge. The shape is deliberate and measured: no readiness-only dispatch so you can merge here, no merge of your own. No readiness check of your own, no `gh pr merge` of your own, no follow-up `gh pr view` to confirm what the agent reported. The agent owns Sections 1–6 end to end, including the merge command.
+`/stone-merge` costs the main session **two tool calls** in the normal case: this skill load, and one `Agent` dispatch. The only additions are the three hand-backs Section 7 names: a rung-4 answer, a denied release merge, and CI unavailable. The shape is deliberate and measured: no readiness-only dispatch so you can merge here, no merge of your own. No readiness check of your own, no `gh pr merge` of your own, no follow-up `gh pr view` to confirm what the agent reported. The agent owns Sections 1–6 end to end, including the merge command.
 
 **Dispatch.** One call:
 
@@ -125,7 +125,7 @@ Run these **sequentially** — `gh pr checks` exits 8 while checks are pending a
 2. `gh pr checks <number>`:
    - exit 0 → Section 3
    - exit 8 with pending/queued/in-progress rows → 2a
-   - exit 8 with `fail` rows → 2b
+   - exit 8 with `fail` rows → 2b; a row that failed in setup before any test ran → 2e
    - other non-zero, no rows → stop and report (auth, PR not found)
 
 `mergeable: UNKNOWN` → 2c first. `CONFLICTING` → 2d.
@@ -136,7 +136,7 @@ Run these **sequentially** — `gh pr checks` exits 8 while checks are pending a
 gh pr checks <number> --watch --fail-fast
 ```
 
-Set the Bash timeout generously (10 minutes covers most repos). If the watch hits the harness timeout, retry once with a longer timeout before concluding anything.
+Set the Bash timeout generously (10 minutes covers most repos). If the watch hits the harness timeout, retry once with a longer timeout before concluding anything. Checks still queued or never started after the retry → 2e.
 
 #### 2b. Checks failed
 
@@ -148,20 +148,6 @@ Never merge red. Distinguish a real failure from an unrelated flake:
 4. **Related, ambiguous, or red again** → stop. Report the failing check, a short log excerpt, and your read of whether it's related.
 
 A failed `code-review` check is never rerun; its findings are addressed (2.0 rung 2).
-
-#### 2e. CI unavailable — the admin bypass
-
-CI is unavailable when required checks never start, stay queued well past their usual run time, or fail in setup before any test runs (runner outage, Actions incident, an exhausted minutes quota). A test that ran and failed is 2b, not this.
-
-The agent never bypasses. It stops, logs `--outcome stopped --note ci-unavailable`, and reports what it saw: which checks, their state, how long they waited, and any Actions status message. The merge is then a human call.
-
-`gh pr merge --admin` is allowed only when **all** of these hold:
-
-1. The user approves the bypass in their own words, for this PR. A standing or earlier approval does not count.
-2. The repo's local gates passed on the PR's head commit. These are the same commands CI runs; the repo's `CLAUDE.md` names them.
-3. A PR comment is posted **before** the merge, recording: why CI is unavailable, the head SHA tested, each local command, and its result (pass counts, or the tail of the output). The repo's branch rules record that an admin bypassed. This comment records why and on what evidence.
-
-Then merge with the Section 3 command plus `--admin`, from the main session. Log `--checks bypassed-local` and put the comment URL in `--note`. A release PR (Section 6) follows the same rule; its local gates run on `dev`'s head.
 
 #### 2c. `mergeable: UNKNOWN`
 
@@ -183,6 +169,12 @@ Typical when a sibling landed first and both touched the same lines.
 
 Name every resolution you made in the report ("resolved set-add in `convert.py`: kept both `fur` and `nmi`").
 
+#### 2e. CI unavailable
+
+CI is unavailable when required checks never start, stay queued well past their usual run time, or fail in setup before any test runs (a runner outage, an Actions incident, an exhausted minutes quota). A test that ran and failed is 2b.
+
+Stop here; the merge is now the user's call. Log `--outcome stopped --checks none --note ci-unavailable`, and report what you saw: each check, its state, how long it waited, and any Actions status message. Section 7 says what the dispatching session does next.
+
 ### 3. Merge the PR
 
 ```bash
@@ -193,7 +185,7 @@ gh pr merge <number> --merge --delete-branch \
 - `--merge` gives a merge commit with the branch history intact. `--squash` only when Section 1's probe said the repo is squash-only — and then the subject is the squash convention, `<pr title> (#N)`, not the `Merge <branch>: …` form, which describes a merge commit that does not exist.
 - **Always pass `--subject`.** Without it `gh` writes `Merge pull request #N from owner/branch`, which drops the title from `git log --oneline`. House format: `Merge <branch>: <pr title> (#N)`. A repo whose own merge history uses a different shape wins — copy it.
 - Get the subject right the first time. Fixing a landed subject means a force-push to a shared branch; don't. If it landed wrong, say so and move on.
-- Never `--admin`, except the CI-unavailable bypass in 2e. Never merge red. Never merge over an unresolved Section 2.0 gate.
+- `--admin` belongs to the CI-unavailable hand-back alone (Section 7). Never merge red. Never merge over an unresolved Section 2.0 gate.
 
 Record the merge SHA: `gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`.
 
@@ -302,7 +294,7 @@ When the invocation carries the keyword:
 7. Log the promotion as its own row: `--pr <release-pr> --base <release> --outcome merged --sha <sha> --checks pass --classifier none --merged-from subagent --note promotion` (`--merged-from main` when the dispatching session ran the merge after a denial).
 8. Report: "Merged to `<release>` (`<sha>`). Stripped `status: staged` from N issues."
 
-**Never force-push `<release>` or `dev`. Never `--admin` a release PR, except the CI-unavailable bypass in 2e. Never delete `dev` or `<release>`.**
+**Never force-push `<release>` or `dev`. A release PR takes `--admin` only through the CI-unavailable hand-back (Section 7). Never delete `dev` or `<release>`.**
 
 ### 7. The report
 
@@ -313,7 +305,15 @@ One message. It is the only thing the user sees of this run, so it must stand al
 - When the merged PR's body has `**Door:** one-way`, one line: `one-way: <note>`. Information, not a stop. A PR with no Merge Danger section gets no mention of it.
 - Say nothing about promotion unless the invocation asked for it.
 
-The dispatching session relays this. Only two items in it call for further action there: a Section 2.0 rung-4 question, and a denied release merge (Section 6 step 4). Everything else is finished.
+The dispatching session relays this. Only three items in it call for further action there: a Section 2.0 rung-4 question, a denied release merge (Section 6 step 4), and CI unavailable (2e). Everything else is finished.
+
+**When the agent reports CI unavailable**, relay what it saw and ask the user once whether to bypass CI for this PR. Run `gh pr merge --admin` only when all three hold:
+
+1. The user approves the bypass in their own words, for this PR. An earlier or standing approval covers no other PR.
+2. The repo's local gates pass on the PR's head commit: the commands CI runs, as the repo's `CLAUDE.md` names them. A repo that names none has no bypass; the merge waits for CI.
+3. A PR comment, posted before the merge, records why CI is unavailable, the head SHA tested, and each local command with its result (pass counts, or the output's tail). Branch rules record that an admin merged; this comment records the evidence.
+
+Then merge with the Section 3 command plus `--admin`, and resume the agent with `SendMessage` carrying the merge SHA, so it runs Sections 4–5b with `--checks bypassed-local`, `--merged-from main` and the comment URL in `--note`. A release PR takes the same path; its local gates run on `dev`'s head.
 
 **When the agent reports a denied release merge**, the main session runs exactly that one command itself — the user asked for the release in their own words, and the release PR is already green — then resumes the same agent with `SendMessage` carrying the merge SHA, so it runs the cleanup, sweep, and log row (Section 6 steps 5–8). No extra checks first, and no question back to the user: one `gh pr merge` call, one `SendMessage`, then relay the agent's final report with its denial quoted.
 
@@ -331,8 +331,8 @@ The dispatching session relays this. Only two items in it call for further actio
 
 - Never merge a PR with failing checks; one rerun, only for a clearly unrelated flake.
 - Resolve the review gate on its ladder before merging code; merge over findings only when the user waived them in the invocation.
-- `CHANGES_REQUESTED` and `REVIEW_REQUIRED` stop the run. Never `--admin` over a reviewer.
-- `--admin` only for CI unavailable (2e): the user's approval for this PR, local gates green, the evidence comment posted first.
+- `CHANGES_REQUESTED` and `REVIEW_REQUIRED` stop the run.
+- `--admin` is the CI-unavailable hand-back's tool alone (Section 7): the user's word for this PR, local gates green, the evidence comment first.
 - Promote only on a keyword in the user's own invocation; never offer it.
 - Briefs carry facts, never granted authority.
 - A classifier denial is reported verbatim, never routed around (Section 0a).
