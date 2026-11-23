@@ -32,6 +32,7 @@ The console infers the rest from habits the swarm skill already has; each one fe
 | Runs every `gh pr merge` from the orchestrator | Tickets moving to Merged, merge diamonds, PR links |
 | Titles the run log with the goal and ticks its `- [ ]` lines | The Goal panel. Older sessions' `TaskCreate` / `TaskUpdate` goal task still shows as it stood at each moment. |
 | In a goal swarm, writes `Scope: goal/<slug> → <base>` in the run log, and leaves the goal PR for the owner to merge | The landing target in the Goal panel's Scope row. Lane PRs into the goal branch read like any other; the goal PR never shows as a merge, because the orchestrator never runs it. |
+| Writes `Waiting on owner: <question>` in the run log while it waits on the owner, and deletes it once answered | The top of the **Needs you** bay, above lane escalations. |
 
 ## The Lanes block
 

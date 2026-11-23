@@ -62,7 +62,8 @@ h2 .num{font-weight:500;color:var(--fg)}h2 .sp{flex:1}
 .notice .x{grid-column:2/4;font-size:12px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .notice .links{grid-column:2/4;font-size:12px;display:flex;gap:12px}
 .kind{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
-.k-merge,.k-waiting{color:var(--hand)}.k-escalation,.k-stall{color:var(--stall)}
+.k-merge,.k-waiting{color:var(--hand)}.k-escalation,.k-stall,.k-owner{color:var(--stall)}
+.notice.owner{border-left:3px solid var(--stall);padding-left:8px;background:color-mix(in srgb,var(--stall) 8%,transparent)}
 .calm{color:var(--muted);font-size:13px;padding:6px 0}
 .hbl{font-size:12px;display:grid;grid-template-columns:44px 72px minmax(0,1fr);gap:8px;padding:3px 0;color:var(--muted);cursor:pointer}
 .hbl b{color:var(--fg);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hbl span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -612,11 +613,13 @@ function chip(i,merged){
 let lastBaySig='';
 function renderBay(notices){
   const hbs=[];for(const a of S.agents)for(const tl of handbacks(a))hbs.push({a,tl});hbs.sort((x,y)=>y.tl.t-x.tl.t);
-  let h='<h2>Needs you <span class="num">'+notices.length+'</span></h2>';
+  const ow=S.runLog?.waiting||[];
+  let h='<h2>Needs you <span class="num">'+(notices.length+ow.length)+'</span></h2>';
+  h+=ow.map(q=>'<div class="notice owner"><span class="kind k k-owner">owner</span><span class="w">The orchestrator is waiting on you</span><span class="x" style="-webkit-line-clamp:4">'+esc(q)+'</span></div>').join('');
   h+=notices.length?notices.map(n=>{const issue=n.x.cur,iu=ghIssue(issue),pu=n.pr?ghPr(n.pr):null;
       return '<div class="notice" data-lane="'+n.lane.id+'" tabindex="0"><span class="kind k k-'+n.kind+'">'+n.kind+'</span><span class="w">Lane '+esc(short(n.lane.desc))+' · '+esc(n.what)+'</span><span class="age">'+ago(T-n.since)+'</span>'+
         '<span class="x">'+esc(firstLine(n.text).slice(0,200))+'</span><span class="links">'+(iu?'<a href="'+iu+'" target="_blank" rel="noopener">'+ICON.gh+' #'+issue+'</a>':'')+(pu?'<a href="'+pu+'" target="_blank" rel="noopener">'+ICON.pr+' PR '+n.pr+'</a>':'')+'<a href="#" data-zoom="'+n.lane.id+'">'+ICON.zoom+' Zoom</a></span></div>'}).join('')
-    :'<div class="calm">Nothing is waiting on you. Every lane is working or finished.</div>';
+    :ow.length?'':'<div class="calm">Nothing is waiting on you. Every lane is working or finished.</div>';
   h+='<h2 style="margin-top:14px">Recent hand-backs <span class="num">'+hbs.length+'</span></h2>'+hbs.slice(0,5).map(({a,tl})=>'<div class="hbl" data-lane="'+(a.isLane?a.id:a.parent||'')+'"><span class="age">'+ago(T-tl.t)+'</span><b>'+esc(label(a))+'</b><span>'+esc(firstLine(tl.text||tl.brief))+'</span></div>').join('');
   if(h===lastBaySig)return;lastBaySig=h;
   $('bay').innerHTML=h;
