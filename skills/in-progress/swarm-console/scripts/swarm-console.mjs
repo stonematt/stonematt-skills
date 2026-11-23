@@ -193,6 +193,8 @@ function runLogFor(id, start, last, tickets) {
     title: (text.match(/^# (.*)$/m) ?? [])[1],
     // a goal swarm's landing target, "Scope: goal/<slug> → <base>", on its own line or inside the goal line
     scope: (text.match(/\bScope:\s*`?([^\s`]+`?\s*(?:→|->)\s*`?[^\s`.,;]+)/) ?? [])[1]?.replace(/`/g, '') ?? null,
+    // open questions only the owner can answer: one "Waiting on owner: <question>" line each, deleted once answered
+    waiting: [...text.matchAll(/^Waiting on owner:[ \t]*(.*?)[ \t]*$/gm)].map(m => m[1] || '(no question given)'),
     tasks: [...text.matchAll(/^- \[( |x)\] (.*)$/gm)].map(m => ({ done: m[1] === 'x', text: m[2] })),
     incidents: (text.split(/^## Incidents\s*$/m)[1] ?? '').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2)),
     plan,
