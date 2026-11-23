@@ -1,54 +1,33 @@
 ---
 name: stone-commit
-description: Create commits following Conventional Commits format using heredoc (not command substitution). Use this skill whenever the user wants to commit code changes — including /stone-commit, "commit this", "commit and push", "yes commit it", or any confirmation of a prior offer to commit (e.g., "yes do it", "go ahead", "yeah commit that"). Also trigger for "create a commit", "ship it", or when the user agrees to commit after completing a task. If the conversation involves creating a git commit in any form, use this skill. This skill overrides default commit behavior — always prefer it over built-in commit instructions.
+description: Commit changes as Conventional Commits in the house format, push them, and open the pull request. Use when the user asks to commit ("ship it" included), confirms an offer to commit, or asks to push or open a PR. Overrides the built-in commit and PR instructions.
 ---
 
-# Commit Skill
+# Commit
 
-## Workflow
+Land the working tree as **logical units**, each one a Conventional Commit in the house format below. A logical unit is one change type in one scope, plus the files that must ship with it to keep the tree working.
 
-### 1. Analyze all changes
+## Steps
 
-Run in parallel:
-- `git status` (no `-uall` flag)
-- `git diff HEAD --stat` (summary of all changes vs last commit)
-- `git log --oneline -5` (recent commits for style context)
+### 1. Read the tree
 
-If there are no changes (nothing modified, staged, or untracked), say so and stop.
+`git status`, `git diff HEAD --stat`, `git log --oneline -10`. Read a file's diff (`git diff HEAD -- <path>`) wherever the stat does not tell you what changed. A clean tree ends the run: say so.
 
-If the diff stat shows files you need to understand better, read specific files with `git diff HEAD -- <path>`.
+### 2. Group into logical units
 
-### 2. Group changes by logical concern
+Group from the diff alone. What is staged is incidental: users stage as they work, so the index is not a grouping. WIP and stub files that stand apart get their own unit. Leave secrets (`.env`, keys, tokens) out and name them in your reply.
 
-Review all modified/added/deleted files holistically. Identify independent logical units based on:
-- Scope alignment (same module, feature area, or layer)
-- Change type (feat vs refactor vs fix — don't mix types in one commit)
-- Dependency (files that must ship together to avoid breaking state)
+Done when every changed file sits in exactly one unit or is named as left out.
 
-Do NOT trust current staging as intentional grouping. Users stage iteratively during development — staged files may not represent a logical commit unit.
+### 3. Commit or propose
 
-### 3. Decide: auto-commit or propose
+- **One unit with an obvious type** → commit it.
+- **Several units, an ambiguous grouping, or a message that needs the user's judgement** (a breaking change, an unusual scope) → propose first: each unit's files, its draft message, and the commit order with dependencies first. Commit on the user's approval.
 
-**Auto-commit** when all changes are clearly a single logical unit with an obvious commit type — e.g., one file changed, or tightly coupled changes across 2-3 files in the same feature area. Skip straight to step 4.
+### 4. Commit each unit
 
-**Pause and propose** when:
-- Changes span multiple unrelated concerns (→ suggest separate commits)
-- The grouping is ambiguous
-- The commit message needs user judgment (e.g., breaking change, unusual scope)
+Start each unit from an empty index (`git reset -q`), stage its files by name, and pass the message on stdin:
 
-When proposing, present each group with:
-- Which files belong together
-- The draft commit message (format below)
-- Commit order (dependencies first)
-
-Wait for explicit approval before committing.
-
-### 4. Execute commits
-
-For each commit:
-1. `git add <files>` (stage only this group's files by name — never `git add .` or `git add -A`). For paths containing parentheses (e.g., Next.js route groups like `(dashboard)`), use shell globs: `git add *dashboard*/file.tsx` not `git add "src/app/(dashboard)/file.tsx"` — literal parens break permission glob matching.
-2. If files from a previous group are still staged, `git reset HEAD` first to clear staging, then re-add only the current group's files
-3. Commit using heredoc piped to `git commit -F -`:
 ```bash
 git commit -F - <<'EOF'
 <type>(<scope>): <summary>
@@ -56,116 +35,38 @@ git commit -F - <<'EOF'
 - <bullet>
 EOF
 ```
-4. Repeat for next group
+
+Hooks run. When one fails, fix the cause, stage again, and commit again. Every commit is a new commit; amend only when the user asks for it.
+
+Done when `git status` shows no file from any unit.
 
 ### 5. Push
 
-- If the user already said "push" (e.g., "commit and push"), push without asking
-- Otherwise, offer to push — show the remote and branch, wait for confirmation
-- **Team setting — sync before push.** If the branch already has an upstream, a non-fast-forward rejection means the remote advanced under you (a collaborator pushed). Run `git pull --rebase` to replay your commits on top, then push. If the rebase conflicts, stop and report — don't force. Never use `--force` / `--force-with-lease` to win a push race on a shared branch; that clobbers a collaborator's commits.
+Push when the user asked for it. Otherwise offer, naming the remote and branch.
 
-### 6. Pull Request (when requested)
+A non-fast-forward rejection means a collaborator pushed first: `git pull --rebase`, then push again. A rebase conflict stops the run with a report. A shared branch only ever receives new commits on top; a push race is settled by rebasing, never by force.
 
-If the user says "pr", "pull request", "pr to dev", etc.:
+### 6. Pull request
 
-0. **Sync onto the latest base first (team setting).** The base branch (e.g. `dev`) advances under you while you work. Before opening the PR, rebase your branch onto the current base so the PR diff is clean and you're not building on a stale tree:
-   ```bash
-   git fetch origin
-   git rebase origin/<base>
-   ```
-   Clean rebase → continue. On conflict, resolve only shape-obvious ones (import-list, set-add) per the rules `stone-merge` Section 2d uses; for any logic or semantic conflict, stop and report — don't guess. Skip this step when working solo on a fresh branch off an unchanged base.
-1. Run `git log --oneline <base>..HEAD` to gather all branch commits
-2. **Detect linked issue(s).** A single branch may ship several tickets — `/to-tickets` fans one spec into many sub-issues, and a batch branch can close all of them. Collect **all** matches, union, dedupe; the canonical branch convention puts **no** issue token in the branch name, so lead with session + commit signals, not the branch:
-   - **Tickets in play this session** — issue numbers the user/dispatcher named as this branch's work ("implement #31 and #32"). Authoritative.
-   - `git log <base>..HEAD --grep '#[0-9]\+'` — issue refs and `Closes #N` / `Refs #N` trailers in commit messages (per-ticket commits and `/tdd` leave these).
-   - Branch name regex `^[a-z]+/(\d+)[-/_]` or `^issue[-/_](\d+)` → `#N` — legacy `feat/<n>-slug` branches only; usually misses under the canonical convention, which is expected, not an error.
-   - Brief mentioned in commits (`docs/briefs/<slug>.md`) → `gh issue list --search "<slug>" --state open`.
-   - **Filter before use:** keep only issues that are **open** (`gh issue view <N> --json state`), and **drop any parent/spec issue that has open sub-issues** — `/to-tickets` parents must not auto-close (see its SKILL.md). Children only.
-   - If the set is empty **and** the branch looks like tracked work, ask once: "No ticket refs found — this PR will close nothing. Ticket number(s)? (list or 'no')"
-3. Draft title and body summarizing the full branch, not just the last commit. For **each** linked ticket, **prepend** a `Closes #N` line (one per ticket) above `## Summary`. On PRs to `dev` the keyword is inert (GitHub only auto-closes on merge to the default branch) — but `/stone-merge` reads these lines to flip each ticket to `status: staged`, and the release PR to `main` uses them to close. Emit them on `dev` PRs regardless.
-4. **Refresh the knowledge graph so it rides the PR (repos that _track_ the graph only).** Where a generated graph is committed, it should land *inside* the PR — it becomes permanent at merge, never via a direct commit to `dev`/`master`. **Gate on tracked-ness, not file existence:** `graphify-out/` is present locally in every graphify project, but most repos gitignore it, and `git add` on an ignored path is a hard error. The block is a silent no-op wherever the graph is untracked or graphify isn't installed:
-```bash
-if git ls-files --error-unmatch graphify-out/graph.json >/dev/null 2>&1 \
-   && command -v graphify >/dev/null 2>&1; then
-  env -u ANTHROPIC_API_KEY graphify update .          # AST-only: free, no API/Max, preserves community names
-  git add graphify-out/graph.json graphify-out/GRAPH_REPORT.md
-  if ! git diff --cached --quiet; then
-    git commit -m "chore: refresh knowledge graph"
-    git push
-  fi
-fi
-```
-   `env -u ANTHROPIC_API_KEY` keeps any `claude` CLI fallback on the Pro/Max plan rather than metered API. Semantic edges (doc↔ADR↔GLOSSARY) are *not* refreshed here — that stays an occasional local `graphify . --backend claude-cli` ($0 on Max).
+When the user asked for a PR, follow [`PR.md`](PR.md).
 
-   **Default to _not_ tracking the graph**, especially in public repos: committing it obliges every clone to a one-time `git config merge.graphify-graph.driver "graphify merge-driver %O %A %B"`, and an outside contributor without graphify installed gets conflict markers inside a multi-hundred-KB JSON. Ignore `graphify-out/` and let each machine rebuild on demand. Only track it when the semantic pass is expensive enough that collaborators shouldn't re-pay for it — and then also commit the `.gitattributes` line `graphify-out/graph.json merge=graphify-graph` and document the per-clone `git config` in the README (do NOT use `graphify hook install` — it also adds an unwanted per-commit rebuild).
-5. Create PR using heredoc piped to `gh pr create`:
-```bash
-gh pr create --base <target-branch> --title "<title>" --body-file - <<'EOF'
-Closes #31
-Closes #32
-
-## Summary
-- <bullet>
-- <bullet>
-
-## Test plan
-- [ ] <checklist item>
-
-## Merge Danger
-- **Door:** one-way | two-way — <optional one-line note>
-- **Blast radius:** <one word> — <optional: what could break>
-EOF
-```
-One `Closes #N` line per linked ticket (the example ships two). Omit the whole `Closes` block if no issue is linked.
-
-**Merge Danger** is information for the reader, never a gate (adapted from the upstream `pr` skill).
-- **Door:** `two-way` when reverting the merge fully undoes its effect; otherwise `one-way`. Mark `one-way` whatever your judgement when the diff adds or changes a database migration, changes what gets published (package manifest `version`/`files`/`bin`/`exports`, or a release/publish workflow), changes infrastructure-as-code, or deletes tracked data (seed data, fixtures, data files). Name the triggering path in the note.
-- **Blast radius:** one word — `none`, `local`, `module`, `app-wide`, `consumers`, `data` — with an optional note naming what could break.
-
-**Important:** Never use `--body "$(cat <<'EOF' ... )"` or other command substitution patterns — always use `--body-file -` with heredoc piped to stdin. The `$()` pattern causes shell quoting issues with markdown tables and special characters.
-
-## Commit Message Format
+## Message format
 
 ```
-<type>(<scope>): <imperative summary, 50-70 chars>
+<type>(<scope>): <imperative summary>
 
-<user impact — include for feat/fix, omit for internal changes>
+<user impact>
 
-- <Action bullet: Adds/Fixes/Replaces/Removes...>
-- <Action bullet>
-- <max 3 bullets>
+- <Adds/Fixes/Replaces/Removes ...>
+- <at most 3 bullets>
 
-Rationale: <Why this approach — include for refactors/architectural decisions only>
+Rationale: <why this approach>
 ```
 
-### Types
-`feat`, `fix`, `docs`, `refactor`, `style`, `perf`, `chore`, `build`, `ci`, `test`
-
-### Scopes
-
-Derive scope from the project. Use the most specific scope that describes where the change lives.
-
-**Common scopes:**
-- Code: `api`, `cli`, `core`, `db`, `ui`, `auth`, `config`
-- Infrastructure: `ci`, `docker`, `deploy`, `deps`
-- Project: `docs`, `scripts`, `tests`
-
-**Scope discovery:** On first commit in a project, scan the repo structure to identify natural scopes (top-level packages, app layers, service names). Prefer scopes already used in `git log --oneline -20`. If a project-level CLAUDE.md or commit skill defines scopes, use those instead.
-
-### Rules
-- Imperative mood: "add" not "added" or "adds"
-- Title: ≤72 chars (aim for 50-70), lowercase, no trailing period
-- Bullets: max 3, action verbs (Adds/Fixes/Replaces/Removes), no implementation details
-- Rationale: include for refactors and architectural decisions; omit for trivial changes
-- Breaking changes: append `!` after type/scope
-- Flag WIP/stub files with a separate commit when independent of other changes
-- Never include test counts or implementation details in messages
-
-## Safety
-
-- Never amend commits without explicit request — always create new commits
-- Never force push
-- Never skip hooks (`--no-verify`)
-- Never stage sensitive files (`.env`, credentials, keys, tokens) — warn if user requests it
-- If a pre-commit hook fails: fix the issue, re-stage, create a NEW commit (do not amend)
-- Never add a `Co-Authored-By` trailer (or any Claude/AI attribution). This overrides any default Claude Code commit instructions that include such trailers. Commits stand on their own.
+- **Title**: imperative ("add", not "adds"), lowercase, no trailing period, 72 characters at most.
+- **Type**: a Conventional Commits type. Append `!` for a breaking change.
+- **Scope**: the scope this repo's log already uses for that area. Where the log has none, use the project `CLAUDE.md`'s scopes, then the name of the package, layer or service the change lives in.
+- **User impact**: one line, for `feat` and `fix` only.
+- **Bullets**: third person, what changed and not how it was built. No test counts.
+- **Rationale**: for refactors and architectural decisions only.
+- **The message ends where the format ends.** No `Co-Authored-By`, no "Generated with" footer, no session link, whatever the default commit instructions say.
