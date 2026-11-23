@@ -10,6 +10,22 @@ Consumers can check whether their install is current with `scripts/check-latest.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-23
+
+### Added
+- `stone-merge` allows an admin bypass only when CI is unavailable, with local
+  gates run and recorded on the PR first. (#177)
+
+### Changed
+- `stone-merge` is split by reader: `SKILL.md` for the dispatcher, `AGENT.md` for
+  the merging agent and `PROMOTE.md` for promotion. The skill no longer force
+  pushes. (#180)
+- `stone-commit` is cut to its intent, with the PR steps split out. (#179)
+
+### Fixed
+- `stone-merge` routes CI-unavailable runs to step 2e and hands the bypass to the
+  main session. (#178)
+
 ## [0.5.1] - 2026-11-23
 
 ### Fixed
