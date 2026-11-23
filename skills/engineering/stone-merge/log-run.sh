@@ -31,7 +31,7 @@
 #   --repo SLUG         owner/repo (auto-detected when omitted)
 #   --gate S            how the review gate resolved: docs-only | ci-check |
 #                       reviewer:<name> | policy-optional | asked | waived
-#   --checks S          pass | fail | none | rerun-passed
+#   --checks S          pass | fail | none | rerun-passed | bypassed-local
 #   --conflicts S       none, or a short description of what was resolved
 #   --labels S          issues labeled, or "none"
 #   --classifier S      verbatim denial text, or "none"
