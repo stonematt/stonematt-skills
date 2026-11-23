@@ -51,21 +51,49 @@ function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } ca
 
 // A lane link is described "Lane <X>: #<n> ..." (swarm step 4); a subagent that only mentions lanes is not one.
 const RX_LANE = /^\s*Lane\s+[^:\s]+\s*:/i;
-// This repo's swarm sessions (ones that spawned lanes), newest first.
+// A resumed session is a new transcript that starts with a copy of the old one, message uuids and all.
+// The first uuid is the run's key: every session that shares it is the same run.
+const roots = new Map();
+function rootOf(file) {
+  if (roots.has(file)) return roots.get(file);
+  let r = null;
+  try {
+    const fd = fs.openSync(file, 'r'), buf = Buffer.alloc(65536);
+    r = (buf.toString('utf8', 0, fs.readSync(fd, buf, 0, buf.length, 0)).match(/"uuid":"([^"]+)"/) ?? [])[1] ?? null;
+    fs.closeSync(fd);
+  } catch {}
+  if (r) roots.set(file, r);
+  return r;
+}
+
+// This repo's swarm runs (ones that spawned lanes), newest first. A run resumed into new sessions is one entry,
+// named by its newest session; `ids` and `members` hold every session of the run, oldest first.
 function listSessions() {
-  const out = [];
+  const runs = new Map();
   for (const p of fs.readdirSync(PROJECTS).filter(inProject)) {
     const pd = path.join(PROJECTS, p);
     if (!fs.statSync(pd).isDirectory()) continue;
-    for (const s of fs.readdirSync(pd)) {
-      const sub = path.join(pd, s, 'subagents');
-      if (!fs.existsSync(sub)) continue;
-      const metas = fs.readdirSync(sub).filter(n => n.endsWith('.meta.json')).map(n => readJson(path.join(sub, n)));
-      // A lane may run as a chain of agents; count each lane letter once.
-      const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && RX_LANE.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
-      // Only swarms: a session whose subagents include no lane is not one.
-      if (lanes.length) out.push({ id: s, dir: path.join(pd, s), project: p.startsWith(HOME_SLUG) ? p.slice(HOME_SLUG.length) : p, mtime: fs.statSync(sub).mtimeMs, agents: metas.length, lanes });
+    for (const n of fs.readdirSync(pd).filter(n => n.endsWith('.jsonl'))) {
+      const s = n.slice(0, -6), dir = path.join(pd, s), sub = path.join(dir, 'subagents');
+      const metas = fs.existsSync(sub) ? fs.readdirSync(sub).filter(n => n.endsWith('.meta.json')).map(n => ({ id: n.replace(/^agent-|\.meta\.json$/g, ''), ...readJson(path.join(sub, n)) })) : [];
+      const mtime = Math.max(fs.statSync(dir + '.jsonl').mtimeMs, metas.length ? fs.statSync(sub).mtimeMs : 0);
+      const key = rootOf(dir + '.jsonl') ?? s;
+      const run = runs.get(key) ?? { members: [], metas: new Map(), project: p.startsWith(HOME_SLUG) ? p.slice(HOME_SLUG.length) : p };
+      run.members.push({ id: s, dir, mtime });
+      for (const m of metas) run.metas.set(m.id, m);
+      runs.set(key, run);
     }
+  }
+  const out = [];
+  for (const run of runs.values()) {
+    const metas = [...run.metas.values()];
+    // A lane may run as a chain of agents; count each lane letter once.
+    const lanes = [...new Set(metas.filter(m => m.spawnDepth === 1 && RX_LANE.test(m.description ?? '')).map(m => m.description.replace(/^Lane\s+/i, '').replace(/:.*/, '').trim()))];
+    // Only swarms: a run whose subagents include no lane is not one.
+    if (!lanes.length) continue;
+    run.members.sort((a, b) => a.mtime - b.mtime);
+    const newest = run.members.at(-1);
+    out.push({ id: newest.id, dir: newest.dir, members: run.members.map(m => m.dir), ids: run.members.map(m => m.id), project: run.project, mtime: newest.mtime, agents: metas.length, lanes });
   }
   return out.sort((a, b) => b.mtime - a.mtime);
 }
@@ -109,7 +137,7 @@ function parseTranscript(file) {
   const key = `${st.size}:${st.mtimeMs}`;
   const hit = cache.get(file);
   if (hit && hit.key === key) return hit.v;
-  const v = { start: null, last: null, endT: null, tools: [], outTokens: 0, cwd: null };
+  const v = { start: null, last: null, endT: null, tools: [], outTokens: 0, cwd: null, tokensById: {} };
   const seen = new Map();
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (!line) continue;
@@ -121,18 +149,18 @@ function parseTranscript(file) {
     if (j.type !== 'assistant' || !m) continue;
     if (m.usage) {
       const o = m.usage.output_tokens ?? 0, prev = seen.get(m.id) ?? 0;
-      if (o > prev) { v.outTokens += o - prev; seen.set(m.id, o); }
+      if (o > prev) { v.outTokens += o - prev; seen.set(m.id, o); v.tokensById[m.id] = o; }
     }
     const uses = (m.content ?? []).filter(c => c.type === 'tool_use');
     if (!uses.length && m.stop_reason === 'end_turn') {
       // A turn that ends in plain text is a hand-back too; its first line may carry the status line.
       v.endT = t;
       const text = (m.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('\n');
-      if (text.trim()) v.tools.push({ t, name: 'TurnEnd', text: text.slice(0, 900), brief: toolSummary({ message: text }), stage: null, refs: [] });
+      if (text.trim()) v.tools.push({ key: m.id, t, name: 'TurnEnd', text: text.slice(0, 900), brief: toolSummary({ message: text }), stage: null, refs: [] });
     }
     for (const c of uses) {
       const inp = c.input ?? {};
-      const tool = { t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: mergePr(inp.command) };
+      const tool = { key: c.id, t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: mergePr(inp.command) };
       // extras the page uses for edge annotations and the goal panel
       if (c.name === 'Agent' || c.name === 'Task') Object.assign(tool, { useId: c.id, agentName: inp.name, promptLen: String(inp.prompt ?? '').length });
       if (c.name === 'SendMessage') Object.assign(tool, { to: inp.to, summary: inp.summary ?? String(inp.message ?? '').slice(0, 120) });
@@ -176,19 +204,19 @@ function planOf(text) {
   const session = (sec.match(/^Session:\s*([\w-]+)/m) ?? [])[1] ?? null;
   return Object.keys(lanes).length ? { session, lanes } : null;
 }
-// The swarm skill names run logs <date>-<repo>[-n].md. Which one is this session's: the one whose plan names
-// this session; else one whose plan shares a ticket with the session's lanes; else the newest written during
+// The swarm skill names run logs <date>-<repo>[-n].md. Which one is this run's: the one whose plan names
+// any of the run's sessions (a resumed run's Session: line may name the old session or the new one); else one whose plan shares a ticket with the session's lanes; else the newest written during
 // the session, skipping a planned log that shares no ticket with lanes already running. A log whose plan names
 // another session is never this one's.
-function runLogFor(id, start, last, tickets) {
+function runLogFor(ids, start, last, tickets) {
   if (!fs.existsSync(RUNS)) return null;
   const name = path.basename(ROOT);
   const logs = fs.readdirSync(RUNS).filter(n => n.includes('-' + name)).map(n => path.join(RUNS, n)).map(f => {
     const text = fs.readFileSync(f, 'utf8');
     return { f, m: fs.statSync(f).mtimeMs, text, plan: planOf(text) };
-  }).filter(l => !l.plan?.session || l.plan.session === id).sort((a, b) => b.m - a.m);
+  }).filter(l => !l.plan?.session || ids.includes(l.plan.session)).sort((a, b) => b.m - a.m);
   const during = l => l.m >= start && l.m <= last + 3600e3;
-  const l = logs.find(l => l.plan?.session === id)
+  const l = logs.find(l => ids.includes(l.plan?.session))
     ?? logs.find(l => l.m >= start && Object.values(l.plan?.lanes ?? {}).some(p => p.tickets.some(t => tickets.has(t))))
     ?? logs.find(l => during(l) && (!l.plan || !tickets.size));
   if (!l) return null;
@@ -224,32 +252,51 @@ const REPO = (() => {
   catch { return null; }
 })();
 
+// One orchestrator transcript from every session of a resumed run: the copied history counts once.
+function mergeMains(parts) {
+  if (parts.length < 2) return parts[0] ?? null;
+  const tools = new Map(), tokensById = {};
+  for (const p of parts) {
+    for (const tl of p.tools) tools.set(tl.key ?? `${tl.t}:${tl.name}`, tl);
+    Object.assign(tokensById, p.tokensById);
+  }
+  return { start: Math.min(...parts.map(p => p.start ?? Infinity)), last: Math.max(...parts.map(p => p.last ?? 0)), endT: Math.max(...parts.map(p => p.endT ?? 0)) || null,
+    cwd: parts[0].cwd, tools: [...tools.values()].sort((a, b) => a.t - b.t), outTokens: Object.values(tokensById).reduce((s, o) => s + o, 0), tokensById };
+}
+
 function state(id) {
   const sessions = listSessions();
-  const s = sessions.find(x => x.id === id) ?? sessions[0];
+  const s = sessions.find(x => x.ids.includes(id)) ?? sessions[0];
   if (!s) return { empty: true };
-  const sub = path.join(s.dir, 'subagents');
-  const agents = fs.readdirSync(sub).filter(n => n.endsWith('.jsonl')).map(n => {
-    const aid = n.replace(/^agent-|\.jsonl$/g, '');
+  // An agent running when the run was resumed has a transcript in both sessions; keep the longer one.
+  const files = new Map(), size = (sub, aid) => fs.statSync(path.join(sub, `agent-${aid}.jsonl`)).size;
+  for (const dir of s.members) {
+    const sub = path.join(dir, 'subagents');
+    if (!fs.existsSync(sub)) continue;
+    for (const n of fs.readdirSync(sub).filter(n => n.endsWith('.jsonl'))) {
+      const aid = n.replace(/^agent-|\.jsonl$/g, ''), had = files.get(aid);
+      if (!had || size(sub, aid) >= size(had, aid)) files.set(aid, sub);
+    }
+  }
+  const agents = [...files].map(([aid, sub]) => {
     const meta = readJson(path.join(sub, `agent-${aid}.meta.json`));
     const desc = meta.description ?? aid;
     const isLane = (meta.spawnDepth ?? 1) === 1 && RX_LANE.test(desc);
     return { id: aid, useId: meta.toolUseId, desc, model: meta.model ?? '?', parent: meta.parentAgentId ?? null, depth: meta.spawnDepth ?? 1,
-      isLane, queue: isLane ? [...desc.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : [], ...parseTranscript(path.join(sub, n)) };
+      isLane, queue: isLane ? [...desc.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : [], ...parseTranscript(path.join(sub, `agent-${aid}.jsonl`)) };
   });
-  const mainFile = s.dir + '.jsonl';
-  const main = fs.existsSync(mainFile) ? parseTranscript(mainFile) : null;
+  const main = mergeMains(s.members.map(d => d + '.jsonl').filter(f => fs.existsSync(f)).map(parseTranscript));
   const start = Math.min(...agents.map(a => a.start).filter(Boolean), main?.start ?? Infinity);
   const last = Math.max(...agents.map(a => a.last ?? 0), main?.last ?? 0);
   const tickets = new Set(agents.flatMap(a => a.queue));
-  return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(s.id, start, last, tickets), prs: prsNow(), repo: REPO };
+  return { now: Date.now(), session: s.id, project: path.basename(ROOT), start, last, main, agents, runLog: runLogFor(s.ids, start, last, tickets), prs: prsNow(), repo: REPO };
 }
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   const json = v => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(v)); };
   if (u.pathname === '/whoami') return json({ app: 'swarm-console', pid: process.pid, project: PROJECT, root: ROOT });
-  if (u.pathname === '/sessions') return json(listSessions().slice(0, 40).map(({ dir, ...s }) => s));
+  if (u.pathname === '/sessions') return json(listSessions().slice(0, 40).map(({ dir, members, ...s }) => s));
   if (u.pathname === '/state') return json(state(u.searchParams.get('session')));
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   res.end(fs.readFileSync(PAGE));
