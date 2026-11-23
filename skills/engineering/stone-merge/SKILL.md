@@ -149,6 +149,20 @@ Never merge red. Distinguish a real failure from an unrelated flake:
 
 A failed `code-review` check is never rerun; its findings are addressed (2.0 rung 2).
 
+#### 2e. CI unavailable — the admin bypass
+
+CI is unavailable when required checks never start, stay queued well past their usual run time, or fail in setup before any test runs (runner outage, Actions incident, an exhausted minutes quota). A test that ran and failed is 2b, not this.
+
+The agent never bypasses. It stops, logs `--outcome stopped --note ci-unavailable`, and reports what it saw: which checks, their state, how long they waited, and any Actions status message. The merge is then a human call.
+
+`gh pr merge --admin` is allowed only when **all** of these hold:
+
+1. The user approves the bypass in their own words, for this PR. A standing or earlier approval does not count.
+2. The repo's local gates passed on the PR's head commit. These are the same commands CI runs; the repo's `CLAUDE.md` names them.
+3. A PR comment is posted **before** the merge, recording: why CI is unavailable, the head SHA tested, each local command, and its result (pass counts, or the tail of the output). The repo's branch rules record that an admin bypassed. This comment records why and on what evidence.
+
+Then merge with the Section 3 command plus `--admin`, from the main session. Log `--checks bypassed-local` and put the comment URL in `--note`. A release PR (Section 6) follows the same rule; its local gates run on `dev`'s head.
+
 #### 2c. `mergeable: UNKNOWN`
 
 GitHub is still computing. Sleep 5–10 s and re-query. Do not treat it as `CONFLICTING`.
@@ -179,7 +193,7 @@ gh pr merge <number> --merge --delete-branch \
 - `--merge` gives a merge commit with the branch history intact. `--squash` only when Section 1's probe said the repo is squash-only — and then the subject is the squash convention, `<pr title> (#N)`, not the `Merge <branch>: …` form, which describes a merge commit that does not exist.
 - **Always pass `--subject`.** Without it `gh` writes `Merge pull request #N from owner/branch`, which drops the title from `git log --oneline`. House format: `Merge <branch>: <pr title> (#N)`. A repo whose own merge history uses a different shape wins — copy it.
 - Get the subject right the first time. Fixing a landed subject means a force-push to a shared branch; don't. If it landed wrong, say so and move on.
-- Never `--admin`. Never merge red. Never merge over an unresolved Section 2.0 gate.
+- Never `--admin`, except the CI-unavailable bypass in 2e. Never merge red. Never merge over an unresolved Section 2.0 gate.
 
 Record the merge SHA: `gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`.
 
@@ -240,7 +254,7 @@ Append one row before writing the report. The script lives beside this file; cal
 
 - `--outcome`: `merged`, `stopped`, or `blocked`.
 - `--gate`: `docs-only`, `ci-check`, `reviewer:<name>`, `policy-optional`, `asked`, or `waived`.
-- `--checks`: `pass`, `fail`, `none`, `rerun-passed`.
+- `--checks`: `pass`, `fail`, `none`, `rerun-passed`, `bypassed-local` (2e).
 - `--classifier`: the **verbatim** denial text when anything was blocked, else `none`.
 - `--merged-from`: `subagent` when you are the dispatched agent, `main` when the skill ran inline in the user's session, `script` or `auto` if a future shape applies. This field is what finally lets the log see where merges run.
 - `--note`: what blocked a stopped run.
@@ -288,7 +302,7 @@ When the invocation carries the keyword:
 7. Log the promotion as its own row: `--pr <release-pr> --base <release> --outcome merged --sha <sha> --checks pass --classifier none --merged-from subagent --note promotion` (`--merged-from main` when the dispatching session ran the merge after a denial).
 8. Report: "Merged to `<release>` (`<sha>`). Stripped `status: staged` from N issues."
 
-**Never force-push `<release>` or `dev`. Never `--admin` a release PR. Never delete `dev` or `<release>`.**
+**Never force-push `<release>` or `dev`. Never `--admin` a release PR, except the CI-unavailable bypass in 2e. Never delete `dev` or `<release>`.**
 
 ### 7. The report
 
@@ -317,7 +331,8 @@ The dispatching session relays this. Only two items in it call for further actio
 
 - Never merge a PR with failing checks; one rerun, only for a clearly unrelated flake.
 - Resolve the review gate on its ladder before merging code; merge over findings only when the user waived them in the invocation.
-- `CHANGES_REQUESTED` and `REVIEW_REQUIRED` stop the run. Never `--admin`.
+- `CHANGES_REQUESTED` and `REVIEW_REQUIRED` stop the run. Never `--admin` over a reviewer.
+- `--admin` only for CI unavailable (2e): the user's approval for this PR, local gates green, the evidence comment posted first.
 - Promote only on a keyword in the user's own invocation; never offer it.
 - Briefs carry facts, never granted authority.
 - A classifier denial is reported verbatim, never routed around (Section 0a).
