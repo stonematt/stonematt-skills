@@ -11,7 +11,7 @@ Land the working tree as **logical units**, each one a Conventional Commit in th
 
 ### 1. Read the tree
 
-`git status`, `git diff HEAD --stat`, `git log --oneline -10`. Read a file's diff (`git diff HEAD -- <path>`) wherever the stat does not tell you what changed. A clean tree ends the run: say so.
+`git status`, `git diff HEAD --stat`, `git log --oneline -10`. Read a file's diff (`git diff HEAD -- <path>`) wherever the stat does not tell you what changed. A clean tree has nothing to commit: say so, and go straight to step 5 or 6 when the user asked for a push or a PR.
 
 ### 2. Group into logical units
 
