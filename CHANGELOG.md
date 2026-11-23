@@ -10,6 +10,19 @@ Consumers can check whether their install is current with `scripts/check-latest.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-23
+
+### Fixed
+- `swarm` can close a ticket that turns out already done with no PR. The
+  orchestrator writes `#<n> → closed: <why>` on the lane's `Merged:` line, the
+  console counts that ticket as landed, and an escalation stays open until the
+  run log records how it ended. The `swarm-board` mod treats a ticked lane as
+  done whatever its link's last status line says. (#151)
+- `swarm-console` shows a run resumed into a new session as one run, with the
+  orchestrator's calls counted once, and finds its run log by either session
+  id. The Goal panel shows the run log's title and scope as soon as the title
+  is written. (#130)
+
 ## [0.5.0] - 2026-11-23
 
 ### Added
@@ -182,7 +195,8 @@ repo-internal and does not reach a `npx skills add` / marketplace install.
 - Nightly auto-journaling sweep (`scripts/journal-sweep.sh`) with launchd
   install/uninstall/run helpers.
 
-[Unreleased]: https://github.com/stonematt/stonematt-skills/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/stonematt/stonematt-skills/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/stonematt/stonematt-skills/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/stonematt/stonematt-skills/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/stonematt/stonematt-skills/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stonematt/stonematt-skills/compare/v0.2.0...v0.3.0
