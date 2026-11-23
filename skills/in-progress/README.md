@@ -6,6 +6,7 @@ Drafts not yet ready to ship. Excluded from `plugin.json` and `link-skills.sh`.
 |---|---|
 | `stone-adopt-pocock` | Adopt the Pocock skill suite into a repo — preflight, role binding, workbench. |
 | `product-lead` | Hold where each initiative in one product repo stands on the ask-matt ladder, name the next move, convene a panel of reviewer personas, and flag architecture drift. |
+| `orchestrator` | Thin keep-alive session for one push: spawns the product lead, release manager or swarm as their own sessions, relays Matt's words, relaunches any that die. |
 | `release-manager` | Carry one release from the goal PR on the integration branch to production verified and the spec closed: a ledger issue, dispatched sessions, and the merges kept in its own session. Does no build work. |
 | `bse-monitor` | Watch a repo for ready BSEs and land each through a fresh subagent. User-invoked only. |
 | `swarm` | Land a whole issue queue unattended: file-fenced lanes of agents in parallel, each lane running the repo's `implement` verb serially. |
