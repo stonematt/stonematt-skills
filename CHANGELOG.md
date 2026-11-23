@@ -62,6 +62,17 @@ marketplace install.
   watch that lands ready BSEs through a fresh subagent each.
 
 ### Changed
+- `swarm` folds the lessons that recurred most in its workbench ledger. The
+  orchestrator checks tickets against the base before launch, writes the
+  shared lane brief to a file once, checks that a PR is fresh before it merges,
+  keeps the goal branch current with its base, and runs the whole-run review
+  before the cleanup lane. Lanes stop force-pushing after the first push, clear
+  only what the merge left in step g, and send `ready-to-merge` only after
+  review with every criterion met. A wait on the owner is now written to the
+  run log as `Waiting on owner:`, and in a goal swarm it is commented on the
+  goal PR.
+- `swarm-console` shows each `Waiting on owner:` line at the top of its
+  Needs you bay.
 - `stone-merge` keeps `gh pr merge` in the main session and delegates the
   reversible work around it: the CI wait, log triage and the bookkeeping tail.
   The auto-mode classifier blocks that merge call from a subagent, so the skill
