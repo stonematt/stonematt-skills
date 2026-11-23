@@ -27,9 +27,9 @@ Steps:
 
 Leave for Matt, and list each as an exact step in your report: <the dashboard steps and the denied commands, with the SHA each needs>.
 
-Hard rules: <the systems this session must not write to>. Never print secret values. <If production answers 5xx after the change, roll back with <command>, then stop and report.> Merge no PR. If an action is denied, stop that action and report it; do not route around it. No AI attribution in any commit, PR or comment.
+Hard rules: <the systems this session must not write to>. Never print secret values. <If production answers 5xx after the change, roll back with <command>, then stop and report.> Merge no PR. Stop every server you started before you report, and only those. If an action is denied, stop that action and report it; do not route around it. No AI attribution in any commit, PR or comment.
 
-Report back once with SendMessage to "<project> · <manager session name>": <the facts the manager needs to check your claims: links, SHAs, check results, diffs, what is left>. Keep it under <8–12> lines.
+Report back once with SendMessage to "<project> · <manager session name>": <the facts the manager needs to check your claims: links, SHAs, check results, diffs, what is left>. Keep it under <8–12> lines. If that address does not resolve, post the same report as a comment on the ledger issue, <ledger URL>.
 ```
 
 ## Why each part is there
@@ -44,5 +44,5 @@ Report back once with SendMessage to "<project> · <manager session name>": <the
 - **The report address.** `<project> · <name>` as `ListAgents` prints it. The bare name fails.
 - **A UAT session.** Matt talks to it directly, so it holds his pass and acts on it. Its brief says: check every mechanical item itself in a browser, before Matt sees anything. Mechanical items are done-when lines, an element present or absent, the layout holding, and other tabs matching production. Each check keeps evidence: a screenshot or URL, and the width. Then send Matt one short list, in one message, of only the items that need his judgement: taste, product trade-offs, "good enough for now". Each item has its URL or screenshot, the width, and one question. List the mechanical results under it as already checked. Do not walk him through items one at a time. Matt, 2026-11-12: "drive UAT in an agent session an only escalate to me a short list that requires human judgement." A mechanical check that fails is a defect for the manager, not a question for Matt. Route scope calls to the product-lead session, named by address; when Matt passes UAT, merge the goal PR into the integration branch pinned to its checked head, then report. A go relayed into the manager's session is denied (SKILL.md step 5).
 - **A ticket to close.** Before a brief tells a session to close a ticket, check each acceptance line against the brief's hard rules. A line the session cannot meet under them is split into its own ticket, named in the brief.
-- **A close-out.** Its brief names the retro over the ledger, the lessons file, and the roll-up of each `[skill]` lesson to stonematt-skills#137.
+- **A close-out.** Its brief names the retro over the ledger, the lessons file, and the report of each `[skill]` lesson to its skill's workbench ledger, `~/.claude/skill-workbench/<skill>/feedback.md`.
 - **A short report.** One report, with the links and SHAs the manager needs to check it cheaply.

@@ -62,6 +62,22 @@ marketplace install.
   watch that lands ready BSEs through a fresh subagent each.
 
 ### Changed
+- `product-lead` and `release-manager` report `[skill]` lessons to a local
+  workbench ledger, `~/.claude/skill-workbench/<skill>/feedback.md`, in place
+  of comments on the public issue #137. Private-repo detail now stays on the
+  operator's machine.
+- `product-lead` folds its most recurrent lessons. Setup tracks the Graphify
+  hook through `core.hooksPath` and drafts the panel as a full roster, of which
+  a review seats three or four. Status asks whether each QA or UAT initiative is
+  in or out of the release, traces printed numbers to their source, and logs
+  scope calls as Waits-on-Matt lines with a default. Each open thread gets a
+  named close-out owner.
+- `release-manager` folds its most recurrent lessons. It keeps the host awake
+  on overnight releases, leaves the ledger complete before it goes idle, checks
+  a brief is non-empty before dispatch, puts gate risks in front of Matt with a
+  default, and closes with one branch-delete command. Session briefs stop their
+  own servers, and fall back to a ledger comment when the report address does
+  not resolve.
 - `stone-merge` keeps `gh pr merge` in the main session and delegates the
   reversible work around it: the CI wait, log triage and the bookkeeping tail.
   The auto-mode classifier blocks that merge call from a subagent, so the skill

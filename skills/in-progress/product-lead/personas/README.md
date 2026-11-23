@@ -1,6 +1,6 @@
 # Persona library
 
-Personas that hold in any product repo. Setup copies one into `docs/panel/<name>.md` and fills its **What I care about here** list for that project; the lens, the skills and the **Seat when** line stay as written unless Matt changes them. A project change to a library persona stays in the project's copy. A change that every project would want comes back here through a `[skill]` lesson on #137.
+Personas that hold in any product repo. Setup copies one into `docs/panel/<name>.md` and fills its **What I care about here** list for that project; the lens, the skills and the **Seat when** line stay as written unless Matt changes them. A project change to a library persona stays in the project's copy. A change that every project would want comes back here through a `[skill]` lesson in the product-lead workbench ledger (SKILL.md step 7).
 
 | Persona | Group | Asks |
 |---|---|---|
