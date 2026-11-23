@@ -131,8 +131,17 @@ Run the lightweight pre-merge gate before merging to `main`:
 ./scripts/test.sh
 ```
 
-This validates skill naming/index consistency, the claude.ai zip smoke test, and
-the release-script guards.
+This validates skill naming/index consistency, the claude.ai zip smoke test, the
+release-script guards, and each mod under `skills/` (`claude plugin validate` and
+`claude plugin test`; skipped where the `claude` CLI is not installed).
+
+CI runs it on every pull request and on pushes to `dev` and `main`. CI has no
+`claude` CLI, so the mod checks run only locally: enable the pre-push hook once
+per clone with
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## License
 

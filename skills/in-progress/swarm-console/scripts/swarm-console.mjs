@@ -31,8 +31,21 @@ function repoRoot(dir) {
 }
 const ROOT = repoRoot((argv.match(/--project (\S+)/) ?? [])[1] ?? process.cwd());
 const PROJECT = slugOf(ROOT);
-// The main checkout's folder, or a session started inside one of its .claude/worktrees.
-const inProject = dir => dir === PROJECT || dir.startsWith(PROJECT + '--claude-worktrees-');
+// The repo's checkouts: the main one and every git worktree, wherever it sits (a sibling like ../repo-ops
+// is one too). Re-read at most every 30 s, so a worktree added mid-run shows up.
+let checkouts = { at: 0, slugs: [PROJECT] };
+function checkoutSlugs() {
+  if (Date.now() - checkouts.at < 30000) return checkouts.slugs;
+  let slugs = [PROJECT];
+  try {
+    const out = execFileSync('git', ['-C', ROOT, 'worktree', 'list', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    slugs = [...new Set([PROJECT, ...out.split('\n').filter(l => l.startsWith('worktree ')).map(l => slugOf(l.slice(9).trim()))])];
+  } catch {}
+  checkouts = { at: Date.now(), slugs };
+  return slugs;
+}
+// A checkout's folder, or a session started inside one of its .claude/worktrees (removed ones included).
+const inProject = dir => checkoutSlugs().some(s => dir === s || dir.startsWith(s + '--claude-worktrees-'));
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } }
 
@@ -78,6 +91,12 @@ function toolSummary(input = {}) {
 }
 // Issue and PR numbers a call names: #n, issues/n, pull/n, `gh issue|pr <verb> n`, and branch or folder suffixes like feat/x-422.
 // Temp paths are dropped first: their numbers (/tmp/claude-501/) are user ids, not issues.
+// The PR a command merges: `gh pr merge <n>` at the start of the command or after a separator. The phrase inside quoted
+// text (an issue comment, a heredoc) is not a merge. Returns the PR number, or undefined.
+function mergePr(command) {
+  const m = String(command ?? '').match(/(?:^|[;&|(]\s*|\bthen\s+|\bdo\s+)gh pr merge\s+(\d+)\b/m);
+  return m ? Number(m[1]) : undefined;
+}
 function refsOf(input = {}) {
   const s = [input.command, input.file_path, input.description, input.subject].filter(Boolean).join(' ').slice(0, 3000).replace(/\/(private\/)?tmp\/\S*/g, ' ');
   const rx = /#(\d+)\b|\b(?:issues|pull)\/(\d+)\b|\bgh (?:issue|pr) [a-z-]+ (\d+)\b|[A-Za-z]-(\d+)\b/g;
@@ -113,7 +132,7 @@ function parseTranscript(file) {
     }
     for (const c of uses) {
       const inp = c.input ?? {};
-      const tool = { t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: /gh pr merge/.test(String(inp.command ?? '')) || undefined };
+      const tool = { t, name: c.name, brief: toolSummary(inp), stage: stageOf(c.name, inp), refs: refsOf(inp), merge: mergePr(inp.command) };
       // extras the page uses for edge annotations and the goal panel
       if (c.name === 'Agent' || c.name === 'Task') Object.assign(tool, { useId: c.id, agentName: inp.name, promptLen: String(inp.prompt ?? '').length });
       if (c.name === 'SendMessage') Object.assign(tool, { to: inp.to, summary: inp.summary ?? String(inp.message ?? '').slice(0, 120) });
@@ -179,6 +198,8 @@ function runLogFor(id, start, last, tickets) {
     title: (text.match(/^# (.*)$/m) ?? [])[1],
     // a goal swarm's landing target, "Scope: goal/<slug> → <base>", on its own line or inside the goal line
     scope: (text.match(/\bScope:\s*`?([^\s`]+`?\s*(?:→|->)\s*`?[^\s`.,;]+)/) ?? [])[1]?.replace(/`/g, '') ?? null,
+    // open questions only the owner can answer: one "Waiting on owner: <question>" line each, deleted once answered
+    waiting: [...text.matchAll(/^Waiting on owner:[ \t]*(.*?)[ \t]*$/gm)].map(m => m[1] || '(no question given)'),
     tasks: [...text.matchAll(/^- \[( |x)\] (.*)$/gm)].map(m => ({ done: m[1] === 'x', text: m[2] })),
     incidents: (text.split(/^## Incidents\s*$/m)[1] ?? '').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2)),
     plan,

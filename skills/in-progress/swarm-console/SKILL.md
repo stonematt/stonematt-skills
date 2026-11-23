@@ -26,7 +26,7 @@ Each repo gets its own console on its own port, starting at 4186. `--runs` point
 
 ## 2. Open it
 
-Open the link in the browser the user named — on macOS `open -a "Google Chrome" <link>`, or plain `open <link>` for their default — and give them the link. It opens the repo's newest session with subagents; pin a different one with `&session=<id>`, the orchestrator's own session id. `&lane=<agent-id>` zooms to one lane; `&t=<epoch-ms>` reopens a moment, and a paused page writes it into its URL. The page lists its keys under `?`.
+Open the link in the browser the user named — on macOS `open -a "Google Chrome" <link>`, or plain `open <link>` for their default — and give them the link. It opens the repo's newest swarm session and, while unpinned and following live, moves to a newer swarm when one spawns its first lane. Pin one with `&session=<id>`, the orchestrator's own session id; a pinned page says when a newer swarm starts instead of moving. `&lane=<agent-id>` zooms to one lane; `&t=<epoch-ms>` reopens a moment, and a paused page writes it into its URL. The page lists its keys under `?`.
 
 **Done when** the user has the link and `curl -s -o /dev/null -w '%{http_code}' <link>` answers `200`.
 

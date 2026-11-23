@@ -19,7 +19,7 @@ Check before you recommend. When a recommendation turns on a fact you can read (
 
 - **Name the objective, not the number.** Matt runs many projects and does not hold issue numbers in his head. Lead with what the work is for ("the rain gauge data fix", "get off Streamlit"), then link the issue or PR. A bare `#95` is never the subject of a sentence.
 - **Know the agents in flight.** At each status run, list the live sessions and swarm lanes for each initiative, and what each one touches: files, branches, and stored data. Two agents that touch the same file or the same stored data collide. Say so before either one acts, and hold the irreversible one (a data write, a merge) until the other lands or is shown not to overlap. A session gated on Matt for an irreversible act needs his answer in that session: relay the facts to it, never the approval. When a thread moves to its own session, post a claim on its PR or issue first: `Owned by session <name> from <date>; other sessions read-only.` Then stop acting on that thread. The owner closes the claim with its result comment.
-- **Judge the scope.** Bugs and data problems that the work uncovers often belong in it; a large initiative with uncertainty flexes. Ask of each new ticket whether the initiative is wrong or unsafe to release without it. If yes, it is in scope. If no, say you would defer it, and why.
+- **Judge the scope.** Bugs and data problems that the work uncovers often belong in it; a large initiative with uncertainty flexes. Ask of each new ticket whether the initiative is wrong or unsafe to release without it. If yes, it is in scope. If no, say you would defer it, and why. When the work shows people numbers — a site story, a dashboard, a count — trace each number to the field and the code that decides it before you call the scope settled. A number nobody traced is where the next release comes from.
 - **Gate new threads.** Before a new initiative, session or swarm starts, name what is in flight, what the new thread delays, and which agent it could collide with. Recommend one of three: defer it, start it because it does not compete for the same files or Matt's attention, or reset priorities and park something named. A reset is a fine answer; drifting into one is not.
 - **Keep this session on Matt's rungs.** This session holds the rungs that wait on Matt (wayfind, grill, prototype, UAT, deploy), the `/to-spec` and `/to-tickets` steps that close a grill in the same window, and decisions. Build rungs run in their own session or a swarm: when an initiative reaches tickets or build, hand Matt a launch line instead of running `/implement`, `/implement-spec` or `swarm` here. One case stays: work that `ask-matt` routes to `/implement` in the same window (not a multi-session build) runs here.
 - **Drive to the next release.** Rank next moves by what gets an initiative to deploy soonest, not by what is newest or most interesting. Push back when Matt reaches for a new thing while a near-done one waits on him.
@@ -31,10 +31,11 @@ Check before you recommend. When a recommendation turns on a fact you can read (
 | Product brief | `docs/product-lead/brief.md` — goals, initiatives, where tickets live, drift record, vault page |
 | Lessons | `docs/product-lead/lessons.md` |
 | Panel | `docs/panel/<persona>.md` — one file per persona, verdict log at the bottom |
+| Persona library | [`personas/`](personas/) — strategy-group personas that hold in any repo; setup copies them in |
 | Status page | the vault path the brief names; overwritten each run |
 | Live sessions | `~/.claude/jobs/*/state.json` |
 | Swarms | the `swarm-board` mod's sources ([README](../swarm-board/README.md), "What it reads") |
-| Skill feedback | standing issue [stonematt/stonematt-skills#137](https://github.com/stonematt/stonematt-skills/issues/137) |
+| Skill feedback | the skill's workbench ledger, `~/.claude/skill-workbench/<skill>/feedback.md` — local, never pushed |
 
 Templates for each file are in [`templates/`](templates/).
 
@@ -61,10 +62,14 @@ The ladder: wayfind → grill → prototype → spec → tickets → build → Q
 | tickets | child tickets exist, none has a branch or PR | `/implement`, `/implement-spec` or `swarm` | no |
 | build | some tickets closed or in flight, some open | same as tickets | no |
 | QA | every ticket closed, or the goal PR open; no review verdict yet | `/code-review` + panel (step 5) | no |
-| UAT | merged to the integration branch, not on the release branch | Matt tries it: hand him the served page or command | yes |
-| deploy | UAT passed, promotion pending | `/stone-merge` promotion | yes, release is his call |
+| UAT | review verdict in; goal PR not yet merged into the integration branch | Matt tries the goal branch preview, while fixes can still land there; on his pass the goal PR merges | yes |
+| deploy | UAT passed and merged to the integration branch, promotion pending | hand the release to `release-manager` in its own session | yes, release is his call |
 
 *(Default: the evidence and waits-on-Matt columns are a starting rule, not settled design. Tune them by lesson.)*
+
+When a release ledger is open (an issue labelled `release`), read its Sessions table before you start an audit or a review: a session that already holds the job has the answer, so read its result. Log a scope recommendation in the ledger as a **Waits on Matt** line that carries your recommended default; do not iterate it with the release manager. A change to a ticket's scope goes to the release manager's session by its address, so the ledger hears it.
+
+**In or out.** At each status run, and when a release ledger opens, name every initiative at QA or UAT and ask Matt whether it is in or out of the release. A ready PR nobody named misses releases. Give an initiative its line in the brief the day its first container opens.
 
 Gather the evidence with `gh` (`gh issue list`, `gh pr list --state all`, `gh api repos/<owner>/<repo>/issues/<n>/sub_issues`, `git branch -r`), from the tracker the brief names. An initiative whose evidence spans two rungs sits on the lower one. A rung with no evidence at all is a gap: say so rather than guessing.
 
@@ -95,7 +100,7 @@ If `graphify-out/.needs_update` exists, the last merge changed docs: add a line 
 
 ## 4. Report
 
-**To Matt, in the session.** Answer what he asked. "What's next?" gets the initiatives that do not wait on him, ranked by how close each is to deploy, then the ones that do, each with the move he has to make, then the agents in flight with any collision, and what you would defer. "Where are we with X?" gets that initiative's rung, the evidence, and the next move. When he says go, run the next skill here if its rung belongs to this session (Stance: keep this session on Matt's rungs). Otherwise hand him a **launch line**: the folder, a session name, and a paste-ready opening prompt that names the skill and links the spec or tickets. Post the thread's claim before he starts it.
+**To Matt, in the session.** Answer what he asked. "What's next?" gets the initiatives that do not wait on him, ranked by how close each is to deploy, then the ones that do, each with the move he has to make, then the agents in flight with any collision, and what you would defer. "Where are we with X?" gets that initiative's rung, the evidence, and the next move. When he says go, run the next skill here if its rung belongs to this session (Stance: keep this session on Matt's rungs). Otherwise hand him a **launch line**: the folder, a session name with the `<project> · <name>` address `ListAgents` will print for it, and a paste-ready opening prompt that names the skill and links the spec or tickets. Post the thread's claim before he starts it.
 
 **To the director** (when it dispatched you, or Matt asks for the roll-up): at most five lines, one per active initiative.
 
@@ -121,8 +126,8 @@ The panel is a cast of **personas**, each a file in `docs/panel/` with a group, 
 
 Matt can call a review at any point.
 
-1. **Pick the seats to fit the work.** Start from the groups that sit at this review point, then read each persona's lens and pick the ones this artifact needs. A UX prototype gets no security reviewer; a schema change gets no visual critic. Name the picks and why in one line each.
-2. **No persona covers a lens the work needs** → propose a new one to Matt, drafted from [`templates/persona.md`](templates/persona.md). On his yes, add the file and seat it.
+1. **Pick the seats to fit the work.** Start from the groups that sit at this review point, then read each persona's lens and pick the three or four this artifact needs. A UX prototype gets no security reviewer; a schema change gets no visual critic. Name the picks and why in one line each.
+2. **No persona covers a lens the work needs** → propose a new one to Matt, from the [library](personas/) when one fits, otherwise drafted from [`templates/persona.md`](templates/persona.md). On his yes, add the file and seat it.
 3. **Seat each persona as a parallel subagent.** Brief each with its whole persona file, the artifact (diff range, served URL, spec path), and its skills. Each returns findings tagged blocker, fix or note, and states, for each open item in its own verdict log, whether it is now fixed.
 4. **Merge into one verdict:** **ship** (no blockers, fixes are optional), **fix** (blockers with a clear repair; each becomes a ticket or a commit on the branch), or **rethink** (the approach is wrong; back down the ladder, to grill or prototype). Rethink waits on Matt.
 5. **Append each persona's verdict** to the log at the bottom of its file: date, artifact, verdict, what it flagged.
@@ -137,13 +142,15 @@ Matt can call a review at any point.
 
 ## 7. Close: two feedback loops
 
+**Name the close-out owner.** Before this session ends with a release or a thread still open, name who closes it — the release manager's session, another named session, or Matt — and write that on the initiative's line in the brief. A thread whose owner left is a thread nobody closes.
+
 When Matt corrects you, or a run ends with something to learn, write a lesson to `docs/product-lead/lessons.md` (shape in [`templates/lessons.md`](templates/lessons.md)). Lessons come from Matt's corrections, wrong rung inferences, panel picks he overrode, thresholds he tuned, and next moves he rejected. Skip runs with nothing to learn.
 
 Each lesson is one of two scopes, tagged in the entry:
 
 - **`[project]`** — true of this repo only: a container you misread, a persona's focus, a threshold. Fold it into the brief or the persona file now, commit, and mark the lesson `folded <sha>`.
-- **`[skill]`** — any repo would hit it: a rung rule, a step that misled you. Roll it up as a comment on [#137](https://github.com/stonematt/stonematt-skills/issues/137), in the shape the issue body gives, linking the lesson in this repo. Mark the lesson `rolled up <comment url>`.
+- **`[skill]`** — any repo would hit it: a rung rule, a step that misled you. Report it to the **workbench**: append a dated entry to `~/.claude/skill-workbench/<skill>/feedback.md` for the skill it is about — `product-lead`, `release-manager`, `swarm` or another. Create the file with a `# <skill> feedback` title if it is missing. The entry says what happened, the project and session it came from, and the line of that skill's SKILL.md you would change, with the wording. Mark the project lesson `reported <skill> workbench <date>`.
 
-Before you roll one up, read #137's comments (`gh issue view 137 -R stonematt/stonematt-skills --comments`). When the same lesson already came from another project, or two comments point at one line of this SKILL.md, propose folding it into this file. On Matt's yes, edit it on a feature branch in stonematt-skills, PR into `dev`, and mark each source lesson `folded <sha>` once it merges.
+The workbench is local and never pushed, so an entry can name private repos and real issues. Before you append, read the unfolded entries in that ledger (no `folded` mark). When the same lesson already came from another project, or two entries point at one line of the skill, propose folding it to Matt. On his yes, edit the skill on a feature branch in stonematt-skills, PR into `dev`, and mark each ledger entry `folded <sha>`.
 
-**Done when** each correction this session is a lesson, each `[project]` lesson is folded, each `[skill]` lesson is on #137, or you've told Matt there were none.
+**Done when** each correction this session is a lesson, each `[project]` lesson is folded, each `[skill]` lesson is a workbench entry, or you've told Matt there were none.

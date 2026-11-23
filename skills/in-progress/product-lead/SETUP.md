@@ -12,7 +12,7 @@ Read `CLAUDE.md` / `AGENTS.md`, `README.md`, `GLOSSARY.md` or `CONTEXT.md`, `PRO
 
 Copy [`templates/brief.md`](templates/brief.md) to `docs/product-lead/brief.md` and fill it with Matt in one exchange per section:
 
-- **Goals**: two or three outcomes, in his words. Point at `PRODUCT.md` or the README rather than restating them.
+- **Goals**: two to four strategic outcomes, in his words: where the product is headed and what it must become to get there, not the features it has. Read the live map's destination and the README's purpose, then ask Matt what comes after them. Point at `PRODUCT.md` or the README for the users rather than restating them.
 - **Initiatives**: one line each, with its containers (map issue, spec, milestone). Draft the list from the open issues and maps, and let Matt cut and rename it.
 - **Where the tickets live**: tracker, labels, milestone convention.
 - **Drift**: the last `improve-codebase-architecture` review's commit, if Matt knows one. Otherwise record the integration branch's current HEAD as the baseline. *(Default: no known review means drift counts from setup.)* Thresholds start at 30 files or 1,500 lines.
@@ -24,9 +24,11 @@ Copy [`templates/brief.md`](templates/brief.md) to `docs/product-lead/brief.md` 
 
 Draft each persona from [`templates/persona.md`](templates/persona.md) with Matt, at `docs/panel/<name>.md`. Each belongs to one **group**, and the group decides when it sits (SKILL.md step 5):
 
-- **Tactical**: the people who use the product and the ways it can fail. An end user on the device they really use, a maintainer who reads the code in a year, an operator who pays for it. Two or three seats.
+- **Tactical**: the people who use the product and the ways it can fail. An end user on the device they really use, a maintainer who reads the code in a year, an operator who pays for it.
+
+The panel is a standing **roster**, not a quorum: draft a seat for every lens the product needs, across all three groups — a dozen or more is normal. Each review seats only the three or four that fit (SKILL.md step 5), so a large roster costs nothing per review.
 - **Community**: the people the product is about or serves, when they differ from its users ("the parent of a junior rider whose name is in the results"). Draft it when the product has such a community.
-- **Strategy**: market and craft experts for larger design and strategy efforts (a data journalist, a marketer, a brand keeper). Propose the seats; Matt may defer this group to the first strategy effort.
+- **Strategy**: market and craft experts for larger design and strategy efforts (a data journalist, a marketer, a brand keeper). Propose the seats; Matt may defer this group to the first strategy effort. Start from the library in [`personas/`](personas/): the FT data journalist, the brand referee and the marketer. Copy the ones that fit and fill each one's **What I care about here** for this project. A product with no charts drops the FT seat; copy `personas/ft-data-storytelling.md` alongside the FT seat.
 
 Give each a concrete lens ("the cyclist checking results on a phone at the finish line"), not a role title.
 
@@ -34,20 +36,21 @@ Each persona names the skills it reviews with: any installed skill that fits its
 
 Leave the infra, deploy and cost seat empty; `security-review` stands in (SKILL.md step 5).
 
-**Done when** two or three tactical persona files exist, the community and strategy groups are each drafted or deferred by Matt, every file has a group, a lens, its skills, what it cares about here, and an empty verdict log, and Matt has approved each lens.
+**Done when** every tactical seat Matt agreed has a file, the community and strategy groups are each drafted or deferred by Matt, every file has a group, a lens, its skills, what it cares about here, and an empty verdict log, and Matt has approved each lens.
 
 ## 4. The Graphify hook
 
-The hook keeps the local knowledge graph fresh on merges to the integration branch: it runs `graphify update .` and flags doc changes for a full `/graphify`. It never commits.
+The hook keeps the local knowledge graph fresh on merges to the integration branch: it runs `graphify update .` and flags doc changes for a full `/graphify`. It never commits. It lands in the setup PR as a tracked file, so every clone and worktree gets it.
 
-1. Find the hooks dir: `git rev-parse --git-path hooks` (a worktree shares the main checkout's).
-2. A `post-merge` already there → show Matt the diff against [`templates/post-merge`](templates/post-merge) and let him choose. Never overwrite it silently.
-3. Otherwise copy [`templates/post-merge`](templates/post-merge) in and `chmod +x` it. It is a verbatim copy of `nitimini/.git/hooks/post-merge`. If the integration branch is not `dev`, change the one `[ "$branch" = "dev" ]` line.
-4. No `graphify-out/graph.json` in the repo → the hook exits silently. Tell Matt a first `/graphify .` is needed for it to do anything.
+1. Find the tracked hooks dir: `git config core.hooksPath`. Set (Husky's `.husky`, say) → that dir. Unset → use `.githooks/`, and run `git config core.hooksPath .githooks`.
+2. A `post-merge` already there, or in `git rev-parse --git-path hooks` → show Matt the diff against [`templates/post-merge`](templates/post-merge) and let him choose. Never overwrite it silently.
+3. Otherwise copy [`templates/post-merge`](templates/post-merge) in, `chmod +x` it, and `git add` it. It is a verbatim copy of `nitimini/.git/hooks/post-merge`. If the integration branch is not `dev`, change the one `[ "$branch" = "dev" ]` line.
+4. Check that `.gitignore` covers `graphify-out/`; add it if not. The graph is rebuilt on each machine.
+5. No `graphify-out/graph.json` locally → the hook exits silently. Tell Matt a first `/graphify .` is needed for it to do anything.
 
-Hooks are not tracked by git, so this step leaves nothing in the PR. Note it in the PR body.
+`core.hooksPath` is local config, so a fresh clone needs the one `git config` line. Put it in the PR body and in the repo's setup docs.
 
-**Done when** the hook is executable at the hooks path, or Matt kept his own, and he knows whether a first `/graphify` is needed.
+**Done when** the hook is executable and staged in the PR, or Matt kept his own, `graphify-out/` is ignored, and he knows whether a first `/graphify` is needed.
 
 ## 5. The lessons file
 
