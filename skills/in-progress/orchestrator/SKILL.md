@@ -54,5 +54,6 @@ The push ends when the release manager closes its ledger, or, with no release ma
 1. Stop every crew session that is still live, and only those.
 2. List the worktrees and remote branches the crew left. Hand Matt one `!` command that removes them all.
 3. Stop `caffeinate`. Mark the crew list closed, with one line of result.
+4. Write the **lessons** of the orchestration itself: Matt's corrections to you, crew relaunches, denied relays, sessions he had to attach to or clean up by hand. The release manager's retro reads only its ledger, so these are yours to keep. Append each to the workbench, `~/.claude/skill-workbench/<skill>/feedback.md`, under a dated heading that names the project and target. It goes to `orchestrator` when it is about this skill, or to the crew skill it is about. Each entry names the line of that skill's SKILL.md you would change, with the wording. Create the file with a `# <skill> feedback` title if it is missing. Skip a push with nothing to learn.
 
-**Done when** `claude agents` shows no crew session and Matt has the cleanup command.
+**Done when** `claude agents` shows no crew session, Matt has the cleanup command, and each lesson is in a workbench file.
