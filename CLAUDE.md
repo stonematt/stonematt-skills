@@ -6,6 +6,8 @@
 
 See [`GLOSSARY.md`](./GLOSSARY.md) for the domain glossary and [`docs/adr/`](./docs/adr/) for architectural decisions.
 
+Installed skills are served from a worktree pinned to `origin/dev`, not from this checkout. To test a branch's skill in live sessions: `scripts/live-skills.sh --checkout <skill>`; put it back with `scripts/live-skills.sh`.
+
 ## Agent skills
 
 ### Issue tracker
