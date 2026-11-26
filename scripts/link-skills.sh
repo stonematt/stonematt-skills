@@ -93,3 +93,8 @@ for src in "${SKILL_DIRS[@]}"; do
     echo "linked $name -> $target"
   done
 done
+
+# Keep the pin: when a live worktree exists, installed skills are served from it.
+if [ -e "${STONE_SKILLS_LIVE:-$HOME/.local/share/stonematt-skills/live}/.git" ]; then
+  "$REPO/scripts/live-skills.sh"
+fi
